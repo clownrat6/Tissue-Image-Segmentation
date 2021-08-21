@@ -5,7 +5,7 @@ from mmcv.runner import BaseModule, _load_checkpoint
 from mmcv.utils.parrots_wrapper import _BatchNorm
 
 from tiseg.utils import get_root_logger
-from ...builder import BACKBONES
+from ..builder import BACKBONES
 
 
 def make_vgg_layer(in_channels,
@@ -38,8 +38,6 @@ class VGG(BaseModule):
         depth (int): Depth of vgg, from {11, 13, 16, 19}.
         in_channels (int): Number of input image channels. Default: 3.
         base_channels (int): Number of base channels of res layer. Default: 64.
-        with_fc (bool): Whether to use fc layer to process last stage feature
-            map. Default: False.
         num_stages (int): VGG stages. Default: 5.
         out_indices (Sequence[int], optional): Output from which stages.
             If only one stage is specified, a single tensor (feature map) is
@@ -79,7 +77,6 @@ class VGG(BaseModule):
                  depth,
                  in_channels=3,
                  base_channels=64,
-                 with_fc=False,
                  num_stages=5,
                  out_indices=None,
                  act_cfg=dict(type='ReLU'),
@@ -103,13 +100,12 @@ class VGG(BaseModule):
         self.stage_blocks = stage_blocks[:num_stages]
 
         # Set some arg to control model inference.
-        self.with_fc = with_fc
         self.norm_eval = norm_eval
 
         # Set which feature maps need to output.
         if out_indices is None:
-            out_indices = (5, ) if with_fc else (4, )
-        assert max(out_indices) < 5 or with_fc
+            out_indices = (4, )
+        assert max(out_indices) < 5
         assert max(out_indices) <= num_stages
         self.out_indices = out_indices
 
@@ -139,27 +135,6 @@ class VGG(BaseModule):
             self.range_sub_modules[-1][1] -= 1
 
         self.features = nn.Sequential(*vgg_layers)
-
-        if with_fc:
-            self.fcs = nn.Sequential(
-                Conv2d(
-                    in_channels=in_channels,
-                    out_channels=4096,
-                    kernel_size=7,
-                    stride=1,
-                    padding=(7 - 1) // 2), nn.ReLU(True), nn.Dropout(),
-                Conv2d(
-                    in_channels=4096,
-                    out_channels=4096,
-                    kernel_size=1,
-                    stride=1,
-                ), nn.ReLU(True), nn.Dropout(),
-                Conv2d(
-                    in_channels=4096,
-                    out_channels=1000,
-                    kernel_size=1,
-                    stride=1,
-                ))
 
     def init_weights(self):
         for m in self.modules():
@@ -198,12 +173,6 @@ class VGG(BaseModule):
                 x = vgg_layer(x)
             if i in self.out_indices:
                 outs.append(x)
-
-        # This part has been modified as vgg_fc8_full_conv of
-        # `https://github.com/ronghanghu/text_objseg/blob/tensorflow-1.x-compatibility/models/vgg_net.py`
-        if self.with_fc:
-            x = self.fcs(x)
-            outs.append(x)
 
         return outs
 
