@@ -138,6 +138,7 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         output = self(**data_batch, **kwargs)
         return output
 
+    # TODO: Refactor for pure semantic segmentation and instance segmentation
     def show_result(self,
                     img,
                     txt,
