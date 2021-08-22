@@ -55,8 +55,7 @@ def main():
     cfg = Config.fromfile(args.config)
     # set cudnn_benchmark
     torch.backends.cudnn.benchmark = False
-    cfg.model.img_pretrained = None
-    cfg.model.txt_pretrained = None
+    cfg.model.pretrained = None
     cfg.data.test.test_mode = True
 
     # model prepare

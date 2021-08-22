@@ -1,5 +1,3 @@
-import json
-import os
 import os.path as osp
 from collections import OrderedDict
 
@@ -28,11 +26,9 @@ class CustomDataset(Dataset):
                  pipelines,
                  img_dir,
                  ann_dir,
-                 sent_dir,
                  data_root=None,
                  img_suffix='.jpg',
                  ann_suffix='.png',
-                 sent_suffix='.json',
                  test_mode=False,
                  split=None):
 
@@ -40,18 +36,13 @@ class CustomDataset(Dataset):
 
         self.img_dir = img_dir
         self.ann_dir = ann_dir
-        self.sent_dir = sent_dir
         self.data_root = data_root
 
         self.img_suffix = img_suffix
         self.ann_suffix = ann_suffix
-        self.sent_suffix = sent_suffix
 
         self.test_mode = test_mode
         self.split = split
-
-        assert sent_suffix == '.json', 'It is only support json '
-        'sentence annotation now.'
 
         # join paths if data_root is specified
         if self.data_root is not None:
@@ -59,14 +50,11 @@ class CustomDataset(Dataset):
                 self.img_dir = osp.join(self.data_root, self.img_dir)
             if not (self.ann_dir is None or osp.isabs(self.ann_dir)):
                 self.ann_dir = osp.join(self.data_root, self.ann_dir)
-            if not (self.sent_dir is None or osp.isabs(self.sent_dir)):
-                self.sent_dir = osp.join(self.data_root, self.sent_dir)
             if not (self.split is None or osp.isabs(self.split)):
                 self.split = osp.join(self.data_root, self.split)
 
-        self.data_infos = self.load_annotations(self.sent_dir, self.img_suffix,
-                                                self.ann_suffix,
-                                                self.sent_suffix, self.split)
+        self.data_infos = self.load_annotations(self.img_suffix,
+                                                self.ann_suffix, self.split)
 
     def __len__(self):
         """Total number of samples of data."""
@@ -120,74 +108,64 @@ class CustomDataset(Dataset):
         results = {}
         results['img_info'] = {}
         results['ann_info'] = {}
-        results['txt_info'] = {}
-        results['sent_info'] = {}
 
         # path retrieval
         results['img_info']['img_name'] = data_info['img_name']
         results['img_info']['img_dir'] = self.img_dir
         results['ann_info']['ann_name'] = data_info['ann_name']
         results['ann_info']['ann_dir'] = self.ann_dir
-        results['sent_info']['sent_name'] = data_info['sent_name']
-        results['sent_info']['sent_dir'] = self.sent_dir
 
         # build seg fileds
         results['seg_fields'] = []
 
         return results
 
-    def load_annotations(self, sent_dir, img_suffix, ann_suffix, sent_suffix,
-                         split):
+    def load_annotations(self, img_suffix, ann_suffix, split):
         """Load annotation from directory.
 
-        In this task, we set one sent, sent related image and seg map as
-        a batch.
-
         Args:
-            sent (str): Path to sent info directory
             img_suffix (str): Suffix of images.
             ann_suffix (str): Suffix of segmentation maps.
-            sent_suffix (str): Suffix of sent info.
             split (str|None): Split txt file. If split is specified, only file
-                with suffix in the splits will be loaded. Otherwise, all sents
-                in sent_dir will be loaded. Default: None
+                with suffix in the splits will be loaded.
 
         Returns:
             list[dict]: All data info of dataset, data info contains image,
-                segmentation map and sent info filename.
+                segmentation map.
         """
-        data_infos = []
-        if split is not None:
-            with open(split, 'r') as fp:
-                for line in fp.readlines():
-                    img_id, ann_id, sent_id = line.strip().split()
-                    sent_name = sent_id + sent_suffix
-                    image_name = img_id + img_suffix
-                    ann_name = ann_id + ann_suffix
-                    data_info = dict(
-                        img_name=image_name,
-                        ann_name=ann_name,
-                        sent_name=sent_name)
-                    data_infos.append(data_info)
-        else:
-            for sent_name in os.listdir(self.sent_dir):
-                sent_path = osp.join(sent_dir, sent_name)
-                sent_info = json.load(open(sent_path, 'r'))
-                data_info = dict(
-                    img_name=sent_info['image_name'],
-                    ann_name=sent_info['ann_name'],
-                    sent_name=sent_name)
-                data_infos.append(data_info)
+        # TODO: Refactor for semantic & instance segmentation
+        # data_infos = []
+        # if split is not None:
+        #     with open(split, 'r') as fp:
+        #         for line in fp.readlines():
+        #             img_id, ann_id, sent_id = line.strip().split()
+        #             sent_name = sent_id + sent_suffix
+        #             image_name = img_id + img_suffix
+        #             ann_name = ann_id + ann_suffix
+        #             data_info = dict(
+        #                 img_name=image_name,
+        #                 ann_name=ann_name,
+        #                 sent_name=sent_name)
+        #             data_infos.append(data_info)
+        # else:
+        #     for sent_name in os.listdir(self.sent_dir):
+        #         sent_path = osp.join(sent_dir, sent_name)
+        #         sent_info = json.load(open(sent_path, 'r'))
+        #         data_info = dict(
+        #             img_name=sent_info['image_name'],
+        #             ann_name=sent_info['ann_name'],
+        #             sent_name=sent_name)
+        #         data_infos.append(data_info)
 
-        return data_infos
+        # return data_infos
 
-    def get_gt_instance_maps(self):
+    def get_gt_seg_maps(self):
         """Ground Truth maps generator."""
         for data_info in self.data_infos:
             instance_map = osp.join(self.ann_dir, data_info['ann_name'])
-            gt_instance_map = mmcv.imread(
+            gt_seg_map = mmcv.imread(
                 instance_map, flag='unchanged', backend='pillow')
-            yield gt_instance_map
+            yield gt_seg_map
 
     def pre_eval(self, preds, indices):
         """Collect eval result from each iteration.

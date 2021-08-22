@@ -101,7 +101,7 @@ class MultiScaleFlipAug(object):
                into a list.
         """
 
-        # Keep raw shape of gt_instance_map
+        # Keep raw shape of gt_seg_map
         results['seg_fields'].clear()
 
         aug_data = []

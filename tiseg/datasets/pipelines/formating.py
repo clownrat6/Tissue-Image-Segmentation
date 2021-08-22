@@ -147,43 +147,6 @@ class SegmapToTensor(object):
 
 
 @PIPELINES.register_module()
-class TextToTensor(object):
-    """Convert text to :obj:`torch.Tensor` by given keys.
-
-    The dimension order of input text is (L). The pipeline will convert
-    it to (C, L).
-
-    Args:
-        keys (Sequence[str]): Key of texts to be converted to Tensor.
-    """
-
-    def __init__(self, keys):
-        self.keys = keys
-
-    def __call__(self, results):
-        """Call function to convert text in results to :obj:`torch.Tensor` and
-        transpose the channel order.
-
-        Args:
-            results (dict): Result dict contains the text data to convert.
-
-        Returns:
-            dict: The result dict contains the image converted
-                to :obj:`torch.Tensor` and transposed to (C, H, W) order.
-        """
-
-        for key in self.keys:
-            txt = results[key]
-            if len(txt.shape) < 2:
-                txt = np.expand_dims(txt, -1)
-            results[key] = to_tensor(txt.transpose(1, 0))
-        return results
-
-    def __repr__(self):
-        return self.__class__.__name__ + f'(keys={self.keys})'
-
-
-@PIPELINES.register_module()
 class Transpose(object):
     """Transpose some results by given keys.
 
@@ -261,13 +224,11 @@ class DefaultFormatBundle(object):
     """Default formatting bundle.
 
     It simplifies the pipeline of formatting common fields, including "img",
-    "gt_instance_map" and "txt". These fields are formatted as follows.
+    "gt_seg_map". These fields are formatted as follows.
 
     - img: (1)transpose, (2)to tensor, (3)to DataContainer (stack=True)
-    - gt_semantic_seg: (1)unsqueeze dim(1), (2)to tensor,
+    - gt_seg_map: (1)unsqueeze dim(1), (2)to tensor,
                        (3)to DataContainer (stack=True)
-    - txt: (1)unsqueeze dim(0), (2)to tensor,
-           (3)to DataContainer (stack=True)
     """
 
     def __call__(self, results):
@@ -289,15 +250,11 @@ class DefaultFormatBundle(object):
             if img.dtype is not np.float32:
                 img = img.astype(np.float32)
             results['img'] = DC(to_tensor(img), stack=True)
-        if 'gt_instance_map' in results:
+        if 'gt_seg_map' in results:
             # convert to long
-            results['gt_instance_map'] = DC(
-                to_tensor(results['gt_instance_map'][None,
-                                                     ...].astype(np.int64)),
+            results['gt_seg_map'] = DC(
+                to_tensor(results['gt_seg_map'][None, ...].astype(np.int64)),
                 stack=True)
-        if 'txt' in results:
-            results['txt'] = DC(
-                to_tensor(results['txt'][None, ...]), stack=True, pad_dims=1)
         return results
 
     def __repr__(self):
@@ -342,9 +299,7 @@ class Collect(object):
             'img_norm_cfg')``
     """
 
-    def __init__(self,
-                 keys,
-                 meta_keys=('img_info', 'ann_info', 'sent_info', 'txt_info')):
+    def __init__(self, keys, meta_keys=('img_info', 'ann_info')):
         self.keys = keys
         self.meta_keys = meta_keys
 
