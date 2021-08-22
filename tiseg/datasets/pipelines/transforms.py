@@ -2,6 +2,7 @@ import mmcv
 import numpy as np
 from mmcv.utils import deprecated_api_warning, is_tuple_of
 from numpy import random
+from skimage import measure, morphology
 
 from ..builder import PIPELINES
 
@@ -555,7 +556,7 @@ class RandomCrop(object):
         if self.cat_max_ratio < 1.:
             # Repeat 10 times
             for _ in range(10):
-                seg_temp = self.crop(results['gt_instance_map'], crop_bbox)
+                seg_temp = self.crop(results['gt_seg_map'], crop_bbox)
                 labels, cnt = np.unique(seg_temp, return_counts=True)
                 if len(cnt) > 1 and np.max(cnt) / np.sum(
                         cnt) < self.cat_max_ratio:
@@ -916,7 +917,7 @@ class CheckDim(object):
 
     def __call__(self, results):
         img = results['img']
-        label = results['gt_instance_map']
+        label = results['gt_seg_map']
         assert len(img.shape) == 3 and len(label.shape) == 2
         # hw_shape check
         if img.shape[:2] != label.shape:
@@ -934,4 +935,40 @@ class CheckDim(object):
                     f'The image shape {img.shape} can\'t match label'
                     f'shape {label.shape}')
 
+        return results
+
+
+@PIPELINES.register_module()
+class EdgeLabelCalculation(object):
+
+    def __init__(self, edge_label_key='gt_seg_edge_map', radius=1):
+        self.edge_label_key = edge_label_key
+        self.radius = radius
+
+    def __call__(self, results):
+        label = results['gt_seg_map']
+        assert len(np.unique(label)) == 2, 'Only support binary label now.'
+        bounds = morphology.dilation(label) & (
+            ~morphology.erosion(label, morphology.disk(self.radius)))
+        edge_label = label.copy()
+        # Assign edge pixels
+        edge_label[bounds > 0] = 2
+        results[self.edge_label_key] = edge_label
+        return results
+
+
+@PIPELINES.register_module()
+class InstanceLabelCalculation(object):
+
+    def __init__(self, instance_label_key='gt_seg_instance_map'):
+        self.instance_label_key = instance_label_key
+
+    def __call__(self, results):
+        label = results['gt_seg_map']
+        assert len(np.unique(label)) == 2, 'Only support binary label now.'
+        instance_label = measure.label((label == 1).astype(np.uint8))
+        instance_label = morphology.dilation(
+            instance_label, selem=morphology.selem.disk(self.radius))
+        # instantiation
+        results[self.instance_label_key] = instance_label
         return results
