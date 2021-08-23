@@ -66,13 +66,8 @@ class AU(nn.Module):
     def __init__(self, in_channels, num_masks=1):
         super().__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(
-                in_channels,
-                num_masks,
-                kernel_size=1,
-                bias=False,
-                norm_cfg=None,
-                act_cfg=None), nn.Sigmoid())
+            nn.Conv2d(in_channels, num_masks, kernel_size=1, bias=False),
+            nn.Sigmoid())
 
     def forward(self, signal, gate):
         """Using gate to generate attention map and assign the attention map to
@@ -146,7 +141,7 @@ class DGM(nn.Module):
         return mask_logit, direction_logit, point_logit
 
 
-class CDNetHead(BaseDecodeHead):
+class CDHead(BaseDecodeHead):
     """CDNet: Centripetal Direction Network for Nuclear Instance Segmentation
 
     This head is the implementation of `CDNet <->`_.
@@ -159,18 +154,20 @@ class CDNetHead(BaseDecodeHead):
         extra_stage_channels (int, optional): Set the extra stage channels.
             Default: None
         extra_stage_convs (int, optional): Set the number of extra stage convs.
-            Default: 3.
+            Default: None.
     """
 
     def __init__(self,
                  stage_convs=[3, 3, 3, 3],
                  stage_channels=[16, 32, 64, 128],
-                 extra_stage_channels=256,
-                 extra_stage_convs=3,
+                 extra_stage_channels=None,
+                 extra_stage_convs=None,
                  **kwargs):
         self.stage_channels = stage_channels
         self.extra_stage_channels = extra_stage_channels
         self.extra_stage_convs = extra_stage_convs
+        if extra_stage_channels is None:
+            assert extra_stage_convs is None, 'Extra stage can\'t be set.'
         super().__init__(input_transform='multiple_select', **kwargs)
 
         # initial check
@@ -206,8 +203,8 @@ class CDNetHead(BaseDecodeHead):
         channel_pairs = channel_pairs[::-1]
 
         self.decode_stages = nn.ModuleList()
-        for skip_channels, feedforward_channels, in_channels, depth in zip(
-                channel_pairs, stage_convs):
+        for (skip_channels, feedforward_channels,
+             in_channels), depth in zip(channel_pairs, stage_convs):
             self.decode_stages.append(
                 UNetDecoderLayer(
                     in_channels=in_channels,
@@ -228,7 +225,7 @@ class CDNetHead(BaseDecodeHead):
         # Deprecated cls_seg
         self.conv_seg = None
 
-    def forward_train(self, inputs):
+    def forward(self, inputs):
         inputs = self._transform_inputs(inputs)
 
         # extra stage process
@@ -246,6 +243,11 @@ class CDNetHead(BaseDecodeHead):
 
         # post process
         mask_out, direction_out, point_out = self.post_process(x)
+
+        return mask_out, direction_out, point_out
+
+    def forward_train(self, inputs):
+        mask_out, direction_out, point_out = self.forward(inputs)
 
     def losses(self, logit, label):
         return super().losses(logit, label)
