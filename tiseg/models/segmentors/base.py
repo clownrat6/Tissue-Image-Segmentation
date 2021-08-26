@@ -137,7 +137,7 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
     # TODO: Refactor for pure semantic segmentation and instance segmentation
     def show_result(self,
                     img,
-                    gt_seg_map,
+                    gt_semantic_map,
                     pred_seg_map,
                     palette=None,
                     win_name='',
@@ -149,7 +149,7 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
 
         Args:
             img (np.ndarray): The image to be displayed.
-            gt_seg_map (np.ndarray): The ground truth instance map to be
+            gt_semantic_map (np.ndarray): The ground truth instance map to be
                 displayed.
             result (Tensor): The semantic segmentation results to draw over
                 `img`.

@@ -140,7 +140,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         """Placeholder of forward function."""
         pass
 
-    def forward_train(self, inputs, metas, gt_seg_map, train_cfg):
+    def forward_train(self, inputs, metas, gt_semantic_map, train_cfg):
         """Forward function for training.
         Args:
             inputs (list[Tensor]): List of multi-level img features.
@@ -149,7 +149,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
                 'filename', 'ori_shape', 'pad_shape', and 'img_norm_cfg'.
                 For details on the values of these keys see
                 `mmseg/datasets/pipelines/formatting.py:Collect`.
-            gt_seg_map (Tensor): Semantic segmentation masks
+            gt_semantic_map (Tensor): Semantic segmentation masks
                 used if the architecture supports semantic segmentation task.
             train_cfg (dict): The training config.
 
@@ -157,7 +157,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
             dict[str, Tensor]: a dictionary of loss components
         """
         seg_logits = self.forward(inputs)
-        losses = self.losses(seg_logits, gt_seg_map)
+        losses = self.losses(seg_logits, gt_semantic_map)
         return losses
 
     def forward_test(self, inputs, metas, test_cfg):

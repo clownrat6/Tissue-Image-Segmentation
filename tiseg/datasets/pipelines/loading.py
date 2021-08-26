@@ -97,7 +97,7 @@ class LoadImageFromFile(object):
 
 @PIPELINES.register_module()
 class LoadAnnotations(object):
-    """Load annotations for referring expression segmentation.
+    """Load semantic level annotations.
 
     Args:
         file_client_args (dict): Arguments to instantiate a FileClient.
@@ -133,7 +133,7 @@ class LoadAnnotations(object):
         else:
             filename = results['ann_info']['ann_name']
         img_bytes = self.file_client.get(filename)
-        gt_seg_map = mmcv.imfrombytes(
+        gt_semantic_map = mmcv.imfrombytes(
             img_bytes, flag='unchanged',
             backend=self.imdecode_backend).squeeze().astype(np.uint8)
         # modify if custom classes
@@ -141,9 +141,9 @@ class LoadAnnotations(object):
         # That's because map always has two classes - background and object.
         if results['ann_info'].get('label_map', None) is not None:
             for old_id, new_id in results['ann_info']['label_map'].items():
-                gt_seg_map[gt_seg_map == old_id] = new_id
-        results['gt_seg_map'] = gt_seg_map
-        results['seg_fields'].append('gt_seg_map')
+                gt_semantic_map[gt_semantic_map == old_id] = new_id
+        results['gt_semantic_map'] = gt_semantic_map
+        results['seg_fields'].append('gt_semantic_map')
         return results
 
     def __repr__(self):

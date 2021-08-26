@@ -224,10 +224,10 @@ class DefaultFormatBundle(object):
     """Default formatting bundle.
 
     It simplifies the pipeline of formatting common fields, including "img",
-    "gt_seg_map". These fields are formatted as follows.
+    "gt_semantic_map". These fields are formatted as follows.
 
     - img: (1)transpose, (2)to tensor, (3)to DataContainer (stack=True)
-    - gt_seg_map: (1)unsqueeze dim(1), (2)to tensor,
+    - gt_semantic_map: (1)unsqueeze dim(1), (2)to tensor,
                        (3)to DataContainer (stack=True)
     """
 
@@ -250,10 +250,11 @@ class DefaultFormatBundle(object):
             if img.dtype is not np.float32:
                 img = img.astype(np.float32)
             results['img'] = DC(to_tensor(img), stack=True)
-        if 'gt_seg_map' in results:
+        if 'gt_semantic_map' in results:
             # convert to long
-            results['gt_seg_map'] = DC(
-                to_tensor(results['gt_seg_map'][None, ...].astype(np.int64)),
+            results['gt_semantic_map'] = DC(
+                to_tensor(results['gt_semantic_map'][None,
+                                                     ...].astype(np.int64)),
                 stack=True)
         return results
 
