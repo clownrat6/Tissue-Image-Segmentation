@@ -127,9 +127,16 @@ def convert_train_cohort(raw_path, new_path, with_edge=True):
         np.save(dst_instance_label_path, instance_label)
 
         # Save semantic level label
-        dst_semantic_label_path = osp.join(new_path, item + '_semantic.png')
+        if with_edge:
+            dst_semantic_label_path = osp.join(
+                new_path, item + '_semantic_with_edge.png')
+        else:
+            dst_semantic_label_path = osp.join(new_path,
+                                               item + '_semantic.png')
         semantic_label_png = Image.fromarray(semantic_label)
         semantic_label_png.save(dst_semantic_label_path)
+
+    return item_list
 
 
 def convert_test_cohort(raw_path, new_path, with_edge=True):
@@ -158,9 +165,16 @@ def convert_test_cohort(raw_path, new_path, with_edge=True):
         np.save(dst_instance_label_path, instance_label)
 
         # Save semantic level label
-        dst_semantic_label_path = osp.join(new_path, item + '_semantic.png')
+        if with_edge:
+            dst_semantic_label_path = osp.join(
+                new_path, item + '_semantic_with_edge.png')
+        else:
+            dst_semantic_label_path = osp.join(new_path,
+                                               item + '_semantic.png')
         semantic_label_png = Image.fromarray(semantic_label)
         semantic_label_png.save(dst_semantic_label_path)
+
+    return item_list
 
 
 def parse_args():
@@ -187,10 +201,14 @@ def main():
     test_new_path = osp.join(root_path, 'test')
 
     # make train cohort dataset
-    convert_train_cohort(train_raw_path, train_new_path, with_edge)
+    item_list = convert_train_cohort(train_raw_path, train_new_path, with_edge)
+    with open(osp.join(root_path, 'train.txt'), 'w') as fp:
+        [fp.write(item + '\n') for item in item_list]
 
     # make test cohort dataset
-    convert_test_cohort(test_raw_path, test_new_path, with_edge)
+    item_list = convert_test_cohort(test_raw_path, test_new_path, with_edge)
+    with open(osp.join(root_path, 'test.txt'), 'w') as fp:
+        [fp.write(item + '\n') for item in item_list]
 
 
 if __name__ == '__main__':
