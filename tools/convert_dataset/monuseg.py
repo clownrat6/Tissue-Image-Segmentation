@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from lxml import etree
 from PIL import Image
+from rich.progress import track
 from skimage import morphology
 
 
@@ -106,7 +107,7 @@ def convert_train_cohort(raw_path, new_path, with_edge=True):
 
     item_list = [x.rstrip('.tif') for x in os.listdir(raw_image_folder)]
 
-    for item in item_list:
+    for item in track(item_list):
         image_path = osp.join(raw_image_folder, item + '.tif')
         label_path = osp.join(raw_label_folder, item + '.xml')
 
@@ -137,7 +138,7 @@ def convert_test_cohort(raw_path, new_path, with_edge=True):
 
     item_list = [x.rstrip('.tif') for x in os.listdir(raw_path) if '.tif' in x]
 
-    for item in item_list:
+    for item in track(item_list):
         image_path = osp.join(raw_path, item + '.tif')
         label_path = osp.join(raw_path, item + '.xml')
 
