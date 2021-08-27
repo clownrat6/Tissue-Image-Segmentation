@@ -180,8 +180,7 @@ def main():
     root_path = args.root_path
     with_edge = args.with_edge
 
-    train_raw_path = osp.join(root_path, 'MoNuSeg 2018 Training Data',
-                              'MoNuSeg 2018 Training Data')
+    train_raw_path = osp.join(root_path, 'MoNuSeg 2018 Training Data')
     test_raw_path = osp.join(root_path, 'MoNuSegTestData')
 
     train_new_path = osp.join(root_path, 'train')
