@@ -64,11 +64,11 @@ class EncoderDecoder(BaseSegmentor):
             x = self.neck(x)
         return x
 
-    def encode_decode(self, img, img_metas):
+    def encode_decode(self, img, metas):
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
         x = self.extract_feat(img)
-        out = self._decode_head_forward_test(x, img_metas)
+        out = self._decode_head_forward_test(x, metas)
         out = resize(
             input=out,
             size=img.shape[2:],
@@ -76,41 +76,74 @@ class EncoderDecoder(BaseSegmentor):
             align_corners=self.align_corners)
         return out
 
-    def _decode_head_forward_train(self, x, img_metas, gt_semantic_seg):
+    def _decode_head_forward_train(self, x, metas, gt_semantic_map):
         """Run forward function and calculate loss for decode head in
         training."""
         losses = dict()
-        loss_decode = self.decode_head.forward_train(x, img_metas,
-                                                     gt_semantic_seg,
+        loss_decode = self.decode_head.forward_train(x, metas, gt_semantic_map,
                                                      self.train_cfg)
 
         losses.update(add_prefix(loss_decode, 'decode'))
         return losses
 
-    def _decode_head_forward_test(self, x, img_metas):
+    def _decode_head_forward_test(self, x, metas):
         """Run forward function and calculate loss for decode head in
         inference."""
-        seg_logits = self.decode_head.forward_test(x, img_metas, self.test_cfg)
+        seg_logits = self.decode_head.forward_test(x, metas, self.test_cfg)
         return seg_logits
 
-    def _auxiliary_head_forward_train(self, x, img_metas, gt_semantic_seg):
+    def _auxiliary_head_forward_train(self, x, metas, gt_semantic_map):
         """Run forward function and calculate loss for auxiliary head in
         training."""
         losses = dict()
         if isinstance(self.auxiliary_head, nn.ModuleList):
             for idx, aux_head in enumerate(self.auxiliary_head):
-                loss_aux = aux_head.forward_train(x, img_metas,
-                                                  gt_semantic_seg,
+                loss_aux = aux_head.forward_train(x, metas, gt_semantic_map,
                                                   self.train_cfg)
                 losses.update(add_prefix(loss_aux, f'aux_{idx}'))
         else:
             loss_aux = self.auxiliary_head.forward_train(
-                x, img_metas, gt_semantic_seg, self.train_cfg)
+                x, metas, gt_semantic_map, self.train_cfg)
             losses.update(add_prefix(loss_aux, 'aux'))
 
         return losses
 
-    def forward_train(self, img, img_metas, gt_semantic_seg):
+    def forward_test(self, data, metas, **kwargs):
+        """
+        Args:
+            imgs (List[Tensor]): the outer list indicates test-time
+                augmentations and inner Tensor should have a shape NxCxHxW,
+                which contains all images in the batch.
+            img_metas (List[List[dict]]): the outer list indicates test-time
+                augs (multiscale, flip, etc.) and the inner list indicates
+                images in a batch.
+        """
+        imgs = data['img']
+        for var, name in [(imgs, 'imgs'), (metas, 'metas')]:
+            if not isinstance(var, list):
+                raise TypeError(f'{name} must be a list, but got '
+                                f'{type(var)}')
+
+        num_augs = len(imgs)
+        if num_augs != len(metas):
+            raise ValueError(f'num of augmentations ({len(imgs)}) != '
+                             f'num of image meta ({len(metas)})')
+        # all images in the same aug batch all of the same ori_shape and pad
+        # shape
+        for meta in metas:
+            ori_shapes = [_['img_info']['ori_shape'] for _ in meta]
+            assert all(shape == ori_shapes[0] for shape in ori_shapes)
+            img_shapes = [_['img_info']['img_shape'] for _ in meta]
+            assert all(shape == img_shapes[0] for shape in img_shapes)
+            pad_shapes = [_['img_info']['pad_shape'] for _ in meta]
+            assert all(shape == pad_shapes[0] for shape in pad_shapes)
+
+        if num_augs == 1:
+            return self.simple_test(imgs[0], metas[0], **kwargs)
+        else:
+            return self.aug_test(imgs, metas, **kwargs)
+
+    def forward_train(self, data, metas, label):
         """Forward function for training.
 
         Args:
@@ -127,17 +160,17 @@ class EncoderDecoder(BaseSegmentor):
             dict[str, Tensor]: a dictionary of loss components
         """
 
-        x = self.extract_feat(img)
+        x = self.extract_feat(data['img'])
 
         losses = dict()
 
-        loss_decode = self._decode_head_forward_train(x, img_metas,
-                                                      gt_semantic_seg)
+        loss_decode = self._decode_head_forward_train(x, metas,
+                                                      label['gt_semantic_map'])
         losses.update(loss_decode)
 
         if self.with_auxiliary_head:
             loss_aux = self._auxiliary_head_forward_train(
-                x, img_metas, gt_semantic_seg)
+                x, metas, label['gt_semantic_map'])
             losses.update(loss_aux)
 
         return losses
