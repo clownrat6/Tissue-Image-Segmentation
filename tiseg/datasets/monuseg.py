@@ -151,9 +151,8 @@ class MoNuSeg(Dataset):
                     data_infos.append(data_info)
         else:
             for img_name in mmcv.scandir(img_dir, img_suffix, recursive=True):
-                data_info = dict(filename=img_name)
                 ann_name = img_name.replace(img_suffix, ann_suffix)
-                data_info['ann'] = dict(ann_name=ann_name)
+                data_info = dict(img_name=img_name, ann_name=ann_name)
                 data_infos.append(data_info)
 
         return data_infos
