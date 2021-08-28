@@ -14,7 +14,7 @@ from .pipelines import Compose
 
 
 @DATASETS.register_module()
-class MoNuSeg(Dataset):
+class MoNuSegDataset(Dataset):
 
     vocab = None
 
@@ -23,7 +23,7 @@ class MoNuSeg(Dataset):
     PALETTE = [[0, 0, 0], [255, 2, 255], [2, 255, 255]]
 
     def __init__(self,
-                 pipelines,
+                 pipeline,
                  img_dir,
                  ann_dir,
                  data_root=None,
@@ -32,7 +32,7 @@ class MoNuSeg(Dataset):
                  test_mode=False,
                  split=None):
 
-        self.pipelines = Compose(pipelines)
+        self.pipeline = Compose(pipeline)
 
         self.img_dir = img_dir
         self.ann_dir = ann_dir
@@ -53,8 +53,8 @@ class MoNuSeg(Dataset):
             if not (self.split is None or osp.isabs(self.split)):
                 self.split = osp.join(self.data_root, self.split)
 
-        self.data_infos = self.load_annotations(self.img_suffix,
-                                                self.ann_suffix, self.split)
+        self.data_infos = self.load_annotations(self.img_dir, self.img_suffix,
+                                                self.ann_suffix)
 
     def __len__(self):
         """Total number of samples of data."""
@@ -87,7 +87,7 @@ class MoNuSeg(Dataset):
         """
         data_info = self.data_infos[index]
         results = self.pre_pipeline(data_info)
-        return self.pipelines(results)
+        return self.pipeline(results)
 
     def prepare_train_data(self, index):
         """Get training data and annotations after pipeline.
@@ -101,7 +101,7 @@ class MoNuSeg(Dataset):
         """
         data_info = self.data_infos[index]
         results = self.pre_pipeline(data_info)
-        return self.pipelines(results)
+        return self.pipeline(results)
 
     def pre_pipeline(self, data_info):
         """Prepare results dict for pipeline."""
@@ -120,12 +120,7 @@ class MoNuSeg(Dataset):
 
         return results
 
-    def load_annotations(self,
-                         img_dir,
-                         ann_dir,
-                         img_suffix,
-                         ann_suffix,
-                         split=None):
+    def load_annotations(self, img_dir, img_suffix, ann_suffix, split=None):
         """Load annotation from directory.
 
         Args:
@@ -151,9 +146,8 @@ class MoNuSeg(Dataset):
                     data_infos.append(data_info)
         else:
             for img_name in mmcv.scandir(img_dir, img_suffix, recursive=True):
-                data_info = dict(filename=img_name)
                 ann_name = img_name.replace(img_suffix, ann_suffix)
-                data_info['ann'] = dict(ann_name=ann_name)
+                data_info = dict(ann_name=ann_name, img_name=img_name)
                 data_infos.append(data_info)
 
         return data_infos
