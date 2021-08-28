@@ -1,4 +1,17 @@
-# Data Preparetion
+# Dataset Prepare
+
+It is recommended to symlink the dataset root to `$ROOT/data`. If your folder structure is different, you may need to change the corresponding paths in config files.
+
+```None
+data
+└── monuseg
+    ├── MoNuSeg 2018 Training Data
+    ├── MoNuSegTestData
+    ├── train
+    ├── test
+    ├── train.txt
+    └── test.txt
+```
 
 ## MoNuSeg Nuclei Segmentation Dataset
 
