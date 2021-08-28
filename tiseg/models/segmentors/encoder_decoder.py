@@ -108,25 +108,28 @@ class EncoderDecoder(BaseSegmentor):
 
         return losses
 
-    def forward_test(self, data, metas, **kwargs):
+    def forward_test(self, data, metas, label, **kwargs):
         """
         Args:
-            imgs (List[Tensor]): the outer list indicates test-time
-                augmentations and inner Tensor should have a shape NxCxHxW,
-                which contains all images in the batch.
-            img_metas (List[List[dict]]): the outer list indicates test-time
+            data (List[dict]): test-time augmentations data wrapper list and
+                inner structure:
+                    [dict('img': Tensor (NxCxHxW)), ...]
+            metas (List[List[dict]]): the outer list indicates test-time
                 augs (multiscale, flip, etc.) and the inner list indicates
                 images in a batch.
+            label: The placeholder to compat with forward_train
         """
-        imgs = data['img']
+        imgs = [single_data['img'] for single_data in data]
+        assert label == [], (
+            'There is no need keeping "label" key when evaluation.')
         for var, name in [(imgs, 'imgs'), (metas, 'metas')]:
             if not isinstance(var, list):
                 raise TypeError(f'{name} must be a list, but got '
                                 f'{type(var)}')
 
-        num_augs = len(imgs)
+        num_augs = len(data)
         if num_augs != len(metas):
-            raise ValueError(f'num of augmentations ({len(imgs)}) != '
+            raise ValueError(f'num of augmentations ({len(data)}) != '
                              f'num of image meta ({len(metas)})')
         # all images in the same aug batch all of the same ori_shape and pad
         # shape
@@ -147,14 +150,12 @@ class EncoderDecoder(BaseSegmentor):
         """Forward function for training.
 
         Args:
-            img (Tensor): Input images.
-            img_metas (list[dict]): List of image info dict where each dict
-                has: 'img_shape', 'scale_factor', 'flip', and may also contain
-                'filename', 'ori_shape', 'pad_shape', and 'img_norm_cfg'.
-                For details on the values of these keys see
-                `mmseg/datasets/pipelines/formatting.py:Collect`.
-            gt_semantic_seg (Tensor): Semantic segmentation masks
-                used if the architecture supports semantic segmentation task.
+            data (dict): Input data wrapper, inner structure:
+                data = dict('img': Tensor (NxCxHxW)).
+            metas (list[dict]): List of data info dict where each dict
+                has: 'img_info', 'ann_info'.
+            label (dict): Label wrapper, inner structure:
+                label = dict('gt_semantic_map': Tensor (NxCxHxW).
 
         Returns:
             dict[str, Tensor]: a dictionary of loss components
@@ -176,7 +177,7 @@ class EncoderDecoder(BaseSegmentor):
         return losses
 
     # TODO refactor
-    def slide_inference(self, img, img_meta, rescale):
+    def slide_inference(self, img, meta, rescale):
         """Inference by sliding-window with overlap.
 
         If h_crop > h_img or w_crop > w_img, the small patch will be used to
@@ -200,7 +201,7 @@ class EncoderDecoder(BaseSegmentor):
                 y1 = max(y2 - h_crop, 0)
                 x1 = max(x2 - w_crop, 0)
                 crop_img = img[:, :, y1:y2, x1:x2]
-                crop_seg_logit = self.encode_decode(crop_img, img_meta)
+                crop_seg_logit = self.encode_decode(crop_img, meta)
                 preds += F.pad(crop_seg_logit,
                                (int(x1), int(preds.shape[3] - x2), int(y1),
                                 int(preds.shape[2] - y2)))
@@ -211,18 +212,18 @@ class EncoderDecoder(BaseSegmentor):
         if rescale:
             preds = resize(
                 preds,
-                size=img_meta[0]['ori_shape'][:2],
+                size=meta[0]['ori_shape'][:2],
                 mode='bilinear',
                 align_corners=self.align_corners,
                 warning=False)
         return preds
 
-    def whole_inference(self, img, img_meta, rescale):
+    def whole_inference(self, img, meta, rescale):
         """Inference with full image."""
 
-        seg_logit = self.encode_decode(img, img_meta)
+        seg_logit = self.encode_decode(img, meta)
         if rescale:
-            size = img_meta[0]['ori_shape'][:2]
+            size = meta[0]['img_info']['ori_shape'][:2]
             seg_logit = resize(
                 seg_logit,
                 size=size,
@@ -232,16 +233,13 @@ class EncoderDecoder(BaseSegmentor):
 
         return seg_logit
 
-    def inference(self, img, img_meta, rescale):
+    def inference(self, img, meta, rescale):
         """Inference with slide/whole style.
 
         Args:
             img (Tensor): The input image of shape (N, 3, H, W).
-            img_meta (dict): Image info dict where each dict has: 'img_shape',
-                'scale_factor', 'flip', and may also contain
-                'filename', 'ori_shape', 'pad_shape', and 'img_norm_cfg'.
-                For details on the values of these keys see
-                `mmseg/datasets/pipelines/formatting.py:Collect`.
+            meta (dict): Image info dict where each dict has: 'img_info',
+                'ann_info'
             rescale (bool): Whether rescale back to original shape.
 
         Returns:
@@ -249,16 +247,16 @@ class EncoderDecoder(BaseSegmentor):
         """
 
         assert self.test_cfg.mode in ['slide', 'whole']
-        ori_shape = img_meta[0]['ori_shape']
-        assert all(_['ori_shape'] == ori_shape for _ in img_meta)
+        ori_shape = meta[0]['img_info']['ori_shape']
+        assert all(_['img_info']['ori_shape'] == ori_shape for _ in meta)
         if self.test_cfg.mode == 'slide':
-            seg_logit = self.slide_inference(img, img_meta, rescale)
+            seg_logit = self.slide_inference(img, meta, rescale)
         else:
-            seg_logit = self.whole_inference(img, img_meta, rescale)
+            seg_logit = self.whole_inference(img, meta, rescale)
         output = F.softmax(seg_logit, dim=1)
-        flip = img_meta[0]['flip']
+        flip = meta[0]['img_info']['flip']
         if flip:
-            flip_direction = img_meta[0]['flip_direction']
+            flip_direction = meta[0]['img_info']['flip_direction']
             assert flip_direction in ['horizontal', 'vertical']
             if flip_direction == 'horizontal':
                 output = output.flip(dims=(3, ))
@@ -267,16 +265,16 @@ class EncoderDecoder(BaseSegmentor):
 
         return output
 
-    def simple_test(self, img, img_meta, rescale=True):
+    def simple_test(self, img, meta, rescale=True):
         """Simple test with single image."""
-        seg_logit = self.inference(img, img_meta, rescale)
+        seg_logit = self.inference(img, meta, rescale)
         seg_pred = seg_logit.argmax(dim=1)
         seg_pred = seg_pred.cpu().numpy()
         # unravel batch dim
         seg_pred = list(seg_pred)
         return seg_pred
 
-    def aug_test(self, imgs, img_metas, rescale=True):
+    def aug_test(self, imgs, metas, rescale=True):
         """Test with augmentations.
 
         Only rescale=True is supported.
@@ -284,9 +282,9 @@ class EncoderDecoder(BaseSegmentor):
         # aug_test rescale all imgs back to ori_shape for now
         assert rescale
         # to save memory, we get augmented seg logit inplace
-        seg_logit = self.inference(imgs[0], img_metas[0], rescale)
+        seg_logit = self.inference(imgs[0], metas[0], rescale)
         for i in range(1, len(imgs)):
-            cur_seg_logit = self.inference(imgs[i], img_metas[i], rescale)
+            cur_seg_logit = self.inference(imgs[i], metas[i], rescale)
             seg_logit += cur_seg_logit
         seg_logit /= len(imgs)
         seg_pred = seg_logit.argmax(dim=1)
