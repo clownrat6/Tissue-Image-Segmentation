@@ -978,9 +978,17 @@ class RandomFilter(object):
         return results
 
 
-# TODO: Add comments and doc strings
 @PIPELINES.register_module()
 class EdgeMapCalculation(object):
+    """Edge Class Calculation.
+
+    Only support two-class semantic map now.
+
+    Arg:
+        radius (int): Morphological Operations hyper parameters. Default: 1
+        edge_map_key (str): Semantic Map with edge class.
+            Default: gt_semantic_map_edge
+    """
 
     def __init__(self, radius=1, edge_map_key='gt_semantic_map_edge'):
         self.radius = radius
@@ -1001,6 +1009,19 @@ class EdgeMapCalculation(object):
 # TODO: Add comments and doc strings
 @PIPELINES.register_module()
 class InstanceMapCalculation(object):
+    """Calculate instances according to semantic map.
+
+    Only support two-class semantic map now.
+
+    Args:
+        remove_small_object (bool): Whether to remove small object.
+            Default: True
+        object_small_size (int): The minimal size of object to remove.
+            Default: 10
+        radius (int): Morphological Operations hyper parameters. Default: 1
+        instance_map_key (str): Instance Map converted from Semantic Map
+            storage key. Default: 'gt_instance_map'
+    """
 
     def __init__(self,
                  remove_small_object=True,
@@ -1058,6 +1079,14 @@ class InstanceMapCalculation(object):
 
 @PIPELINES.register_module()
 class PointMapCalculation(object):
+    """Calculate Point Map and Gradient Map for every instance.
+
+    Args:
+        radius (int): Morphological Operations hyper parameters. Default: 1
+        point_map_key (str): Point Map storage key. Default: 'gt_point_map'
+        gradient_map_key (str): Gradient Map storage key.
+            Default: 'gt_gradient_map'
+    """
 
     def __init__(self,
                  radius=1,
@@ -1135,10 +1164,22 @@ class PointMapCalculation(object):
 
 @PIPELINES.register_module()
 class DirectionMapCalculation(object):
+    """Calculate Direction Map & Angle Map according to gradient map.
+
+    Direction Map divide Angle Map into multiple classes.
+
+    Args:
+        num_angle_types (int): Divide angle to multiple classes. Default: 8
+        angle_map_key (str): Angle Map storage key. Default: 'gt_angle_map'
+        direction_map_key (str): Direction Map storage key.
+            Default: 'gt_direction_map'
+    """
 
     def __init__(self,
+                 num_angle_types=8,
                  angle_map_key='gt_angle_map',
                  direction_map_key='gt_direction_map'):
+        self.num_angle_types = num_angle_types
         self.angle_map_key = angle_map_key
         self.direction_map_key = direction_map_key
 
@@ -1149,9 +1190,9 @@ class DirectionMapCalculation(object):
         # continue angle calculation
         angle_map = np.degrees(
             np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
-        vector_map = angle_to_vector(angle_map)
+        vector_map = angle_to_vector(angle_map, self.num_angle_types)
         # angle type judgement
-        direction_map = vector_to_label(vector_map)
+        direction_map = vector_to_label(vector_map, self.num_angle_types)
         direction_map[semantic_map == 0] = -1
         direction_map = direction_map + 1
         # set median value

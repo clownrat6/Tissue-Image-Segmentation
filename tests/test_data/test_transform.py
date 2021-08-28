@@ -55,7 +55,7 @@ def test_label_calculation():
     plt.imshow(pseudo_point_map)
 
     # Test DirectionMapCalculation
-    transform = DirectionMapCalculation()
+    transform = DirectionMapCalculation(num_angle_types=8)
     results_direction = transform(results_point)
     pseudo_angle_map = results_direction['gt_angle_map']
     pseudo_direction_map = results_direction['gt_direction_map']
