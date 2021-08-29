@@ -8,8 +8,8 @@ from .base import BaseSegmentor
 
 
 @SEGMENTORS.register_module()
-class EncoderDecoder(BaseSegmentor):
-    """Encoder Decoder segmentors.
+class EncoderDecoderPostProcess(BaseSegmentor):
+    """Encoder Decoder segmentors with postprocess.
 
     EncoderDecoder typically consists of backbone, decode_head, auxiliary_head.
     Note that auxiliary_head is only used for deep supervision during training,
@@ -25,7 +25,7 @@ class EncoderDecoder(BaseSegmentor):
                  test_cfg=None,
                  pretrained=None,
                  init_cfg=None):
-        super(EncoderDecoder, self).__init__(init_cfg)
+        super(EncoderDecoderPostProcess, self).__init__(init_cfg)
         if pretrained is not None:
             assert backbone.get('pretrained') is None, \
                 'both backbone and segmentor set pretrained weight'
@@ -76,11 +76,11 @@ class EncoderDecoder(BaseSegmentor):
             align_corners=self.align_corners)
         return out
 
-    def _decode_head_forward_train(self, x, metas, gt_semantic_map):
+    def _decode_head_forward_train(self, x, metas, label):
         """Run forward function and calculate loss for decode head in
         training."""
         losses = dict()
-        loss_decode = self.decode_head.forward_train(x, metas, gt_semantic_map,
+        loss_decode = self.decode_head.forward_train(x, metas, label,
                                                      self.train_cfg)
 
         losses.update(add_prefix(loss_decode, 'decode'))
@@ -92,18 +92,18 @@ class EncoderDecoder(BaseSegmentor):
         seg_logits = self.decode_head.forward_test(x, metas, self.test_cfg)
         return seg_logits
 
-    def _auxiliary_head_forward_train(self, x, metas, gt_semantic_map):
+    def _auxiliary_head_forward_train(self, x, metas, label):
         """Run forward function and calculate loss for auxiliary head in
         training."""
         losses = dict()
         if isinstance(self.auxiliary_head, nn.ModuleList):
             for idx, aux_head in enumerate(self.auxiliary_head):
-                loss_aux = aux_head.forward_train(x, metas, gt_semantic_map,
+                loss_aux = aux_head.forward_train(x, metas, label,
                                                   self.train_cfg)
                 losses.update(add_prefix(loss_aux, f'aux_{idx}'))
         else:
             loss_aux = self.auxiliary_head.forward_train(
-                x, metas, gt_semantic_map, self.train_cfg)
+                x, metas, label, self.train_cfg)
             losses.update(add_prefix(loss_aux, 'aux'))
 
         return losses
@@ -165,13 +165,11 @@ class EncoderDecoder(BaseSegmentor):
 
         losses = dict()
 
-        loss_decode = self._decode_head_forward_train(x, metas,
-                                                      label['gt_semantic_map'])
+        loss_decode = self._decode_head_forward_train(x, metas, label)
         losses.update(loss_decode)
 
         if self.with_auxiliary_head:
-            loss_aux = self._auxiliary_head_forward_train(
-                x, metas, label['gt_semantic_map'])
+            loss_aux = self._auxiliary_head_forward_train(x, metas, label)
             losses.update(loss_aux)
 
         return losses

@@ -1,6 +1,9 @@
+import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule, build_activation_layer
 
+from tiseg.utils import resize
+from ..builder import HEADS
 from ..utils import UNetDecoderLayer, UNetNeckLayer
 from .decode_head import BaseDecodeHead
 
@@ -141,6 +144,7 @@ class DGM(nn.Module):
         return mask_logit, direction_logit, point_logit
 
 
+@HEADS.register_module()
 class CDHead(BaseDecodeHead):
     """CDNet: Centripetal Direction Network for Nuclear Instance Segmentation
 
@@ -223,7 +227,7 @@ class CDHead(BaseDecodeHead):
             act_cfg=self.act_cfg)
 
         # Deprecated cls_seg
-        self.conv_seg = None
+        del self.conv_seg
 
     def forward(self, inputs):
         inputs = self._transform_inputs(inputs)
@@ -246,8 +250,55 @@ class CDHead(BaseDecodeHead):
 
         return mask_out, direction_out, point_out
 
-    def forward_train(self, inputs):
-        mask_out, direction_out, point_out = self.forward(inputs)
+    def forward_train(self, inputs, metas, label, train_cfg):
+        mask_logit, direction_logit, point_logit = self.forward(inputs)
 
-    def losses(self, logit, label):
-        return super().losses(logit, label)
+        mask_label = label['gt_semantic_map_edge']
+        point_label = label['gt_point_map']
+        direction_label = label['gt_direction_map']
+
+        loss = dict()
+        mask_logit = resize(
+            input=mask_logit,
+            size=mask_label.shape[2:],
+            mode='bilinear',
+            align_corners=self.align_corners)
+        direction_logit = resize(
+            input=direction_logit,
+            size=direction_label.shape[2:],
+            mode='bilinear',
+            align_corners=self.align_corners)
+        point_logit = resize(
+            input=point_logit,
+            size=point_label.shape[2:],
+            mode='bilinear',
+            align_corners=self.align_corners)
+
+        mask_label = mask_label.squeeze(1)
+        direction_label = direction_label.squeeze(1)
+
+        # mask branch loss calculation
+        mask_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        # Assign weight map for each pixel position
+        # mask_loss *= weight_map
+        mask_loss = torch.mean(mask_loss_calculator(mask_logit, mask_label))
+
+        # point branch loss calculation
+        point_loss_calculator = nn.MSELoss()
+        point_loss = point_loss_calculator(point_logit, point_label)
+
+        # direction branch loss calculation
+        direction_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        direction_loss = torch.mean(
+            direction_loss_calculator(direction_logit, direction_label))
+
+        # TODO: Conside to remove some edge loss value.
+
+        loss['mask_loss'] = mask_loss
+        loss['direction_loss'] = direction_loss
+        loss['point_loss'] = point_loss
+
+        return loss
+
+    def forward_test(self, ):
+        pass

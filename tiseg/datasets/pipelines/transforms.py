@@ -7,7 +7,6 @@ from scipy.ndimage import gaussian_filter, measurements
 from scipy.ndimage.morphology import (binary_erosion, binary_fill_holes,
                                       distance_transform_edt)
 from skimage import measure, morphology
-from skimage.filters.rank import median
 from skimage.morphology import remove_small_objects
 from skimage.segmentation import watershed
 
@@ -385,8 +384,8 @@ class Pad(object):
 
 
 @PIPELINES.register_module()
-class Normalize(object):
-    """Normalize the image.
+class Standardization(object):
+    """Standardize the image.
 
     Added key is "img_norm_cfg".
 
@@ -422,6 +421,45 @@ class Normalize(object):
     def __repr__(self):
         repr_str = self.__class__.__name__
         repr_str += f'(mean={self.mean}, std={self.std}, to_rgb=' \
+                    f'{self.to_rgb})'
+        return repr_str
+
+
+@PIPELINES.register_module()
+class Normalize(object):
+    """Normalize the image.
+
+    Args:
+        max_min (bool): Whether to use max-min mode to normalize image.
+            Default: True
+        to_rgb (bool): Whether to convert the image from BGR to RGB.
+            Default: True
+    """
+
+    def __init__(self, max_min=False, to_rgb=True):
+        self.max_min = max_min
+        self.to_rgb = to_rgb
+
+    def __call__(self, results):
+        """Call function to normalize images.
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Normalized results.
+        """
+        img = results['img']
+        if self.max_min:
+            img = (img - np.min(img)) / (np.max(img) - np.min(img))
+        else:
+            img = img / 255
+        results['img'] = img
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += f'(max_min={self.max_min} to_rgb=' \
                     f'{self.to_rgb})'
         return repr_str
 
@@ -978,16 +1016,37 @@ class RandomFilter(object):
         return results
 
 
-# TODO: Add comments and doc strings
 @PIPELINES.register_module()
 class EdgeMapCalculation(object):
+    """Edge Class Calculation.
 
-    def __init__(self, radius=1, edge_map_key='gt_semantic_map_edge'):
+    Only support two-class semantic map now.
+
+    Arg:
+        radius (int): Morphological Operations hyper parameters. Default: 1
+        edge_map_key (str): Semantic Map with edge class.
+            Default: gt_semantic_map_edge
+    """
+
+    def __init__(self,
+                 already_edge=True,
+                 radius=1,
+                 edge_map_key='gt_semantic_map_edge'):
+        self.already_edge = already_edge
         self.radius = radius
         self.edge_map_key = edge_map_key
 
     def __call__(self, results):
         label = results['gt_semantic_map']
+        # Input with edge class
+        if self.already_edge:
+            # semantic map can't contain edge class
+            results[self.edge_map_key] = label
+            remove_edge = label.copy()
+            remove_edge[remove_edge != 1] = 0
+            results['gt_semantic_map'] = remove_edge
+            return results
+        # Input without edge class
         assert len(np.unique(label)) == 2, 'Only support binary label now.'
         bounds = morphology.dilation(label) & (
             ~morphology.erosion(label, morphology.disk(self.radius)))
@@ -995,15 +1054,30 @@ class EdgeMapCalculation(object):
         # Assign edge pixels
         edge_map[bounds > 0] = 2
         results[self.edge_map_key] = edge_map
+        results['seg_fields'].append(self.edge_map_key)
+
         return results
 
 
 # TODO: Add comments and doc strings
 @PIPELINES.register_module()
 class InstanceMapCalculation(object):
+    """Calculate instances according to semantic map.
+
+    Only support two-class semantic map now.
+
+    Args:
+        remove_small_object (bool): Whether to remove small object.
+            Default: True
+        object_small_size (int): The minimal size of object to remove.
+            Default: 10
+        radius (int): Morphological Operations hyper parameters. Default: 1
+        instance_map_key (str): Instance Map converted from Semantic Map
+            storage key. Default: 'gt_instance_map'
+    """
 
     def __init__(self,
-                 remove_small_object=True,
+                 remove_small_object=False,
                  object_small_size=10,
                  radius=1,
                  instance_map_key='gt_instance_map'):
@@ -1014,15 +1088,15 @@ class InstanceMapCalculation(object):
 
     def __call__(self, results):
         label = results['gt_semantic_map']
-        assert len(np.unique(label)) == 2, 'Only support binary label now.'
-        instance_label = measure.label((label == 1).astype(np.uint8))
+        assert len(np.unique(label)) <= 2, 'Only support binary label now.'
         if self.remove_small_object:
-            instance_label = self.process(instance_label)
+            instance_label = self.process((label == 1).astype(np.uint8))
         else:
-            instance_label = morphology.dilation(
-                instance_label, selem=morphology.selem.disk(self.radius))
+            instance_label = measure.label((label == 1).astype(np.uint8))
+
         # instantiation
         results[self.instance_map_key] = instance_label
+        results['seg_fields'].append(self.instance_map_key)
         return results
 
     def process(self, seg_map):
@@ -1058,6 +1132,14 @@ class InstanceMapCalculation(object):
 
 @PIPELINES.register_module()
 class PointMapCalculation(object):
+    """Calculate Point Map and Gradient Map for every instance.
+
+    Args:
+        radius (int): Morphological Operations hyper parameters. Default: 1
+        point_map_key (str): Point Map storage key. Default: 'gt_point_map'
+        gradient_map_key (str): Gradient Map storage key.
+            Default: 'gt_gradient_map'
+    """
 
     def __init__(self,
                  radius=1,
@@ -1093,9 +1175,8 @@ class PointMapCalculation(object):
         return gradient_map_instance
 
     def __call__(self, results):
-        seg_semantic_map = results['gt_semantic_map']
         seg_instance_map = results['gt_instance_map']
-        H, W = seg_semantic_map.shape[:2]
+        H, W = seg_instance_map.shape[:2]
         # distance_center_map: The min distance between center and point
         distance_to_center_map = np.zeros((H, W), dtype=np.float32)
         gradient_map = np.zeros((H, W, 2), dtype=np.float32)
@@ -1129,35 +1210,52 @@ class PointMapCalculation(object):
 
         results[self.point_map_key] = point_map_gaussian
         results[self.gradient_map_key] = gradient_map
+        results['seg_fields'].append(self.point_map_key)
+        results['seg_fields'].append(self.gradient_map_key)
 
         return results
 
 
 @PIPELINES.register_module()
 class DirectionMapCalculation(object):
+    """Calculate Direction Map & Angle Map according to gradient map.
+
+    Direction Map divide Angle Map into multiple classes.
+
+    Args:
+        num_angle_types (int): Divide angle to multiple classes. Default: 8
+        angle_map_key (str): Angle Map storage key. Default: 'gt_angle_map'
+        direction_map_key (str): Direction Map storage key.
+            Default: 'gt_direction_map'
+    """
 
     def __init__(self,
+                 num_angle_types=8,
                  angle_map_key='gt_angle_map',
                  direction_map_key='gt_direction_map'):
+        self.num_angle_types = num_angle_types
         self.angle_map_key = angle_map_key
         self.direction_map_key = direction_map_key
 
     def __call__(self, results):
-        semantic_map = results['gt_semantic_map']
+        instance_map = results['gt_instance_map']
         gradient_map = results['gt_gradient_map']
         # TODO: Refactor direction map calculation
         # continue angle calculation
         angle_map = np.degrees(
             np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
-        vector_map = angle_to_vector(angle_map)
+        vector_map = angle_to_vector(angle_map, self.num_angle_types)
         # angle type judgement
-        direction_map = vector_to_label(vector_map)
-        direction_map[semantic_map == 0] = -1
-        direction_map = direction_map + 1
-        # set median value
-        direction_map = median(direction_map, morphology.disk(1))
+        direction_map = vector_to_label(vector_map, self.num_angle_types)
 
+        direction_map[instance_map == 0] = -1
+        direction_map = direction_map + 1
+        # set median value (maybe no need)
+        # direction_map = median(direction_map,
+        #                        morphology.disk(1, dtype=np.int64))
         results[self.angle_map_key] = angle_map.astype(np.float32)
-        results[self.direction_map_key] = direction_map.astype(np.uint8)
+        results[self.direction_map_key] = direction_map.astype(np.int64)
+        results['seg_fields'].append(self.angle_map_key)
+        results['seg_fields'].append(self.direction_map_key)
 
         return results

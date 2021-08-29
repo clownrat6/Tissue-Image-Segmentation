@@ -4,34 +4,81 @@ from collections import OrderedDict
 import mmcv
 import numpy as np
 from mmcv.utils import print_log
+from mmseg.core import eval_metrics, intersect_and_union, pre_eval_to_metrics
+from mmseg.utils import get_root_logger
 from prettytable import PrettyTable
 from torch.utils.data import Dataset
 
-from tiseg.utils.evaluation.metrics import (eval_metrics, intersect_and_union,
-                                            pre_eval_to_metrics)
 from .builder import DATASETS
 from .pipelines import Compose
 
 
 @DATASETS.register_module()
-class MoNuSegDataset(Dataset):
+class MMSegCustomDataset(Dataset):
+    """Custom dataset for semantic segmentation. An example of file structure
+    is as followed.
 
-    vocab = None
+    .. code-block:: none
 
-    CLASSES = ('background', 'nuclei', 'edge')
+        ├── data
+        │   ├── my_dataset
+        │   │   ├── img_dir
+        │   │   │   ├── train
+        │   │   │   │   ├── xxx{img_suffix}
+        │   │   │   │   ├── yyy{img_suffix}
+        │   │   │   │   ├── zzz{img_suffix}
+        │   │   │   ├── val
+        │   │   ├── ann_dir
+        │   │   │   ├── train
+        │   │   │   │   ├── xxx{seg_map_suffix}
+        │   │   │   │   ├── yyy{seg_map_suffix}
+        │   │   │   │   ├── zzz{seg_map_suffix}
+        │   │   │   ├── val
 
-    PALETTE = [[0, 0, 0], [255, 2, 255], [2, 255, 255]]
+    The img/gt_semantic_seg pair of CustomDataset should be of the same
+    except suffix. A valid img/gt_semantic_seg filename pair should be like
+    ``xxx{img_suffix}`` and ``xxx{seg_map_suffix}`` (extension is also included
+    in the suffix). If split is given, then ``xxx`` is specified in txt file.
+    Otherwise, all files in ``img_dir/``and ``ann_dir`` will be loaded.
+    Please refer to ``docs/tutorials/new_dataset.md`` for more details.
+
+
+    Args:
+        pipeline (list[dict]): Processing pipeline
+        img_dir (str): Path to image directory
+        img_suffix (str): Suffix of images. Default: '.jpg'
+        ann_dir (str, optional): Path to annotation directory. Default: None
+        seg_map_suffix (str): Suffix of segmentation maps. Default: '.png'
+        split (str, optional): Split txt file. If split is specified, only
+            file with suffix in the splits will be loaded. Otherwise, all
+            images in img_dir/ann_dir will be loaded. Default: None
+        data_root (str, optional): Data root for img_dir/ann_dir. Default:
+            None.
+        test_mode (bool): If test_mode=True, gt wouldn't be loaded.
+        ignore_index (int): The label index to be ignored. Default: 255
+        reduce_zero_label (bool): Whether to mark label zero as ignored.
+            Default: False
+        classes (str | Sequence[str], optional): Specify classes to load.
+            If is None, ``cls.CLASSES`` will be used. Default: None.
+        palette (Sequence[Sequence[int]]] | np.ndarray | None):
+            The palette of segmentation map. If None is given, and
+            self.PALETTE is None, random palette will be generated.
+            Default: None
+    """
+
+    CLASSES = None
+
+    PALETTE = None
 
     def __init__(self,
                  pipeline,
                  img_dir,
                  ann_dir,
                  data_root=None,
-                 img_suffix='.tif',
-                 ann_suffix='_semantic_with_edge.png',
+                 img_suffix='.jpg',
+                 ann_suffix='.png',
                  test_mode=False,
                  split=None):
-
         self.pipeline = Compose(pipeline)
 
         self.img_dir = img_dir
@@ -53,55 +100,48 @@ class MoNuSegDataset(Dataset):
             if not (self.split is None or osp.isabs(self.split)):
                 self.split = osp.join(self.data_root, self.split)
 
+        # load annotations
         self.data_infos = self.load_annotations(self.img_dir, self.img_suffix,
-                                                self.ann_suffix)
+                                                self.ann_suffix, self.split)
 
     def __len__(self):
         """Total number of samples of data."""
         return len(self.data_infos)
 
-    def __getitem__(self, index):
-        """Get training/test data after pipeline.
+    def load_annotations(self, img_dir, img_suffix, ann_suffix, split):
+        """Load annotation from directory.
 
         Args:
-            idx (int): Index of data.
+            img_dir (str): Path to image directory
+            ann_dir (str|None): Path to annotation directory.
+            img_suffix (str): Suffix of images.
+            ann_suffix (str | None): Suffix of segmentation maps.
+            split (str | None): Split txt file. If split is specified, only
+                file with suffix in the splits will be loaded. Otherwise, all
+                images in img_dir/ann_dir will be loaded. Default: None
 
         Returns:
-            dict: Training/test data (with annotation if `test_mode` is set
-                False).
+            list[dict]: All image info of dataset.
         """
-        if self.test_mode:
-            return self.prepare_test_data(index)
+
+        data_infos = []
+        if split is not None:
+            with open(split) as f:
+                for line in f:
+                    img_id = line.strip()
+                    img_name = img_id + img_suffix
+                    ann_name = img_id + ann_suffix
+                    data_info = dict(img_name=img_name, ann_name=ann_name)
+                    data_infos.append(data_info)
         else:
-            return self.prepare_train_data(index)
+            for img in mmcv.scandir(img_dir, img_suffix, recursive=True):
+                ann = img.replace(img_suffix, ann_suffix)
+                data_info = dict(img_name=img, ann_name=ann)
+                data_infos.append(data_info)
+            data_infos = sorted(data_infos, key=lambda x: x['img_name'])
 
-    def prepare_test_data(self, index):
-        """Get testing data after pipeline.
-
-        Args:
-            idx (int): Index of data.
-
-        Returns:
-            dict: Testing data after pipeline with new keys introduced by
-                pipeline.
-        """
-        data_info = self.data_infos[index]
-        results = self.pre_pipeline(data_info)
-        return self.pipeline(results)
-
-    def prepare_train_data(self, index):
-        """Get training data and annotations after pipeline.
-
-        Args:
-            idx (int): Index of data.
-
-        Returns:
-            dict: Training data and annotation after pipeline with new keys
-                introduced by pipeline.
-        """
-        data_info = self.data_infos[index]
-        results = self.pre_pipeline(data_info)
-        return self.pipeline(results)
+        print_log(f'Loaded {len(data_infos)} images', logger=get_root_logger())
+        return data_infos
 
     def pre_pipeline(self, data_info):
         """Prepare results dict for pipeline."""
@@ -120,37 +160,52 @@ class MoNuSegDataset(Dataset):
 
         return results
 
-    def load_annotations(self, img_dir, img_suffix, ann_suffix, split=None):
-        """Load annotation from directory.
+    def __getitem__(self, index):
+        """Get training/test data after pipeline.
 
         Args:
-            img_dir (str): Path to image directory.
-            ann_dir (str): Path to annotation directory.
-            img_suffix (str): Suffix of images.
-            ann_suffix (str): Suffix of segmentation maps.
-            split (str | None): Split txt file. If split is specified, only
-                file with suffix in the splits will be loaded.
+            idx (int): Index of data.
 
         Returns:
-            list[dict]: All data info of dataset, data info contains image,
-                segmentation map.
+            dict: Training/test data (with annotation if `test_mode` is set
+                False).
         """
-        data_infos = []
-        if split is not None:
-            with open(split, 'r') as fp:
-                for line in fp.readlines():
-                    img_id = line.strip().split()
-                    image_name = img_id + img_suffix
-                    ann_name = img_id + ann_suffix
-                    data_info = dict(img_name=image_name, ann_name=ann_name)
-                    data_infos.append(data_info)
+        if self.test_mode:
+            return self.prepare_test_data(index)
         else:
-            for img_name in mmcv.scandir(img_dir, img_suffix, recursive=True):
-                ann_name = img_name.replace(img_suffix, ann_suffix)
-                data_info = dict(img_name=img_name, ann_name=ann_name)
-                data_infos.append(data_info)
+            return self.prepare_train_data(index)
 
-        return data_infos
+    def prepare_train_data(self, index):
+        """Get training data and annotations after pipeline.
+
+        Args:
+            idx (int): Index of data.
+
+        Returns:
+            dict: Training data and annotation after pipeline with new keys
+                introduced by pipeline.
+        """
+        data_info = self.data_infos[index]
+        results = self.pre_pipeline(data_info)
+        return self.pipeline(results)
+
+    def prepare_test_data(self, index):
+        """Get testing data after pipeline.
+
+        Args:
+            idx (int): Index of data.
+
+        Returns:
+            dict: Testing data after pipeline with new keys introduced by
+                pipeline.
+        """
+        data_info = self.data_infos[index]
+        results = self.pre_pipeline(data_info)
+        return self.pipeline(results)
+
+    def format_results(self, results, **kwargs):
+        """Save prediction results for submit."""
+        pass
 
     def get_gt_seg_maps(self):
         """Ground Truth maps generator."""
@@ -186,7 +241,8 @@ class MoNuSegDataset(Dataset):
                                self.data_infos[index]['ann_name'])
             seg_map = mmcv.imread(seg_map, flag='unchanged', backend='pillow')
             pre_eval_results.append(
-                intersect_and_union(pred, seg_map, len(self.CLASSES)))
+                intersect_and_union(
+                    pred, seg_map, len(self.CLASSES), ignore_index=255))
 
         return pre_eval_results
 

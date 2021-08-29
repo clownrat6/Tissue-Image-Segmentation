@@ -256,52 +256,44 @@ class DefaultFormatBundle(object):
                 to_tensor(results['gt_semantic_map'][None,
                                                      ...].astype(np.int64)),
                 stack=True)
+        if 'gt_semantic_map_edge' in results:
+            # convert to long
+            results['gt_semantic_map_edge'] = DC(
+                to_tensor(results['gt_semantic_map_edge'][None, ...].astype(
+                    np.int64)),
+                stack=True)
+        if 'gt_point_map' in results:
+            # convert to float
+            results['gt_point_map'] = DC(
+                to_tensor(results['gt_point_map'][None,
+                                                  ...].astype(np.float32)),
+                stack=True)
+        if 'gt_direction_map' in results:
+            # convert to long
+            results['gt_direction_map'] = DC(
+                to_tensor(results['gt_direction_map'][None,
+                                                      ...].astype(np.int64)),
+                stack=True)
         return results
 
     def __repr__(self):
         return self.__class__.__name__
 
 
+# TODO: Refactor doc string & comments
 @PIPELINES.register_module()
 class Collect(object):
     """Collect data from the loader relevant to the specific task.
 
-    This is usually the last stage of the data loader pipeline. Typically keys
-    is set to some subset of "img", "gt_semantic_seg".
-
-    The "img_meta" item is always populated.  The contents of the "img_meta"
-    dictionary depends on "meta_keys". By default this includes:
-
-        - "img_shape": shape of the image input to the network as a tuple
-            (h, w, c).  Note that images may be zero padded on the bottom/right
-            if the batch tensor is larger than this shape.
-
-        - "scale_factor": a float indicating the preprocessing scale
-
-        - "flip": a boolean indicating if image flip transform was used
-
-        - "filename": path to the image file
-
-        - "ori_shape": original shape of the image as a tuple (h, w, c)
-
-        - "pad_shape": image shape after padding
-
-        - "img_norm_cfg": a dict of normalization information:
-            - mean - per channel mean subtraction
-            - std - per channel std divisor
-            - to_rgb - bool indicating if bgr was converted to rgb
-
     Args:
-        keys (Sequence[str]): Keys of results to be collected in ``data``.
-        meta_keys (Sequence[str], optional): Meta keys to be converted to
-            ``mmcv.DataContainer`` and collected in ``data[img_metas]``.
-            Default: ``('filename', 'ori_filename', 'ori_shape', 'img_shape',
-            'pad_shape', 'scale_factor', 'flip', 'flip_direction',
-            'img_norm_cfg')``
     """
 
-    def __init__(self, keys, meta_keys=('img_info', 'ann_info')):
-        self.keys = keys
+    def __init__(self,
+                 data_keys,
+                 label_keys,
+                 meta_keys=('img_info', 'ann_info')):
+        self.data_keys = data_keys
+        self.label_keys = label_keys
         self.meta_keys = meta_keys
 
     def __call__(self, results):
@@ -322,8 +314,12 @@ class Collect(object):
         for key in self.meta_keys:
             meta[key] = results[key]
         data['metas'] = DC(meta, cpu_only=True)
-        for key in self.keys:
-            data[key] = results[key]
+        data['data'] = dict()
+        data['label'] = dict()
+        for key in self.data_keys:
+            data['data'][key] = results[key]
+        for key in self.label_keys:
+            data['label'][key] = results[key]
         return data
 
     def __repr__(self):
