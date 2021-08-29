@@ -26,6 +26,7 @@ def parse_args():
         '--load-from', help='the checkpoint file to load weights from')
     parser.add_argument(
         '--resume-from', help='the checkpoint file to resume from')
+    # Whether to evaluation when training
     parser.add_argument(
         '--no-validate',
         action='store_true',
@@ -42,13 +43,17 @@ def parse_args():
         nargs='+',
         help='ids of gpus to use '
         '(only applicable to non-distributed training)')
+    # Set pytorch initial seed and cudnn op selection
     parser.add_argument('--seed', type=int, default=None, help='random seed')
     parser.add_argument(
         '--deterministic',
         action='store_true',
         help='whether to set deterministic options for CUDNN backend.')
+    # Manual set some config option
     parser.add_argument(
         '--options', nargs='+', action=DictAction, help='custom options')
+    # Set runtime launcher. If launcher is not None, we will use MMDDP；
+    # If None, we will use MMDP. MMDDP & MMDP can compat DP & DDP.
     parser.add_argument(
         '--launcher',
         choices=['none', 'pytorch', 'slurm', 'mpi'],
@@ -122,6 +127,8 @@ def main():
     if args.seed is not None:
         logger.info(f'Set random seed to {args.seed}, deterministic: '
                     f'{args.deterministic}')
+        # If seed is fixed and deterministic is False, the training
+        # results is surely reproducibility
         set_random_seed(args.seed, deterministic=args.deterministic)
     cfg.seed = args.seed
     meta['seed'] = args.seed
@@ -145,6 +152,7 @@ def main():
 
     # Build dataset
     datasets = [build_dataset(cfg.data.train)]
+    # Workflow is deprecated now.
     if len(cfg.workflow) == 2:
         val_dataset = copy.deepcopy(cfg.data.val)
         val_dataset.pipeline = cfg.data.train.pipeline

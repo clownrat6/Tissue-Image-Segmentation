@@ -66,16 +66,16 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         return hasattr(self, 'decode_head') and self.decode_head is not None
 
     @abstractmethod
-    def forward_train(self, img, metas, **kwargs):
+    def forward_train(self, data, metas, **kwargs):
         """Placeholder for Forward function for training."""
         pass
 
     @abstractmethod
-    def forward_test(self, img, metas, **kwargs):
+    def forward_test(self, data, metas, **kwargs):
         """Placeholder for Forward function for testing."""
         pass
 
-    def forward(self, img, metas, return_loss=True, **kwargs):
+    def forward(self, data, metas, return_loss=True, **kwargs):
         """Calls either :func:`forward_train` or :func:`forward_test` depending
         on whether ``return_loss`` is ``True``.
 
@@ -86,9 +86,9 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         the outer list indicating test time augmentations.
         """
         if return_loss:
-            return self.forward_train(img, metas, **kwargs)
+            return self.forward_train(data, metas, **kwargs)
         else:
-            return self.forward_test(img, metas, **kwargs)
+            return self.forward_test(data, metas, **kwargs)
 
     def train_step(self, data_batch, optimizer, **kwargs):
         """The iteration step during training.
