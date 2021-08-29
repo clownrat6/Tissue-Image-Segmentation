@@ -51,8 +51,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
                      use_sigmoid=False,
                      loss_weight=1.0),
                  align_corners=False,
-                 init_cfg=dict(
-                     type='Normal', std=0.01, override=dict(name='conv_seg'))):
+                 init_cfg=None):
         super(BaseDecodeHead, self).__init__(init_cfg)
         self._init_inputs(in_channels, in_index, input_transform)
         self.channels = channels

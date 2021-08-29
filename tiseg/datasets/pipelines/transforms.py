@@ -7,7 +7,6 @@ from scipy.ndimage import gaussian_filter, measurements
 from scipy.ndimage.morphology import (binary_erosion, binary_fill_holes,
                                       distance_transform_edt)
 from skimage import measure, morphology
-from skimage.filters.rank import median
 from skimage.morphology import remove_small_objects
 from skimage.segmentation import watershed
 
@@ -1078,7 +1077,7 @@ class InstanceMapCalculation(object):
     """
 
     def __init__(self,
-                 remove_small_object=True,
+                 remove_small_object=False,
                  object_small_size=10,
                  radius=1,
                  instance_map_key='gt_instance_map'):
@@ -1089,10 +1088,11 @@ class InstanceMapCalculation(object):
 
     def __call__(self, results):
         label = results['gt_semantic_map']
-        assert len(np.unique(label)) == 2, 'Only support binary label now.'
-        instance_label = measure.label((label == 1).astype(np.uint8))
+        assert len(np.unique(label)) <= 2, 'Only support binary label now.'
         if self.remove_small_object:
-            instance_label = self.process(instance_label)
+            instance_label = self.process((label == 1).astype(np.uint8))
+        else:
+            instance_label = measure.label((label == 1).astype(np.uint8))
 
         # instantiation
         results[self.instance_map_key] = instance_label
@@ -1238,7 +1238,7 @@ class DirectionMapCalculation(object):
         self.direction_map_key = direction_map_key
 
     def __call__(self, results):
-        semantic_map = results['gt_semantic_map']
+        instance_map = results['gt_instance_map']
         gradient_map = results['gt_gradient_map']
         # TODO: Refactor direction map calculation
         # continue angle calculation
@@ -1248,11 +1248,11 @@ class DirectionMapCalculation(object):
         # angle type judgement
         direction_map = vector_to_label(vector_map, self.num_angle_types)
 
-        direction_map[semantic_map == 0] = -1
+        direction_map[instance_map == 0] = -1
         direction_map = direction_map + 1
-        # set median value
-        direction_map = median(direction_map,
-                               morphology.disk(1, dtype=np.int64))
+        # set median value (maybe no need)
+        # direction_map = median(direction_map,
+        #                        morphology.disk(1, dtype=np.int64))
         results[self.angle_map_key] = angle_map.astype(np.float32)
         results[self.direction_map_key] = direction_map.astype(np.int64)
         results['seg_fields'].append(self.angle_map_key)
