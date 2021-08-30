@@ -1,7 +1,7 @@
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
-    type='EncoderDecoderPostProcess',
+    type='GeneralEncoderDecoder',
     pretrained='open-mmlab://resnet50_v1c',
     backbone=dict(
         type='ResNetV1c',
@@ -15,9 +15,7 @@ model = dict(
         style='pytorch',
         contract_dilation=True),
     decode_head=dict(
-        type='CDHead',
-        channels=1,  # useless now
-        num_classes=1,  # useless now
+        type='NucleiCDHead',
         in_channels=(256, 512, 1024, 2048),
         in_index=[0, 1, 2, 3],
         stage_convs=[3, 3, 3, 3],

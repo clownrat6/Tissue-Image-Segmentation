@@ -8,8 +8,8 @@ from .base import BaseSegmentor
 
 
 @SEGMENTORS.register_module()
-class EncoderDecoderPostProcess(BaseSegmentor):
-    """Encoder Decoder segmentors with postprocess.
+class GeneralEncoderDecoder(BaseSegmentor):
+    """Encoder Decoder segmentors with better compatibility.
 
     EncoderDecoder typically consists of backbone, decode_head, auxiliary_head.
     Note that auxiliary_head is only used for deep supervision during training,
@@ -25,7 +25,7 @@ class EncoderDecoderPostProcess(BaseSegmentor):
                  test_cfg=None,
                  pretrained=None,
                  init_cfg=None):
-        super(EncoderDecoderPostProcess, self).__init__(init_cfg)
+        super(GeneralEncoderDecoder, self).__init__(init_cfg)
         if pretrained is not None:
             assert backbone.get('pretrained') is None, \
                 'both backbone and segmentor set pretrained weight'

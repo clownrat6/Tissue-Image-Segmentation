@@ -1,6 +1,6 @@
 import torch
 
-from tiseg.models.decode_heads import CDHead
+from tiseg.models.decode_heads import NucleiCDHead
 
 
 def test_cd_head_with_extra_stage():
@@ -12,14 +12,12 @@ def test_cd_head_with_extra_stage():
         torch.randn((1, 64, H // 16, W // 16)),
         torch.randn((1, 128, H // 32, W // 32))
     ]
-    model = CDHead(
+    model = NucleiCDHead(
         stage_channels=[16, 32, 64, 128],
         extra_stage_channels=256,
         stage_convs=[3, 3, 3, 3],
         extra_stage_convs=3,
         in_channels=[16, 32, 64, 128],
-        num_classes=1,
-        channels=1,
         in_index=[0, 1, 2, 3])
 
     out = model(temp_list)
@@ -49,14 +47,12 @@ def test_cd_head_without_extra_stage():
         torch.randn((1, 63, H // 16, W // 16)),
         torch.randn((1, 127, H // 32, W // 32))
     ]
-    model = CDHead(
+    model = NucleiCDHead(
         stage_channels=[16, 32, 64, 128],
         extra_stage_channels=None,
         stage_convs=[3, 3, 3, 3],
         extra_stage_convs=None,
         in_channels=[15, 31, 63, 127],
-        num_classes=1,
-        channels=1,
         in_index=[0, 1, 2, 3])
 
     out = model(temp_list)
