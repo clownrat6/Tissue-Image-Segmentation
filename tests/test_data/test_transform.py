@@ -72,5 +72,5 @@ def test_label_calculation():
     inference_direction_map = torch.from_numpy(pseudo_direction_map).expand(
         1, -1, -1)
     ddm = generate_direction_differential_map(inference_direction_map, 9)
-    plt.imshow(ddm.numpy())
+    plt.imshow(ddm.numpy()[0])
     plt.show()
