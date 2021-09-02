@@ -396,8 +396,8 @@ class NucleiCDHead(nn.Module):
         # using direction differential map to enhance edge
         mask_logit = F.softmax(mask_logit, dim=1)
         mask_logit[:, 2, :, :] = (mask_logit[:, 2, :, :] +
-                                  direction_differential_map / 2) * (
-                                      1 + direction_differential_map)
+                                  direction_differential_map) * (
+                                      1 + 2 * direction_differential_map)
 
         # mask_prediction = torch.argmax(mask_logit, dim=1)
 

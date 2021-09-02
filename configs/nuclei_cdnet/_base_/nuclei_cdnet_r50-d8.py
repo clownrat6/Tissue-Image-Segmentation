@@ -1,7 +1,7 @@
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
-    type='GeneralEncoderDecoder',
+    type='NucleiCDNet',
     pretrained='open-mmlab://resnet50_v1c',
     backbone=dict(
         type='ResNetV1c',
@@ -26,4 +26,4 @@ model = dict(
         align_corners=False),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='whole'))
+    test_cfg=dict(mode='slide', crop_size=(320, 320), stride=(231, 231)))

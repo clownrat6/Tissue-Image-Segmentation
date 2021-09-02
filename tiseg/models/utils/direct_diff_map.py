@@ -35,7 +35,9 @@ def generate_direction_differential_map(direction_map, direction_classes=9):
 
     N, _, H, W = vector_anchor.shape
     # Cosine Similarity Map
-    cos_sim_map = torch.zeros((N, H, W), dtype=torch.float32)
+    cos_sim_map = torch.zeros((N, H, W),
+                              dtype=torch.float32,
+                              device=direction_map.device)
 
     feature_list = []
     # Only support 8 direction now
@@ -67,7 +69,9 @@ def generate_direction_differential_map(direction_map, direction_classes=9):
         feature_list.append(lower_left)
 
     cos_sim_map_single_direction = torch.zeros(
-        (N, direction_classes - 1, H, W), dtype=torch.float32)
+        (N, direction_classes - 1, H, W),
+        dtype=torch.float32,
+        device=direction_map.device)
     for k, feature_item in enumerate(feature_list):
         numerator = (
             vector_anchor[:, 0, :, :] * feature_item[:, 0, :, :] +
