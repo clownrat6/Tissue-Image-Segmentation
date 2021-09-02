@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from mmcv.cnn import ConvModule, build_activation_layer
 
 from tiseg.utils import resize
 from ..builder import HEADS
-from ..utils import UNetDecoderLayer, UNetNeckLayer
+from ..utils import (UNetDecoderLayer, UNetNeckLayer,
+                     generate_direction_differential_map)
 
 
 class RU(nn.Module):
@@ -379,7 +381,24 @@ class NucleiCDHead(nn.Module):
         mask_logit, direction_logit, point_logit = self.forward(inputs)
 
         # make direction differential map
+        direction_map = torch.argmax(direction_logit, dim=1)
+        direction_differential_map = generate_direction_differential_map(
+            direction_map, 9)
 
         # using point map to remove center point direction differential map
+        point_logit = point_logit[:, 0, :, :]
+        point_logit = point_logit - torch.min(point_logit) / (
+            torch.max(point_logit) - torch.min(point_logit))
+
+        # mask out some redundant direction differential
+        direction_differential_map[point_logit > 0.2] = 0
 
         # using direction differential map to enhance edge
+        mask_logit = F.softmax(mask_logit, dim=1)
+        mask_logit[:, 2, :, :] = (mask_logit[:, 2, :, :] +
+                                  direction_differential_map / 2) * (
+                                      1 + direction_differential_map)
+
+        # mask_prediction = torch.argmax(mask_logit, dim=1)
+
+        return mask_logit
