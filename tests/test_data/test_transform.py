@@ -2,12 +2,14 @@ import os.path as osp
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 from PIL import Image
 
 from tiseg.datasets.pipelines import (DirectionMapCalculation,
                                       EdgeMapCalculation,
                                       InstanceMapCalculation,
                                       PointMapCalculation)
+from tiseg.models.utils import generate_direction_differential_map
 
 
 def test_label_calculation():
@@ -19,6 +21,7 @@ def test_label_calculation():
 
     results_raw = {}
     results_raw['gt_semantic_map'] = pseudo_semantic_map
+    results_raw['seg_fields'] = ['gt_semantic_map']
 
     # Test InstanceLabelCalculation
     transform = InstanceMapCalculation(remove_small_object=False)
@@ -38,7 +41,7 @@ def test_label_calculation():
     plt.imshow(pseudo_instance_map)
 
     # Test EdgeLabelCalculation
-    transform = EdgeMapCalculation()
+    transform = EdgeMapCalculation(already_edge=False)
     results_edge = transform(results_raw)
     pseudo_semantic_map_edge = results_edge['gt_semantic_map_edge']
     assert len(np.unique(pseudo_semantic_map_edge)) == len(
@@ -63,4 +66,11 @@ def test_label_calculation():
     plt.imshow(pseudo_angle_map)
     plt.subplot(236)
     plt.imshow(pseudo_direction_map)
+    plt.show()
+
+    # Test DirectionDifferentialMap
+    inference_direction_map = torch.from_numpy(pseudo_direction_map).expand(
+        1, -1, -1)
+    ddm = generate_direction_differential_map(inference_direction_map, 9)
+    plt.imshow(ddm.numpy())
     plt.show()

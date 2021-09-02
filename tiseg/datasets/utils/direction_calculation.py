@@ -1,4 +1,53 @@
 import numpy as np
+import torch
+
+label_to_vector_mapping = {
+    4: [[-1, -1], [-1, 1], [1, 1], [1, -1]],
+    5: [[0, 0], [-1, -1], [-1, 1], [1, 1], [1, -1]],
+    8: [[0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1]],
+    9: [[0, 0], [0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0],
+        [1, -1]],
+    16: [[0, -2], [-1, -2], [-2, -2], [-2, -1], [-2, 0], [-2, 1], [-2, 2],
+         [-1, 2], [0, 2], [1, 2], [2, 2], [2, 1], [2, 0], [2, -1], [2, -2],
+         [1, -2]],
+    17: [[0, 0], [0, -2], [-1, -2], [-2, -2], [-2, -1], [-2, 0], [-2, 1],
+         [-2, 2], [-1, 2], [0, 2], [1, 2], [2, 2], [2, 1], [2, 0], [2, -1],
+         [2, -2], [1, -2]],
+    32: [
+        [0, -4],
+        [-1, -4],
+        [-2, -4],
+        [-3, -4],
+        [-4, -4],
+        [-4, -3],
+        [-4, -2],
+        [-4, -1],
+        [-4, 0],
+        [-4, 1],
+        [-4, 2],
+        [-4, 3],
+        [-4, 4],
+        [-3, 4],
+        [-2, 4],
+        [-1, 4],
+        [0, 4],
+        [1, 4],
+        [2, 4],
+        [3, 4],
+        [4, 4],
+        [4, 3],
+        [4, 2],
+        [4, 1],
+        [4, 0],
+        [4, -1],
+        [4, -2],
+        [4, -3],
+        [4, -4],
+        [3, -4],
+        [2, -4],
+        [1, -4],
+    ]
+}
 
 
 # TODO: Add doc string and comments
@@ -71,3 +120,24 @@ def vector_to_label(vector_map, num_classes=8):
     angle_map = rad2deg(angle_map)
 
     return angle_to_direction_label(angle_map, num_classes=num_classes)
+
+
+def label_to_vector(direction_map, num_classes=8):
+
+    assert isinstance(direction_map, torch.Tensor)
+
+    mapping = label_to_vector_mapping[num_classes]
+    offset_h = torch.zeros_like(direction_map).long()
+    offset_w = torch.zeros_like(direction_map).long()
+
+    for idx, (hdir, wdir) in enumerate(mapping):
+        mask = direction_map == idx
+        offset_h[mask] = hdir
+        offset_w[mask] = wdir
+
+    # vertical, horizontal direction concat
+    vector_map = torch.stack([offset_h, offset_w], dim=-1)
+    # NHWC -> NCHW
+    vector_map = vector_map.permute(0, 3, 1, 2).to(direction_map.device)
+
+    return vector_map
