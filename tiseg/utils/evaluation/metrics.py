@@ -5,6 +5,86 @@ import numpy as np
 import torch
 
 
+def aggregated_jaccard_index(pred, target):
+    """AJI version distributed by MoNuSeg, has no permutation problem but
+    suffered from over-penalisation similar to DICE2. Fast computation requires
+    instance IDs are in contiguous orderding i.e.
+
+    [1, 2, 3, 4] not [2, 3, 6, 10]. Please call `remap_label` before hand and
+    `by_size` flag has no effect on the result.
+    """
+    target = target.clone()
+    pred = pred.clone()
+    target_id_list = list(np.unique(target))
+    pred_id_list = list(np.unique(pred))
+
+    target_masks = [
+        None,
+    ]
+
+    # Remove background class
+    for t in target_id_list[1:]:
+        t_mask = (target == t).long()
+        target_masks.append(t_mask)
+
+    pred_masks = [
+        None,
+    ]
+    for p in pred_id_list[1:]:
+        p_mask = (pred == p).long()
+        pred_masks.append(p_mask)
+
+    # prefill with value
+    pairwise_intersection = torch.zeros(
+        [len(target_id_list) - 1,
+         len(pred_id_list) - 1], dtype=np.float64)
+    pairwise_union = torch.zeros(
+        [len(target_id_list) - 1,
+         len(pred_id_list) - 1], dtype=np.float64)
+
+    # caching pairwise
+    for target_id in target_id_list[1:]:  # 0-th is background
+        t_mask = target_masks[target_id]
+        pred_target_overlap = pred[t_mask > 0]
+        pred_target_overlap_id = np.unique(pred_target_overlap)
+        pred_target_overlap_id = list(pred_target_overlap_id)
+        for pred_id in pred_target_overlap_id:
+            if pred_id == 0:  # ignore
+                continue  # overlaping background
+            p_mask = pred_masks[pred_id]
+            total = (t_mask + p_mask).sum()
+            inter = (t_mask * p_mask).sum()
+            pairwise_intersection[target_id - 1, pred_id - 1] = inter
+            pairwise_union[target_id - 1, pred_id - 1] = total - inter
+
+    pairwise_iou = pairwise_intersection / (pairwise_union + 1.0e-6)
+    # pair of pred that give highest iou for each target, dont care
+    # about reusing pred instance multiple times
+    paired_pred = np.argmax(pairwise_iou, axis=1)
+    pairwise_iou = np.max(pairwise_iou, axis=1)
+    # exlude those dont have intersection
+    paired_target = np.nonzero(pairwise_iou > 0.0)[0]
+    paired_pred = paired_pred[paired_target]
+    # print(paired_target.shape, paired_pred.shape)
+    overall_inter = (pairwise_intersection[paired_target, paired_pred]).sum()
+    overall_union = (pairwise_union[paired_target, paired_pred]).sum()
+
+    paired_target = list(paired_target + 1)  # index to instance ID
+    paired_pred = list(paired_pred + 1)
+    # add all unpaired GT and Prediction into the union
+    unpaired_target = np.array(
+        [idx for idx in target_id_list[1:] if idx not in paired_target])
+    unpaired_pred = np.array(
+        [idx for idx in pred_id_list[1:] if idx not in paired_pred])
+    for target_id in unpaired_target:
+        overall_union += target_masks[target_id].sum()
+    for pred_id in unpaired_pred:
+        overall_union += pred_masks[pred_id].sum()
+
+    aji_score = overall_inter / overall_union
+    return aji_score
+
+
 def intersect_and_union(pred_label, label, num_classes):
     """Calculate intersection and Union.
 

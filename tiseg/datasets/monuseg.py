@@ -7,8 +7,8 @@ from mmcv.utils import print_log
 from prettytable import PrettyTable
 from torch.utils.data import Dataset
 
-from tiseg.utils.evaluation.metrics import (eval_metrics, intersect_and_union,
-                                            pre_eval_to_metrics)
+from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
+                                            eval_metrics, pre_eval_to_metrics)
 from .builder import DATASETS
 from .pipelines import Compose
 
@@ -185,12 +185,11 @@ class MoNuSegDataset(Dataset):
             seg_map = osp.join(self.ann_dir,
                                self.data_infos[index]['ann_name'])
             seg_map = mmcv.imread(seg_map, flag='unchanged', backend='pillow')
-            pre_eval_results.append(
-                intersect_and_union(pred, seg_map, len(self.CLASSES)))
+            pre_eval_results.append(aggregated_jaccard_index(pred, seg_map))
 
         return pre_eval_results
 
-    def evaluate(self, results, metric='mIoU', logger=None, **kwargs):
+    def evaluate(self, results, metric='aji', logger=None, **kwargs):
         """Evaluate the dataset.
 
         Args:
@@ -206,22 +205,25 @@ class MoNuSegDataset(Dataset):
 
         if isinstance(metric, str):
             metric = [metric]
-        allowed_metrics = ['mIoU', 'mDice', 'mFscore']
+        allowed_metrics = ['aji']
         if not set(metric).issubset(set(allowed_metrics)):
             raise KeyError('metric {} is not supported'.format(metric))
 
         eval_results = {}
         # test a list of files
-        if mmcv.is_list_of(results, str):
-            gt_seg_maps = self.get_gt_seg_maps()
-            num_classes = len(self.CLASSES)
-            # reset generator
-            gt_seg_maps = self.get_gt_seg_maps()
-            ret_metrics = eval_metrics(results, gt_seg_maps, num_classes,
-                                       metric)
-        # test a list of pre_eval_results
+        if metric == 'aji':
+            eval_results = sum(results) / len(results)
         else:
-            ret_metrics = pre_eval_to_metrics(results, metric)
+            if mmcv.is_list_of(results, str):
+                gt_seg_maps = self.get_gt_seg_maps()
+                num_classes = len(self.CLASSES)
+                # reset generator
+                gt_seg_maps = self.get_gt_seg_maps()
+                ret_metrics = eval_metrics(results, gt_seg_maps, num_classes,
+                                           metric)
+            # test a list of pre_eval_results
+            else:
+                ret_metrics = pre_eval_to_metrics(results, metric)
 
         if self.CLASSES is None:
             class_names = tuple(range(num_classes))
