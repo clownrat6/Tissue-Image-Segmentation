@@ -3,9 +3,10 @@ from collections import OrderedDict
 import mmcv
 import numpy as np
 import torch
+from skimage import measure
 
 
-def aggregated_jaccard_index(pred, target):
+def aggregated_jaccard_index(pred, target, is_semantic=True):
     """AJI version distributed by MoNuSeg, has no permutation problem but
     suffered from over-penalisation similar to DICE2. Fast computation requires
     instance IDs are in contiguous orderding i.e.
@@ -13,6 +14,9 @@ def aggregated_jaccard_index(pred, target):
     [1, 2, 3, 4] not [2, 3, 6, 10]. Please call `remap_label` before hand and
     `by_size` flag has no effect on the result.
     """
+    if is_semantic:
+        pred = measure.label(pred == 1)
+        target = measure.label(target == 1)
     target = target.clone()
     pred = pred.clone()
     target_id_list = list(np.unique(target))

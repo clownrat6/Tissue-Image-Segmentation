@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from mmcv.cnn import ConvModule, build_activation_layer
 
 from tiseg.utils import resize
+from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..builder import HEADS
 from ..utils import (UNetDecoderLayer, UNetNeckLayer,
                      generate_direction_differential_map)
@@ -373,6 +374,11 @@ class NucleiCDHead(nn.Module):
         loss['mask_loss'] = mask_loss
         loss['direction_loss'] = direction_loss
         loss['point_loss'] = point_loss
+
+        # calculate
+        mask_pred = (torch.argmax(mask_logit, dim=1) == 1).long()
+        mask_target = (mask_label == 1).long()
+        loss['aji'] = aggregated_jaccard_index(mask_pred, mask_target)
 
         return loss
 
