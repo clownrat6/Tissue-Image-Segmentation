@@ -127,8 +127,8 @@ def label_to_vector(direction_map, num_classes=8):
     assert isinstance(direction_map, torch.Tensor)
 
     mapping = label_to_vector_mapping[num_classes]
-    offset_h = torch.zeros_like(direction_map).long()
-    offset_w = torch.zeros_like(direction_map).long()
+    offset_h = torch.zeros_like(direction_map)
+    offset_w = torch.zeros_like(direction_map)
 
     for idx, (hdir, wdir) in enumerate(mapping):
         mask = direction_map == idx

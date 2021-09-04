@@ -376,8 +376,8 @@ class NucleiCDHead(nn.Module):
         loss['point_loss'] = point_loss
 
         # calculate
-        mask_pred = (torch.argmax(mask_logit, dim=1) == 1).long()
-        mask_target = (mask_label == 1).long()
+        mask_pred = (torch.argmax(mask_logit, dim=1) == 1)
+        mask_target = (mask_label == 1)
         loss['aji'] = aggregated_jaccard_index(mask_pred, mask_target)
 
         return loss
