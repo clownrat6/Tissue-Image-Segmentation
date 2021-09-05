@@ -31,7 +31,7 @@ def generate_direction_differential_map(direction_map, direction_classes=9):
     vector_map = label_to_vector(direction_map, direction_classes)
     # Only support batch size == 1
     # Nx2xHxW (2: vertical and horizontal)
-    vector_anchor = vector_map
+    vector_anchor = vector_map.float()
 
     N, _, H, W = vector_anchor.shape
     # Cosine Similarity Map

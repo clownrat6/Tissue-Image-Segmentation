@@ -15,9 +15,8 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     Args:
         pred_label (ndarray): Prediction segmentation map.
         label (ndarray): Ground truth segmentation map.
-        is_semantic (bool): If the input is semantic level.
+        is_semantic (bool): If the input is semantic level. Default: True
     """
-    assert len(np.unique(pred_label)) == len(np.unique(target_label)) == 2
     if is_semantic:
         pred_label = measure.label(pred_label == 1)
         target_label = measure.label(target_label == 1)

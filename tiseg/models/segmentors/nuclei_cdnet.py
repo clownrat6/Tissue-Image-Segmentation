@@ -69,7 +69,6 @@ class NucleiCDNet(BaseSegmentor):
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
         x = self.extract_feat(img)
-        print(x[0].shape)
         out = self._decode_head_forward_test(x, metas)
         out = resize(
             input=out,
@@ -211,7 +210,7 @@ class NucleiCDNet(BaseSegmentor):
         if rescale:
             preds = resize(
                 preds,
-                size=meta[0]['ori_shape'][:2],
+                size=meta[0]['img_info']['ori_shape'][:2],
                 mode='bilinear',
                 align_corners=self.align_corners,
                 warning=False)
@@ -268,9 +267,9 @@ class NucleiCDNet(BaseSegmentor):
         """Simple test with single image."""
         seg_logit = self.inference(img, meta, rescale)
         seg_pred = seg_logit.argmax(dim=1)
+        # Extract nuclei inside class
+        seg_pred = (seg_pred == 1).long()
         seg_pred = seg_pred.cpu().numpy()
-        # Extract inside class
-        seg_pred = seg_pred[:, 1, :, :]
         # unravel batch dim
         seg_pred = list(seg_pred)
         return seg_pred
@@ -290,7 +289,7 @@ class NucleiCDNet(BaseSegmentor):
         seg_logit /= len(imgs)
         seg_pred = seg_logit.argmax(dim=1)
         # Extract inside class
-        seg_pred = seg_pred[:, 1, :, :]
+        seg_pred = (seg_pred == 1).long()
         seg_pred = seg_pred.cpu().numpy()
         # unravel batch dim
         seg_pred = list(seg_pred)

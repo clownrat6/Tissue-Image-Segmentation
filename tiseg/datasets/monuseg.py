@@ -210,17 +210,18 @@ class MoNuSegDataset(Dataset):
 
         eval_results = {}
         # test a list of files
-        if metric == 'Aji':
+        if 'Aji' in metric:
             eval_results['Aji'] = sum(results) / len(results)
 
-        ret_metrics = eval_results
+        ret_metrics = dict()
+        ret_metrics['Aji'] = np.array([eval_results['Aji']])
 
         # for logger
         ret_metrics_class = OrderedDict({
             ret_metric: np.round(ret_metric_value * 100, 2)
             for ret_metric, ret_metric_value in ret_metrics.items()
         })
-        ret_metrics_class.update('Class', ['Nuclei'])
+        ret_metrics_class.update({'Class': ['Nuclei']})
         ret_metrics_class.move_to_end('Class', last=False)
         class_table_data = PrettyTable()
         for key, val in ret_metrics_class.items():
