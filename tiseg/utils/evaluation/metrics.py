@@ -6,7 +6,6 @@ import torch
 from skimage import measure
 
 
-# TODO: Add comments and doc string
 def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     """Aggregated Jaccard Index Calculation.
 
@@ -14,16 +13,16 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
 
     Args:
         pred_label (ndarray): Prediction segmentation map.
-        label (ndarray): Ground truth segmentation map.
+        target_label (ndarray): Ground truth segmentation map.
         is_semantic (bool): If the input is semantic level. Default: True
     """
     if is_semantic:
-        pred = measure.label(pred == 1)
-        target = measure.label(target == 1)
-    target = target.copy()
-    pred = pred.copy()
-    target_id_list = list(np.unique(target))
-    pred_id_list = list(np.unique(pred))
+        pred_label = measure.label(pred_label == 1)
+        target_label = measure.label(target_label == 1)
+    target_label = target_label.copy()
+    pred_label = pred_label.copy()
+    target_id_list = list(np.unique(target_label))
+    pred_id_list = list(np.unique(pred_label))
 
     target_masks = [
         None,
