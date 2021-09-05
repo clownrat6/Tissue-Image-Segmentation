@@ -6,21 +6,23 @@ import torch
 from skimage import measure
 
 
-def aggregated_jaccard_index(pred, target, is_semantic=True):
-    """AJI version distributed by MoNuSeg, has no permutation problem but
-    suffered from over-penalisation similar to DICE2. Fast computation requires
-    instance IDs are in contiguous orderding i.e.
+# TODO: Add comments and doc string
+def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
+    """Aggregated Jaccard Index Calculation.
 
-    [1, 2, 3, 4] not [2, 3, 6, 10]. Please call `remap_label` before hand and
-    `by_size` flag has no effect on the result.
+    It's only support binary mask now.
+
+    Args:
+        pred_label (ndarray): Prediction segmentation map.
+        label (ndarray): Ground truth segmentation map.
+        is_semantic (bool): If the input is semantic level.
     """
+    assert len(np.unique(pred_label)) == len(np.unique(target_label)) == 2
     if is_semantic:
-        pred = measure.label(pred == 1)
-        target = measure.label(target == 1)
-    target = target.clone()
-    pred = pred.clone()
-    target_id_list = list(np.unique(target))
-    pred_id_list = list(np.unique(pred))
+        pred_label = measure.label(pred_label == 1)
+        target_label = measure.label(target_label == 1)
+    target_id_list = list(np.unique(target_label))
+    pred_id_list = list(np.unique(pred_label))
 
     target_masks = [
         None,
@@ -28,28 +30,28 @@ def aggregated_jaccard_index(pred, target, is_semantic=True):
 
     # Remove background class
     for t in target_id_list[1:]:
-        t_mask = (target == t).long()
+        t_mask = (target_label == t).astype(np.uint8)
         target_masks.append(t_mask)
 
     pred_masks = [
         None,
     ]
     for p in pred_id_list[1:]:
-        p_mask = (pred == p).long()
+        p_mask = (pred_label == p).astype(np.uint8)
         pred_masks.append(p_mask)
 
     # prefill with value
-    pairwise_intersection = torch.zeros(
+    pairwise_intersection = np.zeros(
         [len(target_id_list) - 1,
          len(pred_id_list) - 1], dtype=np.float64)
-    pairwise_union = torch.zeros(
-        [len(target_id_list) - 1,
-         len(pred_id_list) - 1], dtype=np.float64)
+    pairwise_union = np.zeros([len(target_id_list) - 1,
+                               len(pred_id_list) - 1],
+                              dtype=np.float64)
 
     # caching pairwise
     for target_id in target_id_list[1:]:  # 0-th is background
         t_mask = target_masks[target_id]
-        pred_target_overlap = pred[t_mask > 0]
+        pred_target_overlap = pred_label[t_mask > 0]
         pred_target_overlap_id = np.unique(pred_target_overlap)
         pred_target_overlap_id = list(pred_target_overlap_id)
         for pred_id in pred_target_overlap_id:
@@ -57,9 +59,9 @@ def aggregated_jaccard_index(pred, target, is_semantic=True):
                 continue  # overlaping background
             p_mask = pred_masks[pred_id]
             total = (t_mask + p_mask).sum()
-            inter = (t_mask * p_mask).sum()
-            pairwise_intersection[target_id - 1, pred_id - 1] = inter
-            pairwise_union[target_id - 1, pred_id - 1] = total - inter
+            intersect = (t_mask * p_mask).sum()
+            pairwise_intersection[target_id - 1, pred_id - 1] = intersect
+            pairwise_union[target_id - 1, pred_id - 1] = total - intersect
 
     pairwise_iou = pairwise_intersection / (pairwise_union + 1.0e-6)
     # pair of pred that give highest iou for each target, dont care
@@ -76,12 +78,12 @@ def aggregated_jaccard_index(pred, target, is_semantic=True):
     paired_target = list(paired_target + 1)  # index to instance ID
     paired_pred = list(paired_pred + 1)
     # add all unpaired GT and Prediction into the union
-    unpaired_target = np.array(
-        [idx for idx in target_id_list[1:] if idx not in paired_target])
+    # unpaired_target = np.array(
+    #     [idx for idx in target_id_list[1:] if idx not in paired_target])
     unpaired_pred = np.array(
         [idx for idx in pred_id_list[1:] if idx not in paired_pred])
-    for target_id in unpaired_target:
-        overall_union += target_masks[target_id].sum()
+    # for target_id in unpaired_target:
+    #     overall_union += target_masks[target_id].sum()
     for pred_id in unpaired_pred:
         overall_union += pred_masks[pred_id].sum()
 
