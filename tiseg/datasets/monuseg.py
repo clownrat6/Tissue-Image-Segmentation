@@ -7,8 +7,7 @@ from mmcv.utils import print_log
 from prettytable import PrettyTable
 from torch.utils.data import Dataset
 
-from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
-                                            eval_metrics, pre_eval_to_metrics)
+from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from .builder import DATASETS
 from .pipelines import Compose
 
@@ -205,75 +204,36 @@ class MoNuSegDataset(Dataset):
 
         if isinstance(metric, str):
             metric = [metric]
-        allowed_metrics = ['aji']
+        allowed_metrics = ['Aji']
         if not set(metric).issubset(set(allowed_metrics)):
             raise KeyError('metric {} is not supported'.format(metric))
 
         eval_results = {}
         # test a list of files
-        if metric == 'aji':
-            eval_results = sum(results) / len(results)
-        else:
-            if mmcv.is_list_of(results, str):
-                gt_seg_maps = self.get_gt_seg_maps()
-                num_classes = len(self.CLASSES)
-                # reset generator
-                gt_seg_maps = self.get_gt_seg_maps()
-                ret_metrics = eval_metrics(results, gt_seg_maps, num_classes,
-                                           metric)
-            # test a list of pre_eval_results
-            else:
-                ret_metrics = pre_eval_to_metrics(results, metric)
+        if metric == 'Aji':
+            eval_results['Aji'] = sum(results) / len(results)
 
-        if self.CLASSES is None:
-            class_names = tuple(range(num_classes))
-        else:
-            class_names = self.CLASSES
+        ret_metrics = eval_results
 
-        # summary table
-        ret_metrics_summary = OrderedDict({
-            ret_metric: np.round(np.nanmean(ret_metric_value) * 100, 2)
-            for ret_metric, ret_metric_value in ret_metrics.items()
-        })
-
-        # each class table
-        ret_metrics.pop('aAcc', None)
+        # for logger
         ret_metrics_class = OrderedDict({
             ret_metric: np.round(ret_metric_value * 100, 2)
             for ret_metric, ret_metric_value in ret_metrics.items()
         })
-        ret_metrics_class.update({'Class': class_names})
+        ret_metrics_class.update('Class', ['Nuclei'])
         ret_metrics_class.move_to_end('Class', last=False)
-
-        # for logger
         class_table_data = PrettyTable()
         for key, val in ret_metrics_class.items():
             class_table_data.add_column(key, val)
 
-        summary_table_data = PrettyTable()
-        for key, val in ret_metrics_summary.items():
-            if key == 'aAcc':
-                summary_table_data.add_column(key, [val])
-            else:
-                summary_table_data.add_column('m' + key, [val])
-
-        print_log('per class results:', logger)
+        print_log('Per class:', logger)
         print_log('\n' + class_table_data.get_string(), logger=logger)
-        print_log('Summary:', logger)
-        print_log('\n' + summary_table_data.get_string(), logger=logger)
-
-        # each metric dict
-        for key, value in ret_metrics_summary.items():
-            if key == 'aAcc':
-                eval_results[key] = value / 100.0
-            else:
-                eval_results['m' + key] = value / 100.0
 
         ret_metrics_class.pop('Class', None)
         for key, value in ret_metrics_class.items():
             eval_results.update({
                 key + '.' + str(name): value[idx] / 100.0
-                for idx, name in enumerate(class_names)
+                for idx, name in enumerate(['Nuclei'])
             })
 
         # This ret value is used for eval hook. Eval hook will add these
