@@ -185,6 +185,7 @@ class MoNuSegDataset(Dataset):
                                self.data_infos[index]['ann_name'])
             seg_map = mmcv.imread(seg_map, flag='unchanged', backend='pillow')
             pre_eval_results.append(aggregated_jaccard_index(pred, seg_map))
+            # pre_eval_results.append(intersect_and_union(pred, seg_map, len(self.CLASSES)))
 
         return pre_eval_results
 

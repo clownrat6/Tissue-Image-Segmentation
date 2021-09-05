@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 from mmcv.cnn import ConvModule, build_activation_layer
 
 from tiseg.utils import resize
@@ -376,8 +377,8 @@ class NucleiCDHead(nn.Module):
         loss['point_loss'] = point_loss
 
         # calculate
-        mask_pred = (torch.argmax(mask_logit, dim=1) == 1)
-        mask_target = (mask_label == 1)
+        mask_pred = (torch.argmax(mask_logit, dim=1) == 1).cpu().numpy().astype(np.uint8)
+        mask_target = (mask_label == 1).cpu().numpy().astype(np.uint8)
         loss['aji'] = aggregated_jaccard_index(mask_pred, mask_target)
 
         return loss

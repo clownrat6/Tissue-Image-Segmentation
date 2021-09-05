@@ -18,10 +18,12 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
         is_semantic (bool): If the input is semantic level. Default: True
     """
     if is_semantic:
-        pred_label = measure.label(pred_label == 1)
-        target_label = measure.label(target_label == 1)
-    target_id_list = list(np.unique(target_label))
-    pred_id_list = list(np.unique(pred_label))
+        pred = measure.label(pred == 1)
+        target = measure.label(target == 1)
+    target = target.copy()
+    pred = pred.copy()
+    target_id_list = list(np.unique(target))
+    pred_id_list = list(np.unique(pred))
 
     target_masks = [
         None,
@@ -87,7 +89,7 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
         overall_union += pred_masks[pred_id].sum()
 
     aji_score = overall_inter / overall_union
-    return aji_score
+    return torch.tensor(aji_score)
 
 
 def intersect_and_union(pred_label, label, num_classes):
