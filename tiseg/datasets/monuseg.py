@@ -15,9 +15,9 @@ from .pipelines import Compose
 @DATASETS.register_module()
 class MoNuSegDataset(Dataset):
     """MoNuSeg Nuclei Segmentation Dataset.
-    
-    MoNuSeg is actually instance segmentation task dataset. However, it can seem
-    as a three class semantic segmentation task (Background, Nuclei, Edge)
+
+    MoNuSeg is actually instance segmentation task dataset. However, it can
+    seem as a three class semantic segmentation task (Background, Nuclei, Edge)
     """
 
     CLASSES = ('background', 'nuclei', 'edge')
@@ -188,7 +188,6 @@ class MoNuSegDataset(Dataset):
                                self.data_infos[index]['ann_name'])
             seg_map = mmcv.imread(seg_map, flag='unchanged', backend='pillow')
             pre_eval_results.append(aggregated_jaccard_index(pred, seg_map))
-            # pre_eval_results.append(intersect_and_union(pred, seg_map, len(self.CLASSES)))
 
         return pre_eval_results
 

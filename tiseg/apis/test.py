@@ -43,7 +43,6 @@ def single_gpu_test(model,
         with torch.no_grad():
             result = model(return_loss=False, **data)
 
-
         if format_only:
             result = dataset.format_results(
                 result, indices=batch_indices, **format_args)

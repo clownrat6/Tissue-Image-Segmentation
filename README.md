@@ -1,6 +1,5 @@
 # torch-image-segmentation
 
-
 ## Models and Datasets collection
 
 We collect models and datasets about semantic segmentation and instance segmentation.
@@ -29,9 +28,9 @@ pip install --upgrade git+https://github.com/sennnnn/pytorch-OpCounter.git
 
 Support Model:
 
-- [x] 
-- [x] 
-- [x] 
+- [x]
+- [x]
+- [x]
 
 ## Thanks
 
