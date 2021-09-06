@@ -198,6 +198,8 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         clean_seg_logit = seg_logit.clone().detach()
         clean_seg_label = seg_label.clone().detach()
         loss['acc_foreground'] = accuracy(clean_seg_logit, clean_seg_label)
-        loss['iou_foreground'] = iou(clean_seg_logit, clean_seg_label)
-        loss['dice_foreground'] = dice(clean_seg_logit, clean_seg_label)
+        loss['iou_foreground'] = iou(clean_seg_logit, clean_seg_label,
+                                     self.num_classes)
+        loss['dice_foreground'] = dice(clean_seg_logit, clean_seg_label,
+                                       self.num_classes)
         return loss

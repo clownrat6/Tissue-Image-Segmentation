@@ -12,33 +12,36 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     It's only support binary mask now.
 
     Args:
-        pred_label (ndarray): Prediction segmentation map.
-        target_label (ndarray): Ground truth segmentation map.
+        pred_label (numpy.ndarray): Prediction segmentation map.
+        target_label (numpy.ndarray): Ground truth segmentation map.
         is_semantic (bool): If the input is semantic level. Default: True
     """
-    if is_semantic:
-        pred_label = measure.label(pred_label == 1)
-        target_label = measure.label(target_label == 1)
-    target_label = target_label.copy()
     pred_label = pred_label.copy()
+    target_label = target_label.copy()
+
+    if is_semantic:
+        pred_label[pred_label > 0] = 1
+        target_label[target_label > 0] = 1
+        pred_label = measure.label(pred_label)
+        target_label = measure.label(target_label)
+
     target_id_list = list(np.unique(target_label))
     pred_id_list = list(np.unique(pred_label))
 
-    target_masks = [
-        None,
-    ]
-
     # Remove background class
-    for t in target_id_list[1:]:
-        t_mask = (target_label == t).astype(np.uint8)
-        target_masks.append(t_mask)
-
     pred_masks = [
         None,
     ]
     for p in pred_id_list[1:]:
         p_mask = (pred_label == p).astype(np.uint8)
         pred_masks.append(p_mask)
+
+    target_masks = [
+        None,
+    ]
+    for t in target_id_list[1:]:
+        t_mask = (target_label == t).astype(np.uint8)
+        target_masks.append(t_mask)
 
     # prefill with value
     pairwise_intersection = np.zeros(
@@ -52,8 +55,7 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     for target_id in target_id_list[1:]:  # 0-th is background
         t_mask = target_masks[target_id]
         pred_target_overlap = pred_label[t_mask > 0]
-        pred_target_overlap_id = np.unique(pred_target_overlap)
-        pred_target_overlap_id = list(pred_target_overlap_id)
+        pred_target_overlap_id = list(np.unique(pred_target_overlap))
         for pred_id in pred_target_overlap_id:
             if pred_id == 0:  # ignore
                 continue  # overlaping background
@@ -67,7 +69,7 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     # pair of pred that give highest iou for each target, dont care
     # about reusing pred instance multiple times
     if pairwise_iou.shape[0] * pairwise_iou.shape[1] == 0:
-        return 0
+        return 0.
     paired_pred = np.argmax(pairwise_iou, axis=1)
     pairwise_iou = np.max(pairwise_iou, axis=1)
     # exlude those dont have intersection
@@ -78,18 +80,18 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
 
     paired_target = list(paired_target + 1)  # index to instance ID
     paired_pred = list(paired_pred + 1)
-    # add all unpaired GT and Prediction into the union
+    # It seems that only unpaired Predictions need to be added into union.
     # unpaired_target = np.array(
     #     [idx for idx in target_id_list[1:] if idx not in paired_target])
-    unpaired_pred = np.array(
-        [idx for idx in pred_id_list[1:] if idx not in paired_pred])
     # for target_id in unpaired_target:
     #     overall_union += target_masks[target_id].sum()
+    unpaired_pred = np.array(
+        [idx for idx in pred_id_list[1:] if idx not in paired_pred])
     for pred_id in unpaired_pred:
         overall_union += pred_masks[pred_id].sum()
 
     aji_score = overall_inter / overall_union
-    return torch.tensor(aji_score)
+    return aji_score
 
 
 def intersect_and_union(pred_label, label, num_classes):

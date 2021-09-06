@@ -1,11 +1,18 @@
+import torch
 import torch.nn as nn
 
 from .utils import overlapping_caculation
 
 
-def dice(pred, target, thresh=None):
+def dice(pred, target, num_classes, thresh=None):
     """Dice coefficient calculation."""
-    return overlapping_caculation(pred, target, 'Dice', thresh)
+    return overlapping_caculation(pred, target, 'Dice', num_classes, thresh)
+
+
+def mdice(pred, target, num_classes, thresh=None):
+    """Dice coefficient calculation."""
+    return torch.mean(
+        overlapping_caculation(pred, target, 'Dice', num_classes, thresh))
 
 
 class Dice(nn.Module):

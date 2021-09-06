@@ -1,11 +1,18 @@
+import torch
 import torch.nn as nn
 
 from .utils import overlapping_caculation
 
 
-def iou(pred, target, thresh=None):
+def iou(pred, target, num_classes, thresh=None):
     """Intersection and Union calculation."""
-    return overlapping_caculation(pred, target, 'IoU', thresh)
+    return overlapping_caculation(pred, target, 'IoU', num_classes, thresh)
+
+
+def miou(pred, target, num_classes, thresh=None):
+    """Intersection and Union calculation."""
+    return torch.mean(
+        overlapping_caculation(pred, target, 'IoU', num_classes, thresh))
 
 
 class IoU(nn.Module):

@@ -7,6 +7,7 @@ from mmcv.cnn import ConvModule, build_activation_layer
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..builder import HEADS
+from ..losses import mdice, miou
 from ..utils import (UNetDecoderLayer, UNetNeckLayer,
                      generate_direction_differential_map)
 
@@ -376,16 +377,29 @@ class NucleiCDHead(nn.Module):
         loss['direction_loss'] = direction_loss
         loss['point_loss'] = point_loss
 
-        # calculate
+        # loss
+        clean_mask_logit = mask_logit.clone().detach()
+        clean_mask_label = mask_label.clone().detach()
+        clean_direction_logit = direction_logit.clone().detach()
+        clean_direction_label = direction_label.clone().detach()
+        loss['mask_dice'] = mdice(clean_mask_logit, clean_mask_label, 3)
+        loss['mask_iou'] = miou(clean_mask_logit, clean_mask_label, 3)
+        loss['direction_dice'] = mdice(clean_direction_logit,
+                                       clean_direction_label, 9)
+        loss['direction_dice'] = miou(clean_direction_logit,
+                                      clean_direction_label, 9)
+
+        # metric calculate
         mask_pred = (torch.argmax(mask_logit,
                                   dim=1) == 1).cpu().numpy().astype(np.uint8)
         mask_target = (mask_label == 1).cpu().numpy().astype(np.uint8)
 
         N = mask_pred.shape[0]
-        loss['aji'] = 0
+        loss['aji'] = 0.
         for i in range(N):
-            loss['aji'] += aggregated_jaccard_index(mask_pred[i],
-                                                    mask_target[i])
+            aji_single_image = aggregated_jaccard_index(
+                mask_pred[i], mask_target[i])
+            loss['aji'] += torch.tensor(aji_single_image)
         loss['aji'] /= N
         return loss
 

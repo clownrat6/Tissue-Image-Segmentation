@@ -125,6 +125,7 @@ def weighted_loss(loss_func):
 def overlapping_caculation(pred,
                            target,
                            metric,
+                           num_classes,
                            thresh=None,
                            reduce_zero_label=True):
     """Calculate accuracy according to the prediction and target.
@@ -149,15 +150,16 @@ def overlapping_caculation(pred,
     pred_label = pred_label.transpose(0, 1)[0]
     pred_value = pred_value.transpose(0, 1)[0]
     # fuse all foreground class
-    label[label != 0] = 1
-    pred_label[pred_label != 0] = 1
     intersect_mask = pred_label == label
     if thresh is not None:
         intersect_mask = intersect_mask & pred_value > thresh
     intersect = pred_label[intersect_mask]
-    area_intersect = torch.histc(intersect.float(), bins=2, min=0, max=1)
-    area_pred = torch.histc(pred_label.float(), bins=2, min=0, max=1)
-    area_label = torch.histc(label.float(), bins=2, min=0, max=1)
+    area_intersect = torch.histc(
+        intersect.float(), bins=num_classes, min=0, max=num_classes - 1)
+    area_pred = torch.histc(
+        pred_label.float(), bins=num_classes, min=0, max=num_classes - 1)
+    area_label = torch.histc(
+        label.float(), bins=num_classes, min=0, max=num_classes - 1)
     area_union = area_pred + area_label - area_intersect
     if metric.lower() == 'iou':
         res = 100.0 * area_intersect / area_union
