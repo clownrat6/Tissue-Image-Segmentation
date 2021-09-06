@@ -410,6 +410,4 @@ class NucleiCDHead(nn.Module):
                                   direction_differential_map) * (
                                       1 + 2 * direction_differential_map)
 
-        # mask_prediction = torch.argmax(mask_logit, dim=1)
-
         return mask_logit
