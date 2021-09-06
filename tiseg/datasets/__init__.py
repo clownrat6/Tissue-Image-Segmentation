@@ -7,6 +7,6 @@ from .monuseg import MoNuSegDataset
 
 __all__ = [
     'DATASETS', 'PIPELINES', 'build_dataloader', 'build_dataset',
-    'ConcatDataset', 'RepeatDataset', 'MMSegCustomDataset', 'CustomDataset',
+    'ConcatDataset', 'RepeatDataset', 'MMSegCustomDataset',
     'MoNuSegDataset', 'CityscapesDataset'
 ]
