@@ -73,7 +73,6 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     # exlude those dont have intersection
     paired_target = np.nonzero(pairwise_iou > 0.0)[0]
     paired_pred = paired_pred[paired_target]
-    # print(paired_target.shape, paired_pred.shape)
     overall_inter = (pairwise_intersection[paired_target, paired_pred]).sum()
     overall_union = (pairwise_union[paired_target, paired_pred]).sum()
 

@@ -43,11 +43,6 @@ def single_gpu_test(model,
         with torch.no_grad():
             result = model(return_loss=False, **data)
 
-        # import matplotlib.pyplot as plt
-        # print(data)
-        # plt.imshow(result[0])
-        # plt.savefig('1.png')
-        # exit(0)
 
         if format_only:
             result = dataset.format_results(

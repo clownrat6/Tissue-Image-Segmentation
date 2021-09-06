@@ -205,17 +205,17 @@ class MoNuSegDataset(Dataset):
 
         if isinstance(metric, str):
             metric = [metric]
-        allowed_metrics = ['Aji']
+        allowed_metrics = ['aji']
         if not set(metric).issubset(set(allowed_metrics)):
             raise KeyError('metric {} is not supported'.format(metric))
 
         eval_results = {}
+        ret_metrics = {}
         # test a list of files
-        if 'Aji' in metric:
-            eval_results['Aji'] = sum(results) / len(results)
+        if 'aji' in metric:
+            ret_metrics['aji'] = np.array([sum(results) / len(results)])
 
-        ret_metrics = dict()
-        ret_metrics['Aji'] = np.array([eval_results['Aji']])
+        eval_results['aji'] = ret_metrics['aji']
 
         # for logger
         ret_metrics_class = OrderedDict({

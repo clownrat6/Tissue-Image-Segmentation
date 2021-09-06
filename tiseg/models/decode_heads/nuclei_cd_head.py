@@ -379,8 +379,12 @@ class NucleiCDHead(nn.Module):
         # calculate
         mask_pred = (torch.argmax(mask_logit, dim=1) == 1).cpu().numpy().astype(np.uint8)
         mask_target = (mask_label == 1).cpu().numpy().astype(np.uint8)
-        loss['aji'] = aggregated_jaccard_index(mask_pred, mask_target)
 
+        N = mask_pred.shape[0]
+        loss['aji'] = 0
+        for i in range(N):
+            loss['aji'] += aggregated_jaccard_index(mask_pred[i], mask_target[i])
+        loss['aji'] /= N
         return loss
 
     def forward_test(self, inputs, metas, test_cfg):
