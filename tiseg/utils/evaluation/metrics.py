@@ -66,7 +66,7 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     pairwise_iou = pairwise_intersection / (pairwise_union + 1.0e-6)
     # pair of pred that give highest iou for each target, dont care
     # about reusing pred instance multiple times
-    if len(pairwise_iou) == 0:
+    if pairwise_iou.shape[0] * pairwise_iou.shape[1] == 0:
         return 0
     paired_pred = np.argmax(pairwise_iou, axis=1)
     pairwise_iou = np.max(pairwise_iou, axis=1)
