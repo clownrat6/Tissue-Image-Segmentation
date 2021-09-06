@@ -43,6 +43,7 @@ def single_gpu_test(model,
         with torch.no_grad():
             result = model(return_loss=False, **data)
 
+
         if format_only:
             result = dataset.format_results(
                 result, indices=batch_indices, **format_args)
@@ -52,48 +53,6 @@ def single_gpu_test(model,
             result = dataset.pre_eval(result, indices=batch_indices)
 
         results.extend(result)
-
-        # TODO: Refactor visualization
-        # if show or out_dir:
-        #     assert len(result) == 1, 'Only support slice inference.'
-        #     img_tensor = data['img'][0]
-        #     txt_tensor = data['txt'][0]
-        #     gt_instance_map_tensor = data['gt_instance_map'][0]
-
-        #     metas = data['metas'][0].data[0]
-        #     imgs = tensor2imgs(img_tensor,
-        #                        **metas[0]['img_info']['img_norm_cfg'])
-        #     gt_instance_maps = tensor2maps(gt_instance_map_tensor)
-        #     txts = tensor2txts(txt_tensor)
-        #     assert len(imgs) == len(metas) == len(txts)
-
-        #     for img, txt, map, meta in zip(imgs, txts, gt_instance_maps,
-        #                                    metas):
-        #         h, w, _ = meta['img_info']['img_shape']
-        #         img_show = img[:h, :w, :]
-
-        #         ori_h, ori_w = meta['img_info']['ori_shape'][:-1]
-        #         img_show = mmcv.imresize(img_show, (ori_w, ori_h))
-
-        #         txt_str = ''.join(
-        #             [f'{indices_vocab[word]} ' for word in txt if word != 0])
-
-        #         if out_dir:
-        #             out_file = osp.join(out_dir,
-        #                                 meta['img_info']['ori_filename'])
-        #         else:
-        #             out_file = None
-
-        #         model.module.show_result(
-        #             img_show,
-        #             txt_str,
-        #             map,
-        #             # only support when batch size = 1
-        #             result[0],
-        #             palette=dataset.PALETTE,
-        #             show=show,
-        #             out_file=out_file,
-        #             opacity=opacity)
 
         batch_size = len(result)
         for _ in range(batch_size):

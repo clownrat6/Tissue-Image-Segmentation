@@ -7,7 +7,7 @@ def readme():
     return content
 
 
-version_file = 'tres/version.py'
+version_file = 'tiseg/version.py'
 
 
 def get_version():

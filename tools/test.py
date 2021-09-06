@@ -82,8 +82,7 @@ def main():
             0.5, 0.75, 1.0, 1.25, 1.5, 1.75
         ]
         cfg.data.test.pipeline[1].flip = True
-    cfg.model.img_pretrained = None
-    cfg.model.txt_pretrained = None
+    cfg.model.pretrained = None
 
     # init distributed env first, since logger depends on the dist info.
     if args.launcher == 'none':

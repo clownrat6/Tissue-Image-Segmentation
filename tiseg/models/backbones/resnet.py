@@ -10,8 +10,8 @@ from mmcv.cnn import build_conv_layer, build_norm_layer, build_plugin_layer
 from mmcv.runner import BaseModule
 from mmcv.utils.parrots_wrapper import _BatchNorm
 
-from ...builder import BACKBONES
-from ...utils import ResLayer
+from ..builder import BACKBONES
+from ..utils import ResLayer
 
 
 class BasicBlock(BaseModule):
@@ -699,3 +699,123 @@ class ResNetV1d(ResNet):
     def __init__(self, **kwargs):
         super(ResNetV1d, self).__init__(
             deep_stem=True, avg_down=True, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNet18(ResNet):
+    """ResNet 18 or ResNetV1b 18."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=18, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNet34(ResNet):
+    """ResNet 34 or ResNetV1b 34."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=34, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNet50(ResNet):
+    """ResNet 50 or ResNetV1b 50."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=50, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNet101(ResNet):
+    """ResNet 101 or ResNetV1b 101."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=101, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNet152(ResNet):
+    """ResNet 152 or ResNetV1b 152."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=152, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNetV1c18(ResNetV1c):
+    """ResNetV1c 18."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=18, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNetV1c34(ResNetV1c):
+    """ResNetV1c 34."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=34, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNetV1c50(ResNetV1c):
+    """ResNetV1c 50."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=50, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNetV1c101(ResNetV1c):
+    """ResNetV1c 101."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=101, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNetV1c152(ResNetV1c):
+    """ResNetV1c 152."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=152, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNetV1d18(ResNetV1d):
+    """ResNetV1d 18."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=18, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNetV1d34(ResNetV1d):
+    """ResNetV1d 34."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=34, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNetV1d50(ResNetV1d):
+    """ResNetV1d 50."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=50, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNetV1d101(ResNetV1d):
+    """ResNetV1d 101."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=101, **kwargs)
+
+
+@BACKBONES.register_module()
+class ResNetV1d152(ResNetV1d):
+    """ResNetV1d 152."""
+
+    def __init__(self, **kwargs):
+        super().__init__(depth=152, **kwargs)

@@ -101,7 +101,7 @@ class MultiScaleFlipAug(object):
                into a list.
         """
 
-        # Keep raw shape of gt_instance_map
+        # Keep raw shape of gt_seg_map
         results['seg_fields'].clear()
 
         aug_data = []
@@ -126,6 +126,8 @@ class MultiScaleFlipAug(object):
         for data in aug_data:
             for key, val in data.items():
                 aug_data_dict[key].append(val)
+        # label is not supported now when evaluation
+        aug_data_dict['label'] = []
         return aug_data_dict
 
     def __repr__(self):

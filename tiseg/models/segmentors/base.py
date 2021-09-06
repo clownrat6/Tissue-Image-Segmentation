@@ -1,10 +1,6 @@
-import warnings
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 
-import cv2
-import mmcv
-import numpy as np
 import torch
 import torch.distributed as dist
 from mmcv.runner import BaseModule
@@ -70,16 +66,16 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         return hasattr(self, 'decode_head') and self.decode_head is not None
 
     @abstractmethod
-    def forward_train(self, img, txt, metas, **kwargs):
+    def forward_train(self, data, metas, **kwargs):
         """Placeholder for Forward function for training."""
         pass
 
     @abstractmethod
-    def forward_test(self, img, txt, metas, **kwargs):
+    def forward_test(self, data, metas, **kwargs):
         """Placeholder for Forward function for testing."""
         pass
 
-    def forward(self, img, txt, metas, return_loss=True, **kwargs):
+    def forward(self, data, metas, return_loss=True, **kwargs):
         """Calls either :func:`forward_train` or :func:`forward_test` depending
         on whether ``return_loss`` is ``True``.
 
@@ -90,9 +86,9 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         the outer list indicating test time augmentations.
         """
         if return_loss:
-            return self.forward_train(img, txt, metas, **kwargs)
+            return self.forward_train(data, metas, **kwargs)
         else:
-            return self.forward_test(img, txt, metas, **kwargs)
+            return self.forward_test(data, metas, **kwargs)
 
     def train_step(self, data_batch, optimizer, **kwargs):
         """The iteration step during training.
@@ -138,11 +134,11 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         output = self(**data_batch, **kwargs)
         return output
 
+    # TODO: Refactor for pure semantic segmentation and instance segmentation
     def show_result(self,
                     img,
-                    txt,
-                    gt_instance_map,
-                    pred_instance_map,
+                    gt_semantic_map,
+                    pred_seg_map,
                     palette=None,
                     win_name='',
                     show=False,
@@ -153,8 +149,7 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
 
         Args:
             img (np.ndarray): The image to be displayed.
-            txt (str): The referring text to be displayed.
-            gt_instance_map (np.ndarray): The ground truth instance map to be
+            gt_semantic_map (np.ndarray): The ground truth instance map to be
                 displayed.
             result (Tensor): The semantic segmentation results to draw over
                 `img`.
@@ -174,63 +169,4 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         Returns:
             img (Tensor): Only if not `show` or `out_file`
         """
-        img = mmcv.imread(img)
-        seg_pred = pred_instance_map
-        seg_label = gt_instance_map
-        # TODO: PLAETTE support gradient color
-        # Reference: `https://blog.csdn.net/qq_18351157/article/details/104093745` # noqa
-        if palette is None:
-            if self.PALETTE is None:
-                palette = np.random.randint(
-                    0, 255, size=(len(self.CLASSES), 3))
-            else:
-                palette = self.PALETTE
-        palette = np.array(palette)
-        assert palette.shape[0] == len(self.CLASSES)
-        assert palette.shape[1] == 3
-        assert len(palette.shape) == 2
-        assert 0 < opacity <= 1.0
-        # color_seg = np.zeros((seg.shape[0], seg.shape[1], 3), dtype=np.uint8)
-        color_seg_pred = img.copy()
-        color_seg_label = img.copy()
-        for label, color in enumerate(palette):
-            color_seg_pred[seg_pred == label, :] = color
-            color_seg_label[seg_label == label, :] = color[[0, 2, 1]]
-        # convert to BGR
-        color_seg_pred = color_seg_pred[..., ::-1]
-
-        img_pred = img * (1 - opacity) + color_seg_pred * opacity
-        img_label = img * (1 - opacity) + color_seg_label * opacity
-        img_pred = img_pred.astype(np.uint8)
-        img_label = img_label.astype(np.uint8)
-
-        # if out_file specified, do not show image in window
-        if out_file is not None:
-            show = False
-
-        Hp, Wp, Cp = img_pred.shape
-        Hl, Wl, Cl = img_label.shape
-        assert Cp == Cl and Hp == Hl
-        top_text_bar = np.zeros((50, Wp + Wl + 10, Cp)).astype(np.uint8)
-        bottom_text_bar = np.zeros((50, Wp + Wl + 10, Cp)).astype(np.uint8)
-        seg_line = np.zeros((Hp, 10, Cp)).astype(np.uint8)
-
-        img = np.concatenate((img_pred, seg_line, img_label), axis=1)
-        img = np.concatenate((top_text_bar, img, bottom_text_bar), axis=0)
-
-        img = cv2.putText(img, 'Prediction', (10, 30),
-                          cv2.FONT_HERSHEY_TRIPLEX, 0.5, (255, 2, 255), 1)
-        img = cv2.putText(img, 'GroundTruth', (10 + Wp, 30),
-                          cv2.FONT_HERSHEY_TRIPLEX, 0.5, (255, 255, 2), 1)
-        img = cv2.putText(img, txt, (10, 50 + Hp + 30),
-                          cv2.FONT_HERSHEY_TRIPLEX, 0.5, (208, 216, 129), 1)
-
-        if show:
-            mmcv.imshow(img, win_name, wait_time)
-        if out_file is not None:
-            mmcv.imwrite(img, out_file)
-
-        if not (show or out_file):
-            warnings.warn('show == False and out_file is not specified, only '
-                          'result image will be returned')
-            return img
+        pass

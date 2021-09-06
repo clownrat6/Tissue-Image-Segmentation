@@ -1,5 +1,3 @@
-import json
-import os
 import os.path as osp
 from collections import OrderedDict
 
@@ -9,49 +7,44 @@ from mmcv.utils import print_log
 from prettytable import PrettyTable
 from torch.utils.data import Dataset
 
-from tiseg.utils.evaluation.metrics import (eval_metrics, intersect_and_union,
-                                            pre_eval_to_metrics)
+from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from .builder import DATASETS
 from .pipelines import Compose
 
 
 @DATASETS.register_module()
-class CustomDataset(Dataset):
+class MoNuSegDataset(Dataset):
+    """MoNuSeg Nuclei Segmentation Dataset.
+    
+    MoNuSeg is actually instance segmentation task dataset. However, it can seem
+    as a three class semantic segmentation task (Background, Nuclei, Edge)
+    """
 
-    vocab = None
+    CLASSES = ('background', 'nuclei', 'edge')
 
-    CLASSES = ('background', 'referring object')
-
-    PALETTE = [[0, 0, 0], [255, 2, 255]]
+    PALETTE = [[0, 0, 0], [255, 2, 255], [2, 255, 255]]
 
     def __init__(self,
-                 pipelines,
+                 pipeline,
                  img_dir,
                  ann_dir,
-                 sent_dir,
                  data_root=None,
-                 img_suffix='.jpg',
-                 ann_suffix='.png',
-                 sent_suffix='.json',
+                 img_suffix='.tif',
+                 ann_suffix='_semantic_with_edge.png',
                  test_mode=False,
                  split=None):
 
-        self.pipelines = Compose(pipelines)
+        self.pipeline = Compose(pipeline)
 
         self.img_dir = img_dir
         self.ann_dir = ann_dir
-        self.sent_dir = sent_dir
         self.data_root = data_root
 
         self.img_suffix = img_suffix
         self.ann_suffix = ann_suffix
-        self.sent_suffix = sent_suffix
 
         self.test_mode = test_mode
         self.split = split
-
-        assert sent_suffix == '.json', 'It is only support json '
-        'sentence annotation now.'
 
         # join paths if data_root is specified
         if self.data_root is not None:
@@ -59,14 +52,11 @@ class CustomDataset(Dataset):
                 self.img_dir = osp.join(self.data_root, self.img_dir)
             if not (self.ann_dir is None or osp.isabs(self.ann_dir)):
                 self.ann_dir = osp.join(self.data_root, self.ann_dir)
-            if not (self.sent_dir is None or osp.isabs(self.sent_dir)):
-                self.sent_dir = osp.join(self.data_root, self.sent_dir)
             if not (self.split is None or osp.isabs(self.split)):
                 self.split = osp.join(self.data_root, self.split)
 
-        self.data_infos = self.load_annotations(self.sent_dir, self.img_suffix,
-                                                self.ann_suffix,
-                                                self.sent_suffix, self.split)
+        self.data_infos = self.load_annotations(self.img_dir, self.img_suffix,
+                                                self.ann_suffix)
 
     def __len__(self):
         """Total number of samples of data."""
@@ -99,7 +89,7 @@ class CustomDataset(Dataset):
         """
         data_info = self.data_infos[index]
         results = self.pre_pipeline(data_info)
-        return self.pipelines(results)
+        return self.pipeline(results)
 
     def prepare_train_data(self, index):
         """Get training data and annotations after pipeline.
@@ -113,81 +103,64 @@ class CustomDataset(Dataset):
         """
         data_info = self.data_infos[index]
         results = self.pre_pipeline(data_info)
-        return self.pipelines(results)
+        return self.pipeline(results)
 
     def pre_pipeline(self, data_info):
         """Prepare results dict for pipeline."""
         results = {}
         results['img_info'] = {}
         results['ann_info'] = {}
-        results['txt_info'] = {}
-        results['sent_info'] = {}
 
         # path retrieval
         results['img_info']['img_name'] = data_info['img_name']
         results['img_info']['img_dir'] = self.img_dir
         results['ann_info']['ann_name'] = data_info['ann_name']
         results['ann_info']['ann_dir'] = self.ann_dir
-        results['sent_info']['sent_name'] = data_info['sent_name']
-        results['sent_info']['sent_dir'] = self.sent_dir
 
         # build seg fileds
         results['seg_fields'] = []
 
         return results
 
-    def load_annotations(self, sent_dir, img_suffix, ann_suffix, sent_suffix,
-                         split):
+    def load_annotations(self, img_dir, img_suffix, ann_suffix, split=None):
         """Load annotation from directory.
 
-        In this task, we set one sent, sent related image and seg map as
-        a batch.
-
         Args:
-            sent (str): Path to sent info directory
+            img_dir (str): Path to image directory.
+            ann_dir (str): Path to annotation directory.
             img_suffix (str): Suffix of images.
             ann_suffix (str): Suffix of segmentation maps.
-            sent_suffix (str): Suffix of sent info.
-            split (str|None): Split txt file. If split is specified, only file
-                with suffix in the splits will be loaded. Otherwise, all sents
-                in sent_dir will be loaded. Default: None
+            split (str | None): Split txt file. If split is specified, only
+                file with suffix in the splits will be loaded.
 
         Returns:
             list[dict]: All data info of dataset, data info contains image,
-                segmentation map and sent info filename.
+                segmentation map.
         """
         data_infos = []
         if split is not None:
             with open(split, 'r') as fp:
                 for line in fp.readlines():
-                    img_id, ann_id, sent_id = line.strip().split()
-                    sent_name = sent_id + sent_suffix
+                    img_id = line.strip().split()
                     image_name = img_id + img_suffix
-                    ann_name = ann_id + ann_suffix
-                    data_info = dict(
-                        img_name=image_name,
-                        ann_name=ann_name,
-                        sent_name=sent_name)
+                    ann_name = img_id + ann_suffix
+                    data_info = dict(img_name=image_name, ann_name=ann_name)
                     data_infos.append(data_info)
         else:
-            for sent_name in os.listdir(self.sent_dir):
-                sent_path = osp.join(sent_dir, sent_name)
-                sent_info = json.load(open(sent_path, 'r'))
-                data_info = dict(
-                    img_name=sent_info['image_name'],
-                    ann_name=sent_info['ann_name'],
-                    sent_name=sent_name)
+            for img_name in mmcv.scandir(img_dir, img_suffix, recursive=True):
+                ann_name = img_name.replace(img_suffix, ann_suffix)
+                data_info = dict(img_name=img_name, ann_name=ann_name)
                 data_infos.append(data_info)
 
         return data_infos
 
-    def get_gt_instance_maps(self):
+    def get_gt_seg_maps(self):
         """Ground Truth maps generator."""
         for data_info in self.data_infos:
             instance_map = osp.join(self.ann_dir, data_info['ann_name'])
-            gt_instance_map = mmcv.imread(
+            gt_seg_map = mmcv.imread(
                 instance_map, flag='unchanged', backend='pillow')
-            yield gt_instance_map
+            yield gt_seg_map
 
     def pre_eval(self, preds, indices):
         """Collect eval result from each iteration.
@@ -214,16 +187,12 @@ class CustomDataset(Dataset):
             seg_map = osp.join(self.ann_dir,
                                self.data_infos[index]['ann_name'])
             seg_map = mmcv.imread(seg_map, flag='unchanged', backend='pillow')
-            pre_eval_results.append(
-                intersect_and_union(pred, seg_map, len(self.CLASSES)))
+            pre_eval_results.append(aggregated_jaccard_index(pred, seg_map))
+            # pre_eval_results.append(intersect_and_union(pred, seg_map, len(self.CLASSES)))
 
         return pre_eval_results
 
-    def format_results(self, results, **kwargs):
-        """Save prediction results for submit."""
-        pass
-
-    def evaluate(self, results, metric='mIoU', logger=None, **kwargs):
+    def evaluate(self, results, metric='aji', logger=None, **kwargs):
         """Evaluate the dataset.
 
         Args:
@@ -239,72 +208,37 @@ class CustomDataset(Dataset):
 
         if isinstance(metric, str):
             metric = [metric]
-        allowed_metrics = ['mIoU', 'mDice', 'mFscore']
+        allowed_metrics = ['aji']
         if not set(metric).issubset(set(allowed_metrics)):
             raise KeyError('metric {} is not supported'.format(metric))
 
         eval_results = {}
+        ret_metrics = {}
         # test a list of files
-        if mmcv.is_list_of(results, str):
-            gt_seg_maps = self.get_gt_seg_maps()
-            num_classes = len(self.CLASSES)
-            # reset generator
-            gt_seg_maps = self.get_gt_seg_maps()
-            ret_metrics = eval_metrics(results, gt_seg_maps, num_classes,
-                                       metric)
-        # test a list of pre_eval_results
-        else:
-            ret_metrics = pre_eval_to_metrics(results, metric)
+        if 'aji' in metric:
+            ret_metrics['aji'] = np.array([sum(results) / len(results)])
 
-        if self.CLASSES is None:
-            class_names = tuple(range(num_classes))
-        else:
-            class_names = self.CLASSES
+        eval_results['aji'] = ret_metrics['aji']
 
-        # summary table
-        ret_metrics_summary = OrderedDict({
-            ret_metric: np.round(np.nanmean(ret_metric_value) * 100, 2)
-            for ret_metric, ret_metric_value in ret_metrics.items()
-        })
-
-        # each class table
-        ret_metrics.pop('aAcc', None)
+        # for logger
         ret_metrics_class = OrderedDict({
             ret_metric: np.round(ret_metric_value * 100, 2)
             for ret_metric, ret_metric_value in ret_metrics.items()
         })
-        ret_metrics_class.update({'Class': class_names})
+        ret_metrics_class.update({'Class': ['Nuclei']})
         ret_metrics_class.move_to_end('Class', last=False)
-
-        # for logger
         class_table_data = PrettyTable()
         for key, val in ret_metrics_class.items():
             class_table_data.add_column(key, val)
 
-        summary_table_data = PrettyTable()
-        for key, val in ret_metrics_summary.items():
-            if key == 'aAcc':
-                summary_table_data.add_column(key, [val])
-            else:
-                summary_table_data.add_column('m' + key, [val])
-
-        print_log('per class results:', logger)
+        print_log('Per class:', logger)
         print_log('\n' + class_table_data.get_string(), logger=logger)
-        print_log('Summary:', logger)
-        print_log('\n' + summary_table_data.get_string(), logger=logger)
-
-        # each metric dict
-        for key, value in ret_metrics_summary.items():
-            if key == 'aAcc':
-                eval_results[key] = value / 100.0
-            else:
-                eval_results['m' + key] = value / 100.0
 
         ret_metrics_class.pop('Class', None)
         for key, value in ret_metrics_class.items():
             eval_results.update({
                 key + '.' + str(name): value[idx] / 100.0
-                for idx, name in enumerate(class_names)
+                for idx, name in enumerate(['Nuclei'])
             })
 
         # This ret value is used for eval hook. Eval hook will add these

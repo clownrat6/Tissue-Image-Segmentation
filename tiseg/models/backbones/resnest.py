@@ -10,8 +10,8 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as cp
 from mmcv.cnn import build_conv_layer, build_norm_layer
 
-from ...builder import BACKBONES
-from ...utils import ResLayer
+from ..builder import BACKBONES
+from ..utils import ResLayer
 from .resnet import Bottleneck as _Bottleneck
 from .resnet import ResNetV1d
 

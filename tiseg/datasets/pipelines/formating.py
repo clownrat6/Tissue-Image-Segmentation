@@ -147,43 +147,6 @@ class SegmapToTensor(object):
 
 
 @PIPELINES.register_module()
-class TextToTensor(object):
-    """Convert text to :obj:`torch.Tensor` by given keys.
-
-    The dimension order of input text is (L). The pipeline will convert
-    it to (C, L).
-
-    Args:
-        keys (Sequence[str]): Key of texts to be converted to Tensor.
-    """
-
-    def __init__(self, keys):
-        self.keys = keys
-
-    def __call__(self, results):
-        """Call function to convert text in results to :obj:`torch.Tensor` and
-        transpose the channel order.
-
-        Args:
-            results (dict): Result dict contains the text data to convert.
-
-        Returns:
-            dict: The result dict contains the image converted
-                to :obj:`torch.Tensor` and transposed to (C, H, W) order.
-        """
-
-        for key in self.keys:
-            txt = results[key]
-            if len(txt.shape) < 2:
-                txt = np.expand_dims(txt, -1)
-            results[key] = to_tensor(txt.transpose(1, 0))
-        return results
-
-    def __repr__(self):
-        return self.__class__.__name__ + f'(keys={self.keys})'
-
-
-@PIPELINES.register_module()
 class Transpose(object):
     """Transpose some results by given keys.
 
@@ -261,13 +224,11 @@ class DefaultFormatBundle(object):
     """Default formatting bundle.
 
     It simplifies the pipeline of formatting common fields, including "img",
-    "gt_instance_map" and "txt". These fields are formatted as follows.
+    "gt_semantic_map". These fields are formatted as follows.
 
     - img: (1)transpose, (2)to tensor, (3)to DataContainer (stack=True)
-    - gt_semantic_seg: (1)unsqueeze dim(1), (2)to tensor,
+    - gt_semantic_map: (1)unsqueeze dim(1), (2)to tensor,
                        (3)to DataContainer (stack=True)
-    - txt: (1)unsqueeze dim(0), (2)to tensor,
-           (3)to DataContainer (stack=True)
     """
 
     def __call__(self, results):
@@ -289,63 +250,50 @@ class DefaultFormatBundle(object):
             if img.dtype is not np.float32:
                 img = img.astype(np.float32)
             results['img'] = DC(to_tensor(img), stack=True)
-        if 'gt_instance_map' in results:
+        if 'gt_semantic_map' in results:
             # convert to long
-            results['gt_instance_map'] = DC(
-                to_tensor(results['gt_instance_map'][None,
+            results['gt_semantic_map'] = DC(
+                to_tensor(results['gt_semantic_map'][None,
                                                      ...].astype(np.int64)),
                 stack=True)
-        if 'txt' in results:
-            results['txt'] = DC(
-                to_tensor(results['txt'][None, ...]), stack=True, pad_dims=1)
+        if 'gt_semantic_map_edge' in results:
+            # convert to long
+            results['gt_semantic_map_edge'] = DC(
+                to_tensor(results['gt_semantic_map_edge'][None, ...].astype(
+                    np.int64)),
+                stack=True)
+        if 'gt_point_map' in results:
+            # convert to float
+            results['gt_point_map'] = DC(
+                to_tensor(results['gt_point_map'][None,
+                                                  ...].astype(np.float32)),
+                stack=True)
+        if 'gt_direction_map' in results:
+            # convert to long
+            results['gt_direction_map'] = DC(
+                to_tensor(results['gt_direction_map'][None,
+                                                      ...].astype(np.int64)),
+                stack=True)
         return results
 
     def __repr__(self):
         return self.__class__.__name__
 
 
+# TODO: Refactor doc string & comments
 @PIPELINES.register_module()
 class Collect(object):
     """Collect data from the loader relevant to the specific task.
 
-    This is usually the last stage of the data loader pipeline. Typically keys
-    is set to some subset of "img", "gt_semantic_seg".
-
-    The "img_meta" item is always populated.  The contents of the "img_meta"
-    dictionary depends on "meta_keys". By default this includes:
-
-        - "img_shape": shape of the image input to the network as a tuple
-            (h, w, c).  Note that images may be zero padded on the bottom/right
-            if the batch tensor is larger than this shape.
-
-        - "scale_factor": a float indicating the preprocessing scale
-
-        - "flip": a boolean indicating if image flip transform was used
-
-        - "filename": path to the image file
-
-        - "ori_shape": original shape of the image as a tuple (h, w, c)
-
-        - "pad_shape": image shape after padding
-
-        - "img_norm_cfg": a dict of normalization information:
-            - mean - per channel mean subtraction
-            - std - per channel std divisor
-            - to_rgb - bool indicating if bgr was converted to rgb
-
     Args:
-        keys (Sequence[str]): Keys of results to be collected in ``data``.
-        meta_keys (Sequence[str], optional): Meta keys to be converted to
-            ``mmcv.DataContainer`` and collected in ``data[img_metas]``.
-            Default: ``('filename', 'ori_filename', 'ori_shape', 'img_shape',
-            'pad_shape', 'scale_factor', 'flip', 'flip_direction',
-            'img_norm_cfg')``
     """
 
     def __init__(self,
-                 keys,
-                 meta_keys=('img_info', 'ann_info', 'sent_info', 'txt_info')):
-        self.keys = keys
+                 data_keys,
+                 label_keys,
+                 meta_keys=('img_info', 'ann_info')):
+        self.data_keys = data_keys
+        self.label_keys = label_keys
         self.meta_keys = meta_keys
 
     def __call__(self, results):
@@ -366,8 +314,12 @@ class Collect(object):
         for key in self.meta_keys:
             meta[key] = results[key]
         data['metas'] = DC(meta, cpu_only=True)
-        for key in self.keys:
-            data[key] = results[key]
+        data['data'] = dict()
+        data['label'] = dict()
+        for key in self.data_keys:
+            data['data'][key] = results[key]
+        for key in self.label_keys:
+            data['label'][key] = results[key]
         return data
 
     def __repr__(self):
