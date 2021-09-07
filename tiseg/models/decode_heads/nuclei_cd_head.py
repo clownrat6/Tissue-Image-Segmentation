@@ -385,7 +385,7 @@ class NucleiCDHead(nn.Module):
         loss['mask_iou'] = miou(clean_mask_logit, clean_mask_label, 3)
         loss['direction_dice'] = mdice(clean_direction_logit,
                                        clean_direction_label, 9)
-        loss['direction_dice'] = miou(clean_direction_logit,
+        loss['direction_iou'] = miou(clean_direction_logit,
                                       clean_direction_label, 9)
 
         # metric calculate
