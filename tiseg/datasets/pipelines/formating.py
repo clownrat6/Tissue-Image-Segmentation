@@ -256,11 +256,12 @@ class DefaultFormatBundle(object):
                 to_tensor(results['gt_semantic_map'][None,
                                                      ...].astype(np.int64)),
                 stack=True)
-        if 'gt_semantic_map_edge' in results:
+        if 'gt_semantic_map_with_edge' in results:
             # convert to long
-            results['gt_semantic_map_edge'] = DC(
-                to_tensor(results['gt_semantic_map_edge'][None, ...].astype(
-                    np.int64)),
+            results['gt_semantic_map_with_edge'] = DC(
+                to_tensor(results['gt_semantic_map_with_edge'][None,
+                                                               ...].astype(
+                                                                   np.int64)),
                 stack=True)
         if 'gt_point_map' in results:
             # convert to float

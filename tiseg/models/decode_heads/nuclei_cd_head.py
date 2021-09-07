@@ -332,7 +332,7 @@ class NucleiCDHead(nn.Module):
     def forward_train(self, inputs, metas, label, train_cfg):
         mask_logit, direction_logit, point_logit = self.forward(inputs)
 
-        mask_label = label['gt_semantic_map_edge']
+        mask_label = label['gt_semantic_map_with_edge']
         point_label = label['gt_point_map']
         direction_label = label['gt_direction_map']
 
@@ -372,7 +372,6 @@ class NucleiCDHead(nn.Module):
             direction_loss_calculator(direction_logit, direction_label))
 
         # TODO: Conside to remove some edge loss value.
-
         loss['mask_loss'] = mask_loss
         loss['direction_loss'] = direction_loss
         loss['point_loss'] = point_loss
