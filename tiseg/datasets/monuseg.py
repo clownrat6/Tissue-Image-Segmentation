@@ -229,9 +229,9 @@ class MoNuSegDataset(Dataset):
                 aji_list.append(item['aji'])
                 dice_list.append(item['dice'])
             eval_results['aji'] = ret_metrics['aji'] = np.array(
-                sum(aji_list) / len(aji_list))
+                [sum(aji_list) / len(aji_list)])
             eval_results['dice'] = ret_metrics['dice'] = np.array(
-                sum(dice_list) / len(dice_list))
+                [sum(dice_list) / len(dice_list)])
 
         if 'aji' in metric:
             ret_metrics['aji'] = np.array([sum(results) / len(results)])
