@@ -7,7 +7,8 @@ from mmcv.utils import print_log
 from prettytable import PrettyTable
 from torch.utils.data import Dataset
 
-from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
+from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
+                                            intersect_and_union)
 from .builder import DATASETS
 from .pipelines import Compose
 
@@ -187,17 +188,23 @@ class MoNuSegDataset(Dataset):
             seg_map = osp.join(self.ann_dir,
                                self.data_infos[index]['ann_name'])
             seg_map = mmcv.imread(seg_map, flag='unchanged', backend='pillow')
-            pre_eval_results.append(aggregated_jaccard_index(pred, seg_map))
+            # pre eval aji and dice metric
+            aji_metric = aggregated_jaccard_index(pred, seg_map)
+
+            intersect, union, _, _ = intersect_and_union(pred, seg_map)
+            dice_metric = 2 * intersect / (union + intersect)
+
+            pre_eval_results.append(dict(aji=aji_metric, dice=dice_metric))
 
         return pre_eval_results
 
-    def evaluate(self, results, metric='aji', logger=None, **kwargs):
+    def evaluate(self, results, metric='all', logger=None, **kwargs):
         """Evaluate the dataset.
 
         Args:
             processor (object): The result processor.
-            metric (str | list[str]): Metrics to be evaluated. 'mIoU',
-                'mDice' and 'mFscore' are supported.
+            metric (str | list[str]): Metrics to be evaluated. 'Aji',
+                'Dice' are supported.
             logger (logging.Logger | None | str): Logger used for printing
                 related information during evaluation. Default: None.
 
@@ -207,17 +214,31 @@ class MoNuSegDataset(Dataset):
 
         if isinstance(metric, str):
             metric = [metric]
-        allowed_metrics = ['aji']
+        allowed_metrics = ['aji', 'dice', 'all']
         if not set(metric).issubset(set(allowed_metrics)):
             raise KeyError('metric {} is not supported'.format(metric))
 
         eval_results = {}
         ret_metrics = {}
         # test a list of files
+        if 'all' in metric:
+            # dict to list
+            aji_list = []
+            dice_list = []
+            for item in results:
+                aji_list.append(item['aji'])
+                dice_list.append(item['dice'])
+            eval_results['aji'] = ret_metrics['aji'] = np.array(
+                sum(aji_list) / len(aji_list))
+            eval_results['dice'] = ret_metrics['dice'] = np.array(
+                sum(dice_list) / len(dice_list))
+
         if 'aji' in metric:
             ret_metrics['aji'] = np.array([sum(results) / len(results)])
-
-        eval_results['aji'] = ret_metrics['aji']
+            eval_results['aji'] = ret_metrics['aji']
+        if 'dice' in metric:
+            ret_metrics['dice'] = np.array([sum(results) / len(results)])
+            eval_results['dice'] = ret_metrics['dice']
 
         # for logger
         ret_metrics_class = OrderedDict({
