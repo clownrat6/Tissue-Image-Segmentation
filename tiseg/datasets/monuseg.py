@@ -191,8 +191,8 @@ class MoNuSegDataset(Dataset):
             # pre eval aji and dice metric
             aji_metric = aggregated_jaccard_index(pred, seg_map)
 
-            intersect, union, _, _ = intersect_and_union(pred, seg_map)
-            dice_metric = 2 * intersect / (union + intersect)
+            intersect, union, _, _ = intersect_and_union(pred, seg_map, 2)
+            dice_metric = (2 * intersect / (union + intersect))[1].numpy()
 
             pre_eval_results.append(dict(aji=aji_metric, dice=dice_metric))
 
