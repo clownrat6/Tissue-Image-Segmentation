@@ -406,6 +406,23 @@ class NucleiCDHead(nn.Module):
         # retrieval mask_out / direction_out / point_out
         mask_logit, direction_logit, point_logit = self.forward(inputs)
 
+        # The whole image is too huge. So we use slide inference in default.
+        mask_logit = resize(
+            input=mask_logit,
+            size=test_cfg['crop_size'],
+            mode='bilinear',
+            align_corners=self.align_corners)
+        direction_logit = resize(
+            input=direction_logit,
+            size=test_cfg['crop_size'],
+            mode='bilinear',
+            align_corners=self.align_corners)
+        point_logit = resize(
+            input=point_logit,
+            size=test_cfg['crop_size'],
+            mode='bilinear',
+            align_corners=self.align_corners)
+
         # make direction differential map
         direction_map = torch.argmax(direction_logit, dim=1)
         direction_differential_map = generate_direction_differential_map(
