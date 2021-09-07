@@ -22,7 +22,7 @@ train_pipeline = [
         type='Collect',
         data_keys=['img'],
         label_keys=[
-            'gt_semantic_map', 'gt_semantic_map_edge', 'gt_point_map',
+            'gt_semantic_map', 'gt_semantic_map_with_edge', 'gt_point_map',
             'gt_direction_map'
         ]),
 ]
