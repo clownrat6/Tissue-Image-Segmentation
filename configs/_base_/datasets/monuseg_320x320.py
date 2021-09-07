@@ -10,19 +10,15 @@ train_pipeline = [
     dict(type='Resize', img_scale=(2048, 1000), ratio_range=(0.5, 2.0)),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
     dict(type='RandomFlip', prob=0.5),
-    dict(type='EdgeMapCalculation'),
-    dict(type='InstanceMapCalculation'),
-    dict(type='PointMapCalculation'),
-    dict(type='DirectionMapCalculation'),
+    dict(type='CDNetLabelMake'),
     dict(type='Normalize', max_min=False),
-    # dict(type='Standardization', **img_norm_cfg),
     dict(type='Pad', size=crop_size, pad_val=0, seg_pad_val=0),
     dict(type='DefaultFormatBundle'),
     dict(
         type='Collect',
         data_keys=['img'],
         label_keys=[
-            'gt_semantic_map', 'gt_semantic_map_edge', 'gt_point_map',
+            'gt_semantic_map', 'gt_semantic_map_with_edge', 'gt_point_map',
             'gt_direction_map'
         ]),
 ]
