@@ -20,8 +20,8 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     target_label = target_label.copy()
 
     if is_semantic:
-        pred_label[pred_label > 0] = 1
-        target_label[target_label > 0] = 1
+        pred_label[pred_label != 1] = 0
+        target_label[target_label != 1] = 0
         pred_label = measure.label(pred_label)
         target_label = measure.label(target_label)
 

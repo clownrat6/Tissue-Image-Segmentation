@@ -234,10 +234,16 @@ class MoNuSegDataset(Dataset):
                 [sum(dice_list) / len(dice_list)])
 
         if 'aji' in metric:
-            ret_metrics['aji'] = np.array([sum(results) / len(results)])
+            aji_list = []
+            for item in results:
+                aji_list.append(item['aji'])
+            ret_metrics['aji'] = np.array([sum(aji_list) / len(aji_list)])
             eval_results['aji'] = ret_metrics['aji']
         if 'dice' in metric:
-            ret_metrics['dice'] = np.array([sum(results) / len(results)])
+            dice_list = []
+            for item in results:
+                dice_list.append(item['dice'])
+            ret_metrics['dice'] = np.array([sum(dice_list) / len(dice_list)])
             eval_results['dice'] = ret_metrics['dice']
 
         # for logger
