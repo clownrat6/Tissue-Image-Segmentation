@@ -386,7 +386,7 @@ class NucleiCDHead(nn.Module):
         loss['direction_dice'] = mdice(clean_direction_logit,
                                        clean_direction_label, 9)
         loss['direction_iou'] = miou(clean_direction_logit,
-                                      clean_direction_label, 9)
+                                     clean_direction_label, 9)
 
         # metric calculate
         mask_pred = (torch.argmax(mask_logit,
