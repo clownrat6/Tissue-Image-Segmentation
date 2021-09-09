@@ -3,7 +3,7 @@ _base_ = [
     '../_base_/default_runtime.py', '../_base_/schedules/schedule_20k.py'
 ]
 
-optimizer = dict(_delete_=True, type='Adam', lr=0.0001, weight_decay=0.0005)
+optimizer = dict(_delete_=True, type='Adam', lr=0.00025, weight_decay=0.0005)
 
 evaluation = dict(_delete_=True, interval=2000, metric='aji')
 
