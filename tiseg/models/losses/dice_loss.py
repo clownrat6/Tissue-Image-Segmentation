@@ -30,7 +30,7 @@ class GeneralizedDiceLoss(nn.Module):
     """
 
     def __init__(self, num_classes):
-        super(DiceLoss, self).__init__()
+        super(GeneralizedDiceLoss, self).__init__()
         self.num_classes = num_classes
 
     def forward(self,
@@ -40,13 +40,14 @@ class GeneralizedDiceLoss(nn.Module):
                 spatial_weight=None,
                 channel_weight=None):
         # one-hot encoding for target
-        target_one_hot = _convert_to_one_hot(target, self.num_classes)
+        target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(
+            0, 3, 1, 2)
 
         if spatial_weight is not None:
             logit *= spatial_weight
             target_one_hot *= spatial_weight
 
-        intersect = torch.sum(logit * target, dim=(0, 2, 3))
+        intersect = torch.sum(logit * target_one_hot, dim=(0, 2, 3))
         logit_area = torch.sum(logit, dim=(0, 2, 3))
         target_area = torch.sum(target_one_hot, dim=(0, 2, 3))
         addition_area = logit_area + target_area
@@ -85,8 +86,9 @@ class DiceLoss(nn.Module):
         target_area = torch.sum(target_one_hot, dim=(0, 2, 3))
         addition_area = logit_area + target_area
 
-        dice_score = torch.sum(
+        dice_score = torch.mean(
             (2 * intersect + smooth) / (addition_area + smooth))
+
         dice_loss = 1 - dice_score
 
         return dice_loss
