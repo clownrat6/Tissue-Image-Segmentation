@@ -14,15 +14,9 @@ def test_dice_loss():
 
     loss_value = criterion(logit, target)
 
-    print(loss_value)
-
     criterion = GeneralizedDiceLoss(C)
 
     loss_value = criterion(logit, target)
-
-    print(loss_value)
-
-    exit(0)
 
     assert loss_value >= 0 and loss_value <= 1
 
