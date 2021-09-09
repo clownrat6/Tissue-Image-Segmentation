@@ -188,6 +188,11 @@ class MoNuSegDataset(Dataset):
             seg_map = osp.join(self.ann_dir,
                                self.data_infos[index]['ann_name'])
             seg_map = mmcv.imread(seg_map, flag='unchanged', backend='pillow')
+
+            # extract inside
+            pred = (pred == 1).astype(np.uint8)
+            seg_map = (seg_map == 1).astype(np.uint8)
+
             # pre eval aji and dice metric
             aji_metric = aggregated_jaccard_index(pred, seg_map)
 
