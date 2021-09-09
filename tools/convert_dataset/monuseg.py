@@ -98,7 +98,7 @@ def convert_instance_to_semantic(instances,
     return mask
 
 
-def convert_train_cohort(raw_path, new_path, with_edge=True):
+def convert_train_cohort(raw_path, new_path):
     if not osp.exists(new_path):
         os.makedirs(new_path, 0o775)
 
@@ -115,8 +115,10 @@ def convert_train_cohort(raw_path, new_path, with_edge=True):
         H, W = image.shape[:2]
         contours = extract_contours(label_path)
         instance_label = convert_contour_to_instance(contours, H, W)
-        semantic_label = convert_instance_to_semantic(instance_label, H, W,
-                                                      len(contours), with_edge)
+        semantic_label = convert_instance_to_semantic(
+            instance_label, H, W, len(contours), with_edge=False)
+        semantic_label_edge = convert_instance_to_semantic(
+            instance_label, H, W, len(contours), with_edge=True)
 
         # Save image
         dst_image_path = osp.join(new_path, item + '.tif')
@@ -127,19 +129,19 @@ def convert_train_cohort(raw_path, new_path, with_edge=True):
         np.save(dst_instance_label_path, instance_label)
 
         # Save semantic level label
-        if with_edge:
-            dst_semantic_label_path = osp.join(
-                new_path, item + '_semantic_with_edge.png')
-        else:
-            dst_semantic_label_path = osp.join(new_path,
-                                               item + '_semantic.png')
+        dst_semantic_edge_label_path = osp.join(
+            new_path, item + '_semantic_with_edge.png')
+        semantic_label_edge_png = Image.fromarray(semantic_label_edge)
+        semantic_label_edge_png.save(dst_semantic_edge_label_path)
+
+        dst_semantic_label_path = osp.join(new_path, item + '_semantic.png')
         semantic_label_png = Image.fromarray(semantic_label)
         semantic_label_png.save(dst_semantic_label_path)
 
     return item_list
 
 
-def convert_test_cohort(raw_path, new_path, with_edge=True):
+def convert_test_cohort(raw_path, new_path):
     if not osp.exists(new_path):
         os.makedirs(new_path, 0o775)
 
@@ -153,8 +155,10 @@ def convert_test_cohort(raw_path, new_path, with_edge=True):
         H, W = image.shape[:2]
         contours = extract_contours(label_path)
         instance_label = convert_contour_to_instance(contours, H, W)
-        semantic_label = convert_instance_to_semantic(instance_label, H, W,
-                                                      len(contours), with_edge)
+        semantic_label = convert_instance_to_semantic(
+            instance_label, H, W, len(contours), with_edge=False)
+        semantic_label_edge = convert_instance_to_semantic(
+            instance_label, H, W, len(contours), with_edge=True)
 
         # Save image
         dst_image_path = osp.join(new_path, item + '.tif')
@@ -165,12 +169,12 @@ def convert_test_cohort(raw_path, new_path, with_edge=True):
         np.save(dst_instance_label_path, instance_label)
 
         # Save semantic level label
-        if with_edge:
-            dst_semantic_label_path = osp.join(
-                new_path, item + '_semantic_with_edge.png')
-        else:
-            dst_semantic_label_path = osp.join(new_path,
-                                               item + '_semantic.png')
+        dst_semantic_edge_label_path = osp.join(
+            new_path, item + '_semantic_with_edge.png')
+        semantic_label_edge_png = Image.fromarray(semantic_label_edge)
+        semantic_label_edge_png.save(dst_semantic_edge_label_path)
+
+        dst_semantic_label_path = osp.join(new_path, item + '_semantic.png')
         semantic_label_png = Image.fromarray(semantic_label)
         semantic_label_png.save(dst_semantic_label_path)
 
@@ -180,11 +184,6 @@ def convert_test_cohort(raw_path, new_path, with_edge=True):
 def parse_args():
     parser = argparse.ArgumentParser('Convert monuseg dataset.')
     parser.add_argument('root_path', help='dataset root path.')
-    parser.add_argument(
-        '-e',
-        '--with_edge',
-        action='store_true',
-        help='whether to make semantic label with edge class.')
 
     return parser.parse_args()
 
@@ -192,7 +191,6 @@ def parse_args():
 def main():
     args = parse_args()
     root_path = args.root_path
-    with_edge = args.with_edge
 
     train_raw_path = osp.join(root_path, 'MoNuSeg 2018 Training Data')
     test_raw_path = osp.join(root_path, 'MoNuSegTestData')
@@ -201,12 +199,12 @@ def main():
     test_new_path = osp.join(root_path, 'test')
 
     # make train cohort dataset
-    item_list = convert_train_cohort(train_raw_path, train_new_path, with_edge)
+    item_list = convert_train_cohort(train_raw_path, train_new_path)
     with open(osp.join(root_path, 'train.txt'), 'w') as fp:
         [fp.write(item + '\n') for item in item_list]
 
     # make test cohort dataset
-    item_list = convert_test_cohort(test_raw_path, test_new_path, with_edge)
+    item_list = convert_test_cohort(test_raw_path, test_new_path)
     with open(osp.join(root_path, 'test.txt'), 'w') as fp:
         [fp.write(item + '\n') for item in item_list]
 
