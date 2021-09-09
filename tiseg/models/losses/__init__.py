@@ -2,12 +2,13 @@ from .accuracy import Accuracy, accuracy
 from .cross_entropy_loss import (CrossEntropyLoss, binary_cross_entropy,
                                  cross_entropy, mask_cross_entropy)
 from .dice import Dice, dice, mdice
+from .dice_loss import DiceLoss, GeneralizedDiceLoss
 from .iou import IoU, iou, miou
 from .utils import reduce_loss, weight_reduce_loss, weighted_loss
 
 __all__ = [
     'accuracy', 'Accuracy', 'cross_entropy', 'binary_cross_entropy',
     'mask_cross_entropy', 'CrossEntropyLoss', 'reduce_loss',
-    'weight_reduce_loss', 'weighted_loss', 'IoU', 'iou', 'miou', 'Dice',
-    'dice', 'mdice'
+    'weight_reduce_loss', 'weighted_loss', 'DiceLoss', 'GeneralizedDiceLoss',
+    'IoU', 'iou', 'miou', 'Dice', 'dice', 'mdice'
 ]
