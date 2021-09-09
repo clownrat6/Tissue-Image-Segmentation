@@ -368,12 +368,14 @@ class NucleiCDHead(nn.Module):
 
         # TODO: Conside to remove some edge loss value.
         # mask branch loss calculation
-        loss['mask_loss'] = self._mask_loss(mask_logit, mask_label)
+        mask_loss = self._mask_loss(mask_logit, mask_label)
+        loss.update(mask_loss)
         # direction branch loss calculation
-        loss['direction_loss'] = self._direction_loss(direction_logit,
-                                                      direction_label)
+        direction_loss = self._direction_loss(direction_logit, direction_label)
+        loss.update(direction_loss)
         # point branch loss calculation
-        loss['point_loss'] = self._point_loss(point_logit, point_label)
+        point_loss = self._point_loss(point_logit, point_label)
+        loss.update(point_loss)
 
         # calculate training metric
         training_metric_dict = self._training_metric(mask_logit,
@@ -386,6 +388,7 @@ class NucleiCDHead(nn.Module):
         return loss
 
     def _mask_loss(self, mask_logit, mask_label):
+        mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
         mask_dice_loss_calculator = GeneralizedDiceLoss(num_classes=3)
         # Assign weight map for each pixel position
@@ -396,17 +399,23 @@ class NucleiCDHead(nn.Module):
         # loss weight
         alpha = 1
         beta = 1
-        mask_loss = alpha * mask_ce_loss + beta * mask_dice_loss
+        mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
+        mask_loss['mask_dice_loss'] = beta * mask_dice_loss
 
         return mask_loss
 
     def _point_loss(self, point_logit, point_label):
-        point_loss_calculator = nn.MSELoss()
-        point_loss = point_loss_calculator(point_logit, point_label)
+        point_loss = {}
+        point_mse_loss_calculator = nn.MSELoss()
+        point_mse_loss = point_mse_loss_calculator(point_logit, point_label)
+        # loss weight
+        alpha = 1
+        point_loss['point_mse_loss'] = alpha * point_mse_loss
 
         return point_loss
 
     def _direction_loss(self, direction_logit, direction_label):
+        direction_loss = {}
         direction_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
         mask_dice_loss_calculator = GeneralizedDiceLoss(num_classes=9)
         direction_ce_loss = torch.mean(
@@ -416,7 +425,8 @@ class NucleiCDHead(nn.Module):
         # loss weight
         alpha = 1
         beta = 1
-        direction_loss = alpha * direction_ce_loss + beta * direction_dice_loss
+        direction_loss['direction_ce_loss'] = alpha * direction_ce_loss
+        direction_loss['direction_dice_loss'] = beta * direction_dice_loss
 
         return direction_loss
 
