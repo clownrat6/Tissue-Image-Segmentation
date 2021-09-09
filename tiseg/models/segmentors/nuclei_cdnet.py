@@ -269,7 +269,7 @@ class NucleiCDNet(BaseSegmentor):
         seg_logit = self.inference(img, meta, rescale)
         seg_pred = seg_logit.argmax(dim=1)
         # Extract inside class
-        seg_pred = (seg_pred == 1).astype(torch.uint8)
+        seg_pred = (seg_pred == 1).type(torch.uint8)
         seg_pred = seg_pred.cpu().numpy()
         # unravel batch dim
         seg_pred = list(seg_pred)
@@ -290,7 +290,7 @@ class NucleiCDNet(BaseSegmentor):
         seg_logit /= len(imgs)
         seg_pred = seg_logit.argmax(dim=1)
         # Extract inside class
-        seg_pred = (seg_pred == 1).astype(torch.uint8)
+        seg_pred = (seg_pred == 1).type(torch.uint8)
         seg_pred = seg_pred.cpu().numpy()
         # unravel batch dim
         seg_pred = list(seg_pred)

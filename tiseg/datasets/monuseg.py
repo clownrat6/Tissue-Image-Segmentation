@@ -5,6 +5,9 @@ import mmcv
 import numpy as np
 from mmcv.utils import print_log
 from prettytable import PrettyTable
+from scipy.ndimage import binary_fill_holes
+from skimage import measure, morphology
+from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
 from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
@@ -189,12 +192,29 @@ class MoNuSegDataset(Dataset):
                                self.data_infos[index]['ann_name'])
             seg_map = mmcv.imread(seg_map, flag='unchanged', backend='pillow')
 
+            # metric calculation post process codes:
+
             # extract inside
             pred = (pred == 1).astype(np.uint8)
             seg_map = (seg_map == 1).astype(np.uint8)
 
+            # fill instance holes
+            pred = binary_fill_holes(pred)
+            # remove small instance
+            pred = remove_small_objects(pred, 20)
+
+            # instance process & dilation
+            pred = measure.label(pred)
+            pred = morphology.dilation(pred, selem=morphology.disk(1))
+            seg_map = measure.label(seg_map)
+
             # pre eval aji and dice metric
-            aji_metric = aggregated_jaccard_index(pred, seg_map)
+            aji_metric = aggregated_jaccard_index(
+                pred, seg_map, is_semantic=False)
+
+            # convert to semantic level
+            pred = (pred > 0).astype(np.uint8)
+            seg_map = (seg_map > 0).astype(np.uint8)
 
             intersect, union, _, _ = intersect_and_union(pred, seg_map, 2)
             dice_metric = (2 * intersect / (union + intersect))[1].numpy()
