@@ -41,7 +41,9 @@ class GeneralizedDiceLoss(nn.Module):
                 channel_weight=None):
         # one-hot encoding for target
         target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(
-            0, 3, 1, 2)
+            0, 3, 1, 2).contiguous()
+        # softmax for logit
+        logit = F.softmax(logit)
 
         if spatial_weight is not None:
             logit *= spatial_weight
@@ -78,8 +80,10 @@ class DiceLoss(nn.Module):
 
     def forward(self, logit, target):
         target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(
-            0, 3, 1, 2)
+            0, 3, 1, 2).contiguous()
         smooth = 1e-4
+        # softmax for logit
+        logit = F.softmax(logit)
 
         intersect = torch.sum(logit * target_one_hot, dim=(0, 2, 3))
         logit_area = torch.sum(logit, dim=(0, 2, 3))

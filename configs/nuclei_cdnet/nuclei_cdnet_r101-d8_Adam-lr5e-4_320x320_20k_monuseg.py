@@ -3,7 +3,9 @@ _base_ = [
     '../_base_/default_runtime.py', '../_base_/schedules/schedule_20k.py'
 ]
 
-optimizer = dict(_delete_=True, type='Adam', lr=0.00025, weight_decay=0.0005)
+model = dict(pretrained='open-mmlab://resnet101_v1c', backbone=dict(depth=101))
+
+optimizer = dict(_delete_=True, type='Adam', lr=0.0005, weight_decay=0.0005)
 
 evaluation = dict(_delete_=True, interval=2000, metric='all')
 
