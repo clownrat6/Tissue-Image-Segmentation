@@ -5,7 +5,7 @@ _base_ = [
 
 optimizer = dict(_delete_=True, type='Adam', lr=0.00025, weight_decay=0.0005)
 
-evaluation = dict(_delete_=True, interval=2000, metric='aji')
+evaluation = dict(_delete_=True, interval=2000, metric='all')
 
 lr_config = dict(
     _delete_=True,
