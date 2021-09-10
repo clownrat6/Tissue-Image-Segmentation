@@ -4,8 +4,15 @@ It is recommended to symlink the dataset root to `$ROOT/data`. If your folder st
 
 ```None
 data
+├── consep
+│   ├── CoNSeP
+│   │   ├── Test
+│   │   └── Train
+│   ├── test
+│   ├── test.txt
+│   ├── train
+│   └── train.txt
 ├── cpm17
-│   ├── backup
 │   ├── cpm17
 │   │   ├── test
 │   │   └── train
@@ -15,7 +22,11 @@ data
 │   └── train.txt
 └── monuseg
     ├── MoNuSeg 2018 Training Data
+    │   ├── Annotations
+    │   └── Tissue Images
     ├── MoNuSegTestData
+    │   ├── xxx.tif
+    │   └── xxx.xml
     ├── test
     ├── test.txt
     ├── train
@@ -35,5 +46,9 @@ data
 3. Run convertion script: `python tools/convert_dataset/cpm17.py data/cpm17`;
 
 ## CoNSep Nuclei Segmentation Dataset
+
+1. Download CoNSep dataset from [homepage](https://warwick.ac.uk/fac/cross_fac/tia/data/hovernet/);
+2. Uncompress them into `data/consep`;
+3. Run convertion script: `python tools/convert_dataset/consep.py data/consep`;
 
 ## Cityscapes Instance Segmentation Dataset
