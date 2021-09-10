@@ -15,6 +15,7 @@ class TrainingCurveHook(Hook):
                  interval=50,
                  plot_keys=['loss'],
                  plot_groups=[['loss']],
+                 axis_groups=[[0, 'max_iters', 0, 7]],
                  filename='training_curve.png',
                  num_rows=1,
                  num_cols=1):
@@ -23,6 +24,7 @@ class TrainingCurveHook(Hook):
         self.interval = interval
         self.plot_keys = plot_keys
         self.plot_groups = plot_groups
+        self.axis_groups = axis_groups
         self.filename = filename
 
         self.figure = plt.figure(figsize=(7 * num_cols, 7 * num_rows))
@@ -70,13 +72,22 @@ class TrainingCurveHook(Hook):
             for plot_key in self.plot_keys:
                 collect_dict[plot_key].append(iter_json_log[plot_key])
 
+        max_iters = runner._max_iters
+
         # draw training curve
-        for axes, plot_group in zip(self.axes_list, self.plot_groups):
+        for axes, plot_group, axis_group in zip(self.axes_list,
+                                                self.plot_groups,
+                                                self.axis_groups):
             for plot_key in plot_group:
                 axes.plot(iters, collect_dict[plot_key], label=plot_key)
                 axes.legend(loc='upper right')
                 axes.grid(
                     color='black', linestyle='--', linewidth=1, alpha=0.3)
+                if axis_group[1] == 'max_iters':
+                    axis_group[1] = max_iters + max_iters // 10
+                axes.axis(axis_group)
+                axes.xaxis.set_major_locator(
+                    plt.MultipleLocator(max_iters // 10))
 
         self.figure.tight_layout()
         self.figure.savefig(fig_save_path)

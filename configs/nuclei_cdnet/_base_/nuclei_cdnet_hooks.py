@@ -36,6 +36,12 @@ custom_hooks = [
                 'decode.aji',
             ],
         ],
+        axis_groups=[
+            [0, 'max_iters', 0, 7],
+            [0, 'max_iters', 0, 2],
+            [0, 'max_iters', 0, 100],
+            [0, 'max_iters', 0, 100],
+        ],
         num_rows=2,
         num_cols=2,
     )
