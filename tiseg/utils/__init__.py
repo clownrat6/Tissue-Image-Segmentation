@@ -1,6 +1,7 @@
 from .collect_env import collect_env
 from .evaluation.eval_hook import DistEvalHook, EvalHook
 from .evaluation.metrics import eval_metrics, pre_eval_to_metrics
+from .hooks.training_curve import TrainingCurveHook
 from .logger import get_root_logger
 from .misc import add_prefix, tensor2maps
 from .ops.interpolate import Upsample, resize
@@ -13,3 +14,6 @@ __all__ += ['eval_metrics', 'EvalHook', 'DistEvalHook', 'pre_eval_to_metrics']
 
 # ops utils
 __all__ += ['resize', 'Upsample']
+
+# hook utils
+__all__ += ['TrainingCurveHook']
