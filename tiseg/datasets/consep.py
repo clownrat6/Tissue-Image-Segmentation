@@ -17,12 +17,8 @@ from .pipelines import Compose
 
 
 @DATASETS.register_module()
-class MoNuSegDataset(Dataset):
-    """MoNuSeg Nuclei Segmentation Dataset.
-
-    MoNuSeg is actually instance segmentation task dataset. However, it can
-    seem as a three class semantic segmentation task (Background, Nuclei, Edge)
-    """
+class CoNSepDataset(Dataset):
+    """CoNSep segmentation dataset."""
 
     CLASSES = ('background', 'nuclei', 'edge')
 
@@ -33,7 +29,7 @@ class MoNuSegDataset(Dataset):
                  img_dir,
                  ann_dir,
                  data_root=None,
-                 img_suffix='.tif',
+                 img_suffix='.png',
                  ann_suffix='_semantic_with_edge.png',
                  test_mode=False,
                  split=None):
