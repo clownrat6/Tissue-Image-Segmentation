@@ -214,7 +214,7 @@ class NucleiCDHead(nn.Module):
 
         # judge if the num_stages is valid
         assert num_stages in [
-            4
+            4, 5
         ], 'Only support four stage or four stage with an extra stage now.'
 
         # make channel pair
@@ -455,7 +455,7 @@ class NucleiCDHead(nn.Module):
         for i in range(N):
             aji_single_image = aggregated_jaccard_index(
                 mask_pred[i], mask_target[i])
-            wrap_dict['aji'] += torch.tensor(aji_single_image)
+            wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
         wrap_dict['aji'] /= N
 
         return wrap_dict
