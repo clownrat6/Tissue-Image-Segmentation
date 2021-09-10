@@ -27,12 +27,8 @@ class CDNetLabelMake(object):
             # Check if the input level is "semantic_with_edge"
             # "semantic_with_edge" means the semantic map has three classes
             # (background, nuclei_inside, nuclei_edge)
-            if len(np.unique(semantic_map)) == 3:
-                results['gt_semantic_map_with_edge'] = semantic_map
-                results['gt_semantic_map'] = (semantic_map == 1).astype(
-                    np.uint8)
-            else:
-                assert False, 'Annotations are input without edge class.'
+            results['gt_semantic_map_with_edge'] = semantic_map
+            results['gt_semantic_map'] = (semantic_map == 1).astype(np.uint8)
 
             semantic_map_edge = results['gt_semantic_map_with_edge']
             instance_map = measure.label(
