@@ -1,14 +1,9 @@
 _base_ = [
     '../_base_/datasets/monuseg_320x320.py',
     '../_base_/default_runtime.py',
-    '../_base_/schedules/schedule_20k.py',
-]
-
-# local base
-_base_ += [
     './_base_/nuclei_cdnet_r50-d8.py',
     './_base_/nuclei_cdnet_hooks.py',
-    './_base_/nuclei_cdnet_evaluation.py',
+    './_base_/nuclei_cdnet_schedule.py',
 ]
 
 model = dict(pretrained='open-mmlab://resnet101_v1c', backbone=dict(depth=101))

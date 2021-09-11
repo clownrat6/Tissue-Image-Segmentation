@@ -1,3 +1,6 @@
+_base_ = [
+    '../../_base_/schedules/schedule_20k.py',
+]
 evaluation = dict(
     _delete_=True,
     interval=2000,
