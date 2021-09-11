@@ -115,12 +115,18 @@ class MultiScaleFlipAug(object):
         for scale in img_scale:
             for flip in flip_aug:
                 for direction in self.flip_direction:
+                    # copy only can copy top-level object and can't
+                    # copy son object.
                     _results = results.copy()
+                    # only copy img & ann info (dict type)
+                    _results['img_info'] = results['img_info'].copy()
+                    _results['ann_info'] = results['ann_info'].copy()
                     _results['img_info']['scale'] = scale
                     _results['img_info']['flip'] = flip
                     _results['img_info']['flip_direction'] = direction
                     data = self.transforms(_results)
                     aug_data.append(data)
+
         # list of dict to dict of list
         aug_data_dict = {key: [] for key in aug_data[0]}
         for data in aug_data:
