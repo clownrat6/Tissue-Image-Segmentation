@@ -249,23 +249,19 @@ class CoNSepDataset(Dataset):
             for item in results:
                 aji_list.append(item['aji'])
                 dice_list.append(item['dice'])
-            eval_results['aji'] = ret_metrics['aji'] = np.array(
-                [sum(aji_list) / len(aji_list)])
-            eval_results['dice'] = ret_metrics['dice'] = np.array(
-                [sum(dice_list) / len(dice_list)])
+            ret_metrics['aji'] = np.array([sum(aji_list) / len(aji_list)])
+            ret_metrics['dice'] = np.array([sum(dice_list) / len(dice_list)])
 
         if 'aji' in metric:
             aji_list = []
             for item in results:
                 aji_list.append(item['aji'])
             ret_metrics['aji'] = np.array([sum(aji_list) / len(aji_list)])
-            eval_results['aji'] = ret_metrics['aji']
         if 'dice' in metric:
             dice_list = []
             for item in results:
                 dice_list.append(item['dice'])
             ret_metrics['dice'] = np.array([sum(dice_list) / len(dice_list)])
-            eval_results['dice'] = ret_metrics['dice']
 
         # for logger
         ret_metrics_class = OrderedDict({
@@ -280,6 +276,11 @@ class CoNSepDataset(Dataset):
 
         print_log('Per class:', logger)
         print_log('\n' + class_table_data.get_string(), logger=logger)
+
+        if 'aji' in ret_metrics:
+            eval_results['aji'] = ret_metrics['aji'][0]
+        if 'dice' in ret_metrics:
+            eval_results['dice'] = ret_metrics['dice'][0]
 
         ret_metrics_class.pop('Class', None)
         for key, value in ret_metrics_class.items():
