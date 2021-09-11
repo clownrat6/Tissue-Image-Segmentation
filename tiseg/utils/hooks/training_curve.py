@@ -102,10 +102,10 @@ class TrainingCurveHook(Hook):
                 if axis_group[1] == 'max_iters':
                     axis_group[1] = max_iters
                 # refine axis
-                left = axis_group[0] - (axis_group[1] - axis_group[0]) // 20
-                right = axis_group[1] + (axis_group[1] - axis_group[0]) // 20
-                bottom = axis_group[2] - (axis_group[3] - axis_group[2]) // 20
-                top = axis_group[3] + (axis_group[3] - axis_group[2]) // 20
+                left = axis_group[0] - (axis_group[1] - axis_group[0]) / 20
+                right = axis_group[1] + (axis_group[1] - axis_group[0]) / 20
+                bottom = axis_group[2] - (axis_group[3] - axis_group[2]) / 20
+                top = axis_group[3] + (axis_group[3] - axis_group[2]) / 20
                 axes.axis((left, right, bottom, top))
                 axes.xaxis.set_major_locator(
                     plt.MultipleLocator(max_iters // 10))
