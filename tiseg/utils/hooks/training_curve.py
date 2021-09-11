@@ -8,7 +8,23 @@ from mmcv.runner.dist_utils import master_only
 
 @HOOKS.register_module()
 class TrainingCurveHook(Hook):
-    """Training loss & metric curve drawing in real-time."""
+    """Training loss & metric curve drawing in real-time.
+
+    Args:
+        save_dir (str, optional): The training curve picture save folder path.
+        interval (int): The interval iterations of hook call. Default: 50
+        plot_keys (list[str]): Select the value to draw in log json.
+            Default: ['loss']
+        plot_groups (list[list[str]]): Split the plot value into several group
+            to show in several sub pictures. Default: [['loss']]
+        axis_groups (list[list]): Set the axis range of each sub picture.
+            Default: [[0, 'max_iters', 0, 0]]
+            ('max_iters' means use _max_iters attribute of runner)
+        filename (str): The training curve save name.
+            Default: training_curve.png
+        num_rows (int): The number of picture rows. Default: 1
+        num_cols (int): The number of picture cols. Default: 1
+    """
 
     def __init__(self,
                  save_dir=None,
@@ -84,7 +100,16 @@ class TrainingCurveHook(Hook):
                 axes.grid(
                     color='black', linestyle='--', linewidth=1, alpha=0.3)
                 if axis_group[1] == 'max_iters':
-                    axis_group[1] = max_iters + max_iters // 10
+                    axis_group[1] = max_iters
+                # refine axis
+                axis_group[0] = axis_group[0] - (axis_group[1] -
+                                                 axis_group[0]) // 20
+                axis_group[1] = axis_group[1] + (axis_group[1] -
+                                                 axis_group[0]) // 20
+                axis_group[2] = axis_group[2] - (axis_group[3] -
+                                                 axis_group[2]) // 20
+                axis_group[3] = axis_group[3] - (axis_group[3] -
+                                                 axis_group[2]) // 20
                 axes.axis(axis_group)
                 axes.xaxis.set_major_locator(
                     plt.MultipleLocator(max_iters // 10))
