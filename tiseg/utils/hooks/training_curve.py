@@ -27,7 +27,7 @@ class TrainingCurveHook(Hook):
         self.axis_groups = axis_groups
         self.filename = filename
 
-        self.figure = plt.figure(figsize=(7 * num_cols, 7 * num_rows))
+        self.figure = plt.figure(figsize=(14 * num_cols, 7 * num_rows))
         self.axes_list = self.figure.subplots(num_rows, num_cols)
         # flatten two-dimension axes to one-dimension axes
         self.axes_list = self.axes_list.flatten()
