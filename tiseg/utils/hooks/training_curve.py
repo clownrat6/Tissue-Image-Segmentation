@@ -80,7 +80,7 @@ class TrainingCurveHook(Hook):
                                                 self.axis_groups):
             for plot_key in plot_group:
                 axes.plot(iters, collect_dict[plot_key], label=plot_key)
-                axes.legend(loc='upper right')
+                axes.legend(loc='best')
                 axes.grid(
                     color='black', linestyle='--', linewidth=1, alpha=0.3)
                 if axis_group[1] == 'max_iters':
