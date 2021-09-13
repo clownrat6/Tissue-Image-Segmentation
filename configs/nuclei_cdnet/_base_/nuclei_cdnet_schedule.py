@@ -12,5 +12,5 @@ checkpoint_config = dict(
     _delete_=True,
     by_epoch=False,
     interval=2000,
-    max_keep_ckpts=-1,
+    max_keep_ckpts=1,
 )

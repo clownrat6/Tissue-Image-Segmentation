@@ -11,6 +11,33 @@ from PIL import Image
 from rich.progress import track
 from skimage import morphology
 
+# dataset split
+only_train_split_dict = {
+    'train': [
+        'TCGA-A7-A13E-01Z-00-DX1', 'TCGA-A7-A13F-01Z-00-DX1',
+        'TCGA-AR-A1AK-01Z-00-DX1', 'TCGA-B0-5711-01Z-00-DX1',
+        'TCGA-HE-7128-01Z-00-DX1', 'TCGA-HE-7129-01Z-00-DX1',
+        'TCGA-18-5592-01Z-00-DX1', 'TCGA-38-6178-01Z-00-DX1',
+        'TCGA-49-4488-01Z-00-DX1', 'TCGA-G9-6336-01Z-00-DX1',
+        'TCGA-G9-6348-01Z-00-DX1', 'TCGA-G9-6356-01Z-00-DX1'
+    ],
+    'val': [
+        'TCGA-AR-A1AS-01Z-00-DX1', 'TCGA-HE-7130-01Z-00-DX1',
+        'TCGA-50-5931-01Z-00-DX1', 'TCGA-G9-6363-01Z-00-DX1'
+    ],
+    'test1': [
+        'TCGA-E2-A1B5-01Z-00-DX1', 'TCGA-E2-A14V-01Z-00-DX1',
+        'TCGA-B0-5710-01Z-00-DX1', 'TCGA-B0-5698-01Z-00-DX1',
+        'TCGA-21-5784-01Z-00-DX1', 'TCGA-21-5786-01Z-00-DX1',
+        'TCGA-CH-5767-01Z-00-DX1', 'TCGA-G9-6362-01Z-00-DX1'
+    ],
+    'test2': [
+        'TCGA-DK-A2I6-01A-01-TS1', 'TCGA-G2-A2EK-01A-02-TSB',
+        'TCGA-AY-A8YK-01A-01-TS1', 'TCGA-NH-A8F7-01A-01-TS1',
+        'TCGA-KB-A93J-01A-01-TS1', 'TCGA-RD-A8N9-01A-01-TS1'
+    ]
+}
+
 
 def extract_contours(path):
     """Extract contours (multiple vertexs) from xml file.
@@ -184,6 +211,12 @@ def convert_test_cohort(raw_path, new_path):
 def parse_args():
     parser = argparse.ArgumentParser('Convert monuseg dataset.')
     parser.add_argument('root_path', help='dataset root path.')
+    parser.add_argument('split', help='split mode selection.')
+    parser.add_argument(
+        '-t',
+        '--only-split',
+        action='store_true',
+        help='only re-generate split text.')
 
     return parser.parse_args()
 
@@ -191,6 +224,10 @@ def parse_args():
 def main():
     args = parse_args()
     root_path = args.root_path
+    split = args.split
+    only_split = args.only_split
+
+    assert split in ['official', 'only_train']
 
     train_raw_path = osp.join(root_path, 'MoNuSeg 2018 Training Data')
     test_raw_path = osp.join(root_path, 'MoNuSegTestData')
@@ -198,15 +235,35 @@ def main():
     train_new_path = osp.join(root_path, 'train')
     test_new_path = osp.join(root_path, 'test')
 
-    # make train cohort dataset
-    item_list = convert_train_cohort(train_raw_path, train_new_path)
-    with open(osp.join(root_path, 'train.txt'), 'w') as fp:
-        [fp.write(item + '\n') for item in item_list]
+    if not only_split:
+        # make train cohort dataset
+        train_item_list = convert_train_cohort(train_raw_path, train_new_path)
+        # make test cohort dataset
+        test_item_list = convert_test_cohort(test_raw_path, test_new_path)
+    else:
+        train_raw_image_folder = osp.join(train_raw_path, 'Tissue Images')
+        train_item_list = [
+            x.rstrip('.tif') for x in os.listdir(train_raw_image_folder)
+            if '.tif' in x
+        ]
+        test_item_list = [
+            x.rstrip('.tif') for x in os.listdir(test_raw_path) if '.tif' in x
+        ]
 
-    # make test cohort dataset
-    item_list = convert_test_cohort(test_raw_path, test_new_path)
-    with open(osp.join(root_path, 'test.txt'), 'w') as fp:
-        [fp.write(item + '\n') for item in item_list]
+    if split == 'official':
+        with open(osp.join(root_path, 'train.txt'), 'w') as fp:
+            [fp.write(item + '\n') for item in train_item_list]
+        with open(osp.join(root_path, 'test.txt'), 'w') as fp:
+            [fp.write(item + '\n') for item in test_item_list]
+    elif split == 'only_train':
+        train_item_list = only_train_split_dict[
+            'train'] + only_train_split_dict['val']
+        test_item_list = only_train_split_dict[
+            'test1'] + only_train_split_dict['test2']
+        with open(osp.join(root_path, 'train.txt'), 'w') as fp:
+            [fp.write(item + '\n') for item in train_item_list]
+        with open(osp.join(root_path, 'test.txt'), 'w') as fp:
+            [fp.write(item + '\n') for item in test_item_list]
 
 
 if __name__ == '__main__':
