@@ -1,9 +1,8 @@
 _base_ = [
     '../_base_/datasets/monuseg_320x320.py',
-    '../_base_/default_runtime.py',
     './_base_/nuclei_cdnet_vgg16.py',
-    './_base_/nuclei_cdnet_hooks.py',
-    './_base_/nuclei_cdnet_schedule.py',
+    './_base_/nuclei_cdnet_schedule_20k.py',
+    './_base_/nuclei_cdnet_runtime.py',
 ]
 
 optimizer = dict(_delete_=True, type='Adam', lr=0.0005, weight_decay=0.0005)

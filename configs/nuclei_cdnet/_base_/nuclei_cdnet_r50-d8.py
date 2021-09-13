@@ -19,7 +19,7 @@ model = dict(
         in_channels=(256, 512, 1024, 2048),
         in_index=[0, 1, 2, 3],
         stage_convs=[3, 3, 3, 3],
-        stage_channels=[16, 32, 64, 128],
+        stage_channels=[256, 512, 1024, 2048],
         extra_stage_channels=None,
         act_cfg=dict(type='ReLU'),
         norm_cfg=norm_cfg,
