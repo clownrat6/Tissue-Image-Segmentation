@@ -229,8 +229,11 @@ def main():
 
     assert split in ['official', 'only_train']
 
-    train_raw_path = osp.join(root_path, 'MoNuSeg 2018 Training Data')
-    test_raw_path = osp.join(root_path, 'MoNuSegTestData')
+    train_raw_path = osp.join(root_path, 'MoNuSeg',
+                              'MoNuSeg 2018 Training Data',
+                              'MoNuSeg 2018 Training Data')
+    test_raw_path = osp.join(root_path, 'MoNuSeg', 'MoNuSegTestData',
+                             'MoNuSegTestData')
 
     train_new_path = osp.join(root_path, 'train')
     test_new_path = osp.join(root_path, 'test')

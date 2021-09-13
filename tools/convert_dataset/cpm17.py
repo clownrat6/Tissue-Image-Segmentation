@@ -108,8 +108,8 @@ def main():
     args = parse_args()
     root_path = args.root_path
 
-    train_raw_path = osp.join(root_path, 'cpm17', 'train')
-    test_raw_path = osp.join(root_path, 'cpm17', 'test')
+    train_raw_path = osp.join(root_path, 'CPM17', 'train')
+    test_raw_path = osp.join(root_path, 'CPM17', 'test')
 
     train_new_path = osp.join(root_path, 'train')
     test_new_path = osp.join(root_path, 'test')

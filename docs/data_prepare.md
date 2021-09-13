@@ -5,39 +5,72 @@ It is recommended to symlink the dataset root to `$ROOT/data`. If your folder st
 ```None
 data
 ├── consep
-│   ├── CoNSeP
-│   │   ├── Test
-│   │   └── Train
-│   ├── test
-│   ├── test.txt
+│   ├── CoNSep
+│   │    ├── Test
+│   │    │   ├── Images
+│   │    │   │   └── xxx.png
+│   │    │   ├── Labels
+│   │    │   │   └── xxx.mat
+│   │    │   └── Overlay
+│   │    │       └── xxx.png
+│   │    └── Train
+│   │        ├── Images
+│   │        │   └── xxx.png
+│   │        ├── Labels
+│   │        │   └── xxx.mat
+│   │        └── Overlay
+│   │            └── xxx.png
 │   ├── train
-│   └── train.txt
+│   ├── test
+│   ├── train.txt
+│   └── test.txt
+│
+│
 ├── cpm17
-│   ├── cpm17
-│   │   ├── test
-│   │   └── train
-│   ├── test
-│   ├── test.txt
+│   ├── CPM17
+│   │    ├── test
+│   │    │   ├── Images
+│   │    │   │   └── xxx.png
+│   │    │   ├── Labels
+│   │    │   │   └── xxx.mat
+│   │    │   └── Overlay
+│   │    │       └── xxx.png
+│   │    └── train
+│   │        ├── Images
+│   │        │   └── xxx.png
+│   │        ├── Labels
+│   │        │   └── xxx.mat
+│   │        └── Overlay
+│   │            └── xxx.png
 │   ├── train
-│   └── train.txt
+│   ├── test
+│   ├── train.txt
+│   └── test.txt
+│
+│
 └── monuseg
-    ├── MoNuSeg 2018 Training Data
-    │   ├── Annotations
-    │   └── Tissue Images
-    ├── MoNuSegTestData
-    │   ├── xxx.tif
-    │   └── xxx.xml
-    ├── test
-    ├── test.txt
+    ├── MoNuSeg
+    │   ├── MoNuSeg 2018 Training Data
+    │   │   └── MoNuSeg 2018 Training Data
+    │   │       ├── Annotations
+    │   │       └── Tissue Images
+    │   └── MoNuSegTestData
+    │       └── MoNuSegTestData
+    │           ├── xxx.tif
+    │           └── xxx.xml
     ├── train
-    └── train.txt
+    ├── text
+    ├── train.txt
+    └── test.txt
+
 ```
 
 ## MoNuSeg Nuclei Segmentation Dataset
 
 1. Download train cohort `"MoNuSeg 2018 Training Data.zip"` and test cohort `"MoNuSegTestData.zip"` from [this](https://monuseg.grand-challenge.org/Data/);
-2. Uncompress them into `data/monuseg`;
-3. Run convertion script: `python tools/convert_dataset/monuseg.py data/monuseg`;
+2. Uncompress them into `data/monuseg/MoNuSeg`;
+3. If you want to use official dataset split, run convertion script: `python tools/convert_dataset/monuseg.py data/monuseg official`;
+4. If you want to use train cohort of dataset to split train/test, run convertion script: `python tools/convert_dataset/monuseg.py data/monuseg only_train`;
 
 ## CPM17 Nuclei Segmentation Dataset
 
