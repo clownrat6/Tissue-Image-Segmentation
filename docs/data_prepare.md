@@ -5,7 +5,7 @@ It is recommended to symlink the dataset root to `$ROOT/data`. If your folder st
 ```None
 data
 ├── consep
-│   ├── CoNSep
+│   ├── CoNSeP
 │   │    ├── Test
 │   │    │   ├── Images
 │   │    │   │   └── xxx.png
@@ -78,9 +78,9 @@ data
 2. Put it into `data/cpm17`;
 3. Run convertion script: `python tools/convert_dataset/cpm17.py data/cpm17`;
 
-## CoNSep Nuclei Segmentation Dataset
+## CoNSeP Nuclei Segmentation Dataset
 
-1. Download CoNSep dataset from [homepage](https://warwick.ac.uk/fac/cross_fac/tia/data/hovernet/);
+1. Download CoNSeP dataset from [homepage](https://warwick.ac.uk/fac/cross_fac/tia/data/hovernet/);
 2. Uncompress them into `data/consep`;
 3. Run convertion script: `python tools/convert_dataset/consep.py data/consep`;
 
