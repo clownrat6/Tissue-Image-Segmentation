@@ -45,7 +45,7 @@ class TorchVGG(BaseModule):
                 self.in_channels, 3, 1, norm_cfg=norm_cfg, act_cfg=act_cfg)
 
     def get_stages(self, model, depth):
-        stages = []
+        stages = nn.ModuleList()
         stage_modules = []
 
         cur = 0
