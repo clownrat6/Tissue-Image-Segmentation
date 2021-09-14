@@ -3,7 +3,7 @@ norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='NucleiCDNet',
     backbone=dict(
-        type='vgg16_bn',
+        type='TorchVGG16BN',
         in_channels=3,
         out_indices=(0, 1, 2, 3, 4),
         pretrained=True,
