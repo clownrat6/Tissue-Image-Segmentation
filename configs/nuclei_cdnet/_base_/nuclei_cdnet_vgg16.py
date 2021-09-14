@@ -2,23 +2,20 @@
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='NucleiCDNet',
-    pretrained='mmcls://vgg16_bn',
     backbone=dict(
-        type='VGG',
-        depth=16,
+        type='vgg16_bn',
         in_channels=3,
-        base_channels=64,
-        num_stages=5,
         out_indices=(0, 1, 2, 3, 4),
-        act_cfg=dict(type='ReLU'),
+        pretrained=True,
         norm_cfg=norm_cfg,
-        norm_eval=False),
+        act_cfg=dict(type='ReLU'),
+    ),
     decode_head=dict(
         type='NucleiCDHead',
         in_channels=(64, 128, 256, 512, 512),
         in_index=[0, 1, 2, 3, 4],
         stage_convs=[3, 3, 3, 3, 3],
-        stage_channels=[64, 128, 256, 512, 512],
+        stage_channels=[16, 32, 64, 128, 256],
         extra_stage_channels=None,
         act_cfg=dict(type='ReLU'),
         norm_cfg=norm_cfg,
