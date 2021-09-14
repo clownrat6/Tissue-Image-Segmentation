@@ -106,6 +106,7 @@ class DGM(nn.Module):
     def __init__(self,
                  in_channels,
                  feedforward_channels,
+                 dropout_rate=0.1,
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU')):
         super().__init__()
@@ -121,6 +122,7 @@ class DGM(nn.Module):
         self.direction_to_mask_attention = AU(9)
 
         # Prediction Operations
+        self.dropout = nn.Dropout2d(dropout_rate)
         self.point_pred_op = nn.Conv2d(feedforward_channels, 1, kernel_size=1)
         self.direction_pred_op = nn.Conv2d(
             feedforward_channels, 9, kernel_size=1)
@@ -132,17 +134,22 @@ class DGM(nn.Module):
         point_feature = self.point_pre_branch(direction_feature)
 
         # point branch
+        point_feature = self.dropout(point_feature)
         point_logit = self.point_pred_op(point_feature)
 
         # direction branch
         direction_feature_with_point_logit = self.point_to_direction_attention(
             direction_feature, point_logit)
+        direction_feature_with_point_logit = self.dropout(
+            direction_feature_with_point_logit)
         direction_logit = self.direction_pred_op(
             direction_feature_with_point_logit)
 
         # mask branch
         mask_feature_with_direction_logit = self.direction_to_mask_attention(
             mask_feature, direction_logit)
+        mask_feature_with_direction_logit = self.dropout(
+            mask_feature_with_direction_logit)
         mask_logit = self.mask_pred_op(mask_feature_with_direction_logit)
 
         return mask_logit, direction_logit, point_logit
@@ -169,6 +176,7 @@ class NucleiCDHead(nn.Module):
 
     def __init__(self,
                  in_channels,
+                 dropout_rate=0.1,
                  stage_convs=[3, 3, 3, 3],
                  stage_channels=[16, 32, 64, 128],
                  extra_stage_channels=None,
@@ -181,6 +189,7 @@ class NucleiCDHead(nn.Module):
         super().__init__()
         self._init_inputs(in_channels, in_index, input_transform)
         self.in_channels = in_channels
+        self.dropout_rate = dropout_rate
         self.norm_cfg = norm_cfg
         self.act_cfg = act_cfg
         self.in_index = in_index
@@ -240,6 +249,7 @@ class NucleiCDHead(nn.Module):
         self.post_process = DGM(
             stage_channels[0],
             stage_channels[0],
+            dropout_rate=dropout_rate,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
 
