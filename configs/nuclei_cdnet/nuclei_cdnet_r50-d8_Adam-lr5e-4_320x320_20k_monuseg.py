@@ -1,7 +1,7 @@
 _base_ = [
-    '../_base_/datasets/monuseg_256x256.py',
+    '../_base_/datasets/monuseg_320x320.py',
     './_base_/nuclei_cdnet_runtime.py',
-    './_base_/nuclei_cdnet_r50-d8_256x256.py',
+    './_base_/nuclei_cdnet_r50-d8.py',
     './_base_/nuclei_cdnet_schedule_20k.py',
 ]
 
@@ -16,3 +16,7 @@ lr_config = dict(
     power=1.0,
     min_lr=0.0,
     by_epoch=False)
+
+model = dict(
+    train_cfg=dict(),
+    test_cfg=dict(mode='slide', crop_size=(320, 320), stride=(231, 231)))

@@ -16,3 +16,7 @@ lr_config = dict(
     power=1.0,
     min_lr=0.0,
     by_epoch=False)
+
+model = dict(
+    train_cfg=dict(),
+    test_cfg=dict(mode='slide', crop_size=(256, 256), stride=(127, 127)))

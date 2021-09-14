@@ -12,10 +12,11 @@ model = dict(
     ),
     decode_head=dict(
         type='NucleiCDHead',
+        dropout_rate=0.1,
         in_channels=(64, 256, 512, 1024, 2048),
         in_index=[0, 1, 2, 3, 4],
         stage_convs=[3, 3, 3, 3, 3],
-        stage_channels=[16, 32, 64, 128, 256],
+        stage_channels=[32, 64, 128, 256, 512],
         extra_stage_channels=None,
         act_cfg=dict(type='ReLU'),
         norm_cfg=norm_cfg,
