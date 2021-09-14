@@ -27,7 +27,7 @@ None
 | Nuclei CDNet | Deeplab-ResNet101 (r101-d8) | 320x320 | 20000 (Adam-lr5e-4) | 67.88 | 85.21 | 69.86 | 86.63 |
 | Nuclei CDNet | VGG16 (vgg16) | 320x320 | 20000 (Adam-lr5e-4) | 68.41 | 84.79 | 70.58 | 86.11 |
 
-### CoNSep
+### CoNSeP
 
 | Method | Backbone | Crop Size | Lr schd | Aji | Dice | Aji (ms+flip) | Dice (ms+flip) |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- |

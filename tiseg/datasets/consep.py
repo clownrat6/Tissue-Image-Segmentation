@@ -17,8 +17,8 @@ from .pipelines import Compose
 
 
 @DATASETS.register_module()
-class CoNSepDataset(Dataset):
-    """CoNSep segmentation dataset."""
+class CoNSePDataset(Dataset):
+    """CoNSeP segmentation dataset."""
 
     CLASSES = ('background', 'nuclei', 'edge')
 
