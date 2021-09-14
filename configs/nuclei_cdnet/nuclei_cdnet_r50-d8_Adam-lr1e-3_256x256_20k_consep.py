@@ -1,6 +1,6 @@
 _base_ = [
     '../_base_/datasets/consep_256x256.py',
-    '../_base_/nuclei_cdnet_runtime.py',
+    './_base_/nuclei_cdnet_runtime.py',
     './_base_/nuclei_cdnet_r50-d8_256x256.py',
     './_base_/nuclei_cdnet_schedule_20k.py',
 ]
