@@ -8,19 +8,31 @@ from torchvision import models
 from ..builder import BACKBONES
 
 MODEL_DICT = {
+    'resnet18-d32':
+    models.resnet18,
+    'resnet34-d32':
+    models.resnet34,
     'resnet50-d32':
     models.resnet50,
-    'resnet50-d8':
-    partial(models.resnet50, replace_stride_with_dilation=(False, 2, 4)),
     'resnet101-d32':
     models.resnet101,
-    'resnet101-d8':
+    'resnet18-d8':
+    partial(models.resnet18, replace_stride_with_dilation=(False, 2, 4)),
+    'resnet34-d8':
+    partial(models.resnet34, replace_stride_with_dilation=(False, 2, 4)),
+    'resnet50-d8':
     partial(models.resnet50, replace_stride_with_dilation=(False, 2, 4)),
+    'resnet101-d8':
+    partial(models.resnet101, replace_stride_with_dilation=(False, 2, 4)),
 }
 OUTPUT_NAMES = {
+    'resnet18-d32': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
+    'resnet34-d32': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
     'resnet50-d32': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
-    'resnet50-d8': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
     'resnet101-d32': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
+    'resnet18-d8': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
+    'resnet34-d8': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
+    'resnet50-d8': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
     'resnet101-d8': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
 }
 
@@ -85,6 +97,24 @@ class TorchResNet(BaseModule):
 
 
 @BACKBONES.register_module()
+class TorchResNet18(TorchResNet):
+
+    output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
+
+    def __init__(self, model_name='resnet18-d32', **kwargs):
+        super().__init__(model_name=model_name, **kwargs)
+
+
+@BACKBONES.register_module()
+class TorchResNet34(TorchResNet):
+
+    output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
+
+    def __init__(self, model_name='resnet34-d32', **kwargs):
+        super().__init__(model_name=model_name, **kwargs)
+
+
+@BACKBONES.register_module()
 class TorchResNet50(TorchResNet):
 
     output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
@@ -94,20 +124,38 @@ class TorchResNet50(TorchResNet):
 
 
 @BACKBONES.register_module()
-class TorchDeeplabResNet50(TorchResNet):
-
-    output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
-
-    def __init__(self, model_name='resnet50-d8', **kwargs):
-        super().__init__(model_name=model_name, **kwargs)
-
-
-@BACKBONES.register_module()
 class TorchResNet101(TorchResNet):
 
     output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
 
     def __init__(self, model_name='resnet101-d32', **kwargs):
+        super().__init__(model_name=model_name, **kwargs)
+
+
+@BACKBONES.register_module()
+class TorchDeeplabResNet18(TorchResNet):
+
+    output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
+
+    def __init__(self, model_name='resnet18-d8', **kwargs):
+        super().__init__(model_name=model_name, **kwargs)
+
+
+@BACKBONES.register_module()
+class TorchDeeplabResNet34(TorchResNet):
+
+    output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
+
+    def __init__(self, model_name='resnet34-d8', **kwargs):
+        super().__init__(model_name=model_name, **kwargs)
+
+
+@BACKBONES.register_module()
+class TorchDeeplabResNet50(TorchResNet):
+
+    output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
+
+    def __init__(self, model_name='resnet50-d8', **kwargs):
         super().__init__(model_name=model_name, **kwargs)
 
 
