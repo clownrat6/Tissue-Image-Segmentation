@@ -16,10 +16,6 @@ MODEL_DICT = {
     models.resnet50,
     'resnet101-d32':
     models.resnet101,
-    'resnet18-d8':
-    partial(models.resnet18, replace_stride_with_dilation=(False, 2, 4)),
-    'resnet34-d8':
-    partial(models.resnet34, replace_stride_with_dilation=(False, 2, 4)),
     'resnet50-d8':
     partial(models.resnet50, replace_stride_with_dilation=(False, 2, 4)),
     'resnet101-d8':
@@ -30,8 +26,6 @@ OUTPUT_NAMES = {
     'resnet34-d32': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
     'resnet50-d32': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
     'resnet101-d32': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
-    'resnet18-d8': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
-    'resnet34-d8': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
     'resnet50-d8': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
     'resnet101-d8': ('relu', 'layer1', 'layer2', 'layer3', 'layer4'),
 }
@@ -46,6 +40,7 @@ class TorchResNet(BaseModule):
                  model_name,
                  in_channels=3,
                  out_indices=(0, 1, 2, 3, 4),
+                 group_base_channels=64,
                  pretrained=True,
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU')):
@@ -59,7 +54,9 @@ class TorchResNet(BaseModule):
         assert len(self.out_indices) <= len(self.output_names)
 
         self.stages = self.get_stages(
-            MODEL_DICT[model_name](pretrained=pretrained), len(out_indices))
+            MODEL_DICT[model_name](
+                pretrained=pretrained, width_per_group=group_base_channels),
+            len(out_indices))
 
         if self.in_channels != 3:
             self.input_stem = ConvModule(
@@ -129,24 +126,6 @@ class TorchResNet101(TorchResNet):
     output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
 
     def __init__(self, model_name='resnet101-d32', **kwargs):
-        super().__init__(model_name=model_name, **kwargs)
-
-
-@BACKBONES.register_module()
-class TorchDeeplabResNet18(TorchResNet):
-
-    output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
-
-    def __init__(self, model_name='resnet18-d8', **kwargs):
-        super().__init__(model_name=model_name, **kwargs)
-
-
-@BACKBONES.register_module()
-class TorchDeeplabResNet34(TorchResNet):
-
-    output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
-
-    def __init__(self, model_name='resnet34-d8', **kwargs):
         super().__init__(model_name=model_name, **kwargs)
 
 
