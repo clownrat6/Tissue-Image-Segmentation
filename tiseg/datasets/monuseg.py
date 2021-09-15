@@ -1,6 +1,7 @@
 import os.path as osp
 from collections import OrderedDict
 
+import cv2
 import mmcv
 import numpy as np
 from mmcv.utils import print_log
@@ -10,8 +11,7 @@ from skimage import measure, morphology
 from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
-from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
-                                            intersect_and_union)
+from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from .builder import DATASETS
 from .pipelines import Compose
 
@@ -161,12 +161,16 @@ class MoNuSegDataset(Dataset):
     def get_gt_seg_maps(self):
         """Ground Truth maps generator."""
         for data_info in self.data_infos:
-            instance_map = osp.join(self.ann_dir, data_info['ann_name'])
+            seg_map = osp.join(self.ann_dir, data_info['ann_name'])
             gt_seg_map = mmcv.imread(
-                instance_map, flag='unchanged', backend='pillow')
+                seg_map, flag='unchanged', backend='pillow')
             yield gt_seg_map
 
-    def pre_eval(self, preds, indices):
+    def pre_eval(self,
+                 preds,
+                 indices,
+                 draw_semantic=False,
+                 draw_instance=False):
         """Collect eval result from each iteration.
 
         Args:
@@ -174,6 +178,10 @@ class MoNuSegDataset(Dataset):
                 after argmax, shape (N, H, W).
             indices (list[int] | int): the prediction related ground truth
                 indices.
+            draw_semantic (bool): Illustrate semantic level prediction &
+                ground truth. Default: False
+            draw_instance (bool): Illustrate instance level prediction &
+                ground truth. Default: False
 
         Returns:
             list[torch.Tensor]: (area_intersect, area_union, area_prediction,
@@ -185,7 +193,9 @@ class MoNuSegDataset(Dataset):
         if not isinstance(preds, list):
             preds = [preds]
 
-        pre_eval_results = []
+        # make it accessable in a single evaluation loop for semantic results
+        # drawing
+        self.pre_eval_results = []
 
         for pred, index in zip(preds, indices):
             seg_map = osp.join(self.ann_dir,
@@ -198,32 +208,163 @@ class MoNuSegDataset(Dataset):
             pred = (pred == 1).astype(np.uint8)
             seg_map = (seg_map == 1).astype(np.uint8)
 
-            # fill instance holes
-            pred = binary_fill_holes(pred)
-            # remove small instance
-            pred = remove_small_objects(pred, 20)
+            # model-agnostic post process operations
+            pred_semantic, pred_instance = self.model_agnostic_postprocess(
+                pred)
+            # semantic metric calculation
+            seg_map_semantic = seg_map.copy()
+            TP = (pred_semantic == 1) * (seg_map_semantic == 1)
+            FP = (pred_semantic == 1) * (seg_map_semantic == 0)
+            FN = (pred_semantic == 0) * (seg_map_semantic == 1)
+            Pred = (pred_semantic == 1)
+            GT = (seg_map_semantic == 1)
+            precision_metric = np.sum(TP) / (np.sum(TP) + np.sum(FP))
+            recall_metric = np.sum(TP) / (np.sum(TP) + np.sum(FN))
+            dice_metric = 2 * np.sum(TP) / (np.sum(Pred) + np.sum(GT))
 
-            # instance process & dilation
-            pred = measure.label(pred)
-            pred = morphology.dilation(pred, selem=morphology.disk(1))
-            seg_map = measure.label(seg_map)
-
-            # pre eval aji and dice metric
+            # instance metric calculation
+            seg_map_instance = measure.label(seg_map)
             aji_metric = aggregated_jaccard_index(
-                pred, seg_map, is_semantic=False)
+                pred_instance, seg_map_instance, is_semantic=False)
 
-            # convert to semantic level
-            pred = (pred > 0).astype(np.uint8)
-            seg_map = (seg_map > 0).astype(np.uint8)
+            # TODO: (Important issue about post process)
+            # This may be the dice metric calculation trick (Need be
+            # considering carefully)
+            # convert instance map (after postprocess) to semantic level
+            # pred = (pred > 0).astype(np.uint8)
+            # seg_map = (seg_map > 0).astype(np.uint8)
 
-            intersect, union, _, _ = intersect_and_union(pred, seg_map, 2)
-            dice_metric = (2 * intersect / (union + intersect))[1].numpy()
+            self.pre_eval_results.append(
+                dict(
+                    aji=aji_metric,
+                    dice=dice_metric,
+                    recall=recall_metric,
+                    precision=precision_metric))
 
-            pre_eval_results.append(dict(aji=aji_metric, dice=dice_metric))
+            # illustrating semantic level results
+            if draw_semantic:
+                self.draw_semantic(pred_semantic, seg_map_semantic, index)
 
-        return pre_eval_results
+            # illustrating instance level results
+            if draw_instance:
+                self.draw_instance(pred_instance, seg_map_instance, index)
 
-    def evaluate(self, results, metric='all', logger=None, **kwargs):
+        return self.pre_eval_results
+
+    def model_agnostic_postprocess(self, pred):
+        """model free post-process for both instance-level & semantic-level."""
+        # fill instance holes
+        pred = binary_fill_holes(pred)
+        # remove small instance
+        pred = remove_small_objects(pred, 20)
+        pred = pred.astype(np.uint8)
+        pred_semantic = pred.copy()
+
+        # instance process & dilation
+        pred = pred.copy()
+        pred_instance = measure.label(pred)
+        pred_instance = morphology.dilation(
+            pred_instance, selem=morphology.disk(1))
+
+        return pred_semantic, pred_instance
+
+    def draw_semantic(self, pred, label, index):
+        """draw semantic level picture with FP & FN."""
+        import matplotlib.pyplot as plt
+
+        # Only support single sample inference now
+        assert isinstance(index, int)
+
+        plt.figure(figsize=(7 * 2, 7 * 2 + 4))
+
+        # prediction drawing
+        plt.subplot(221)
+        plt.imshow(pred)
+        plt.axis('off')
+        plt.title('Prediction', fontsize=20, color='black')
+
+        # ground truth drawing
+        plt.subplot(222)
+        plt.imshow(label)
+        plt.axis('off')
+        plt.title('Ground Truth', fontsize=20, color='black')
+
+        # image drawing
+        data_info = self.data_infos[index]
+        data_id = osp.splitext(data_info['img_name'])[0]
+        image_path = osp.join(self.img_dir, data_info['img_name'])
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        plt.subplot(223)
+        plt.imshow(image)
+        plt.axis('off')
+        plt.title('Image', fontsize=20, color='black')
+
+        canvas = np.zeros((*pred.shape, 3), dtype=np.uint8)
+        canvas[label == 1, :] = (255, 255, 2)
+        canvas[(pred == 0) * (label == 1), :] = (2, 255, 255)
+        canvas[(pred == 1) * (label == 0), :] = (255, 2, 255)
+        plt.subplot(224)
+        plt.imshow(canvas)
+        plt.axis('off')
+        plt.title('FP-FN-Ground Truth', fontsize=20, color='black')
+
+        # get the colors of the values, according to the
+        # colormap used by imshow
+        colors = [(255, 255, 2), (2, 255, 255), (255, 2, 255)]
+        label_list = [
+            'Ground Truth',
+            'TN',
+            'FP',
+        ]
+        for color, label in zip(colors, label_list):
+            color = list(color)
+            color = [x / 255 for x in color]
+            plt.plot(0, 0, '-', color=tuple(color), label=label)
+        plt.legend(loc='upper center', bbox_to_anchor=(0.5, 0), ncol=3)
+
+        # results visulization
+        single_loop_results = self.pre_eval_results[0]
+        aji = single_loop_results['aji']
+        dice = single_loop_results['dice']
+        recall = single_loop_results['recall']
+        precision = single_loop_results['precision']
+        print(f'aji: {aji}\ndice: '
+              f'{dice}\nrecall: {recall}\nprecision: '
+              f'{precision}')
+        temp_str = (f'aji: {aji:.2f}\ndice: '
+                    f'{dice:.2f}\nrecall: {recall:.2f}\nprecision: '
+                    f'{precision:.2f}')
+        plt.suptitle(temp_str, fontsize=20, color='black')
+        plt.tight_layout()
+        plt.savefig(f'{data_id}_monuseg_semantic_compare.png', dpi=400)
+
+    def draw_instance(self, pred_instance, label_instance, index):
+        """draw instance level picture."""
+        import matplotlib.pyplot as plt
+
+        plt.figure(figsize=(7 * 2, 7))
+
+        data_info = self.data_infos[index]
+        data_id = osp.splitext(data_info['img_name'])[0]
+
+        plt.subplot(121)
+        plt.imshow(pred_instance)
+        plt.axis('off')
+
+        plt.subplot(122)
+        plt.imshow(label_instance)
+        plt.axis('off')
+
+        plt.tight_layout()
+        plt.savefig(f'{data_id}_monuseg_instance_compare.png', dpi=400)
+
+    def evaluate(self,
+                 results,
+                 metric='all',
+                 logger=None,
+                 dump_path=None,
+                 **kwargs):
         """Evaluate the dataset.
 
         Args:
@@ -232,6 +373,8 @@ class MoNuSegDataset(Dataset):
                 'Dice' are supported.
             logger (logging.Logger | None | str): Logger used for printing
                 related information during evaluation. Default: None.
+            dump_path (str | None, optional): The dump path of each item
+                evaluation results. Default: None
 
         Returns:
             dict[str, float]: Default metrics.
@@ -243,11 +386,16 @@ class MoNuSegDataset(Dataset):
         if not set(metric).issubset(set(allowed_metrics)):
             raise KeyError('metric {} is not supported'.format(metric))
 
+        assert ('all' in metric) and (dump_path is not None)
+
+        # clear pre-eval results
+        self.pre_eval_results.clear()
+
         eval_results = {}
         ret_metrics = {}
+
         # test a list of files
         if 'all' in metric:
-            # dict to list
             aji_list = []
             dice_list = []
             for item in results:
@@ -255,6 +403,18 @@ class MoNuSegDataset(Dataset):
                 dice_list.append(item['dice'])
             ret_metrics['aji'] = np.array([sum(aji_list) / len(aji_list)])
             ret_metrics['dice'] = np.array([sum(dice_list) / len(dice_list)])
+
+            # TODO: Refactor for more general metric
+            if dump_path is not None:
+                name_list = self.data_infos
+                fp = open(f'{dump_path}', 'w')
+                fp.write(f'{"filename":<30} | {"aji":<30} | {"dice":<30}')
+                for data_info, aji, dice in zip(name_list, aji_list,
+                                                dice_list):
+                    name = data_info['ann_name'].split('_')[0]
+                    aji = f'{aji * 100:.2f}'
+                    dice = f'{dice * 100:.2f}'
+                    fp.write(f'{name:<30} | {aji:<30} | {dice:<30}')
 
         if 'aji' in metric:
             aji_list = []
