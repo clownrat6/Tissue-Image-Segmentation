@@ -257,8 +257,8 @@ class RandomFlip(object):
 
     Args:
         prob (float, optional): The flipping probability. Default: None.
-        direction(str, optional): The flipping direction. Options are
-            'horizontal' and 'vertical'. Default: 'horizontal'.
+        direction(str, list[str], optional): The flipping direction. Options
+            are 'horizontal' and 'vertical'. Default: 'horizontal'.
     """
 
     @deprecated_api_warning({'flip_ratio': 'prob'}, cls_name='RandomFlip')
@@ -267,7 +267,11 @@ class RandomFlip(object):
         self.direction = direction
         if prob is not None:
             assert prob >= 0 and prob <= 1
-        assert direction in ['horizontal', 'vertical']
+        if isinstance(direction, list):
+            assert sum([x in ['horizontal', 'vertical']
+                        for x in direction]) == len(direction)
+        else:
+            assert direction in ['horizontal', 'vertical']
 
     def __call__(self, results):
         """Call function to flip bounding boxes, masks, semantic segmentation
@@ -280,7 +284,7 @@ class RandomFlip(object):
             dict: Flipped results, 'flip', 'flip_direction' keys are added into
                 result dict.
         """
-
+        # TODO: Support vertical & horizontal flip at the same time.
         if 'flip' not in results['img_info']:
             flip = True if np.random.rand() < self.prob else False
             results['img_info']['flip'] = flip
