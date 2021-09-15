@@ -56,7 +56,7 @@ class TorchResNet(BaseModule):
         self.stages = self.get_stages(
             MODEL_DICT[model_name](
                 pretrained=pretrained, width_per_group=group_base_channels),
-            len(out_indices))
+            max(out_indices))
 
         if self.in_channels != 3:
             self.input_stem = ConvModule(
@@ -70,7 +70,7 @@ class TorchResNet(BaseModule):
         for module_name, module in model.named_children():
             stage_modules.append(module)
 
-            if cur < depth:
+            if cur <= depth:
                 if module_name == self.output_names[cur]:
                     stages.append(nn.Sequential(*stage_modules))
                     stage_modules = []
