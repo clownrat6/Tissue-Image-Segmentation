@@ -10,8 +10,8 @@ MODEL_DICT = {
     'vgg19_bn': models.vgg19_bn,
 }
 OUTPUT_NAMES = {
-    'vgg16_bn': ('5', '12', '22', '32', '42', '43'),
-    'vgg19_bn': ('5', '12', '25', '38', '51', '52'),
+    'vgg16_bn': ('6', '13', '23', '33', '43'),
+    'vgg19_bn': ('6', '13', '26', '39', '52'),
 }
 
 
@@ -23,7 +23,7 @@ class TorchVGG(BaseModule):
     def __init__(self,
                  model_name,
                  in_channels=3,
-                 out_indices=(0, 1, 2, 3, 4, 5),
+                 out_indices=(0, 1, 2, 3, 4),
                  pretrained=True,
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU')):
@@ -71,14 +71,13 @@ class TorchVGG(BaseModule):
             x = stage(x)
             if i in self.out_indices:
                 outs.append(x)
-
         return outs
 
 
 @BACKBONES.register_module()
 class TorchVGG16BN(TorchVGG):
 
-    output_names = ('5', '12', '22', '32', '42', '43')
+    output_names = ('6', '13', '23', '33', '43')
 
     def __init__(self, model_name='vgg16_bn', **kwargs):
         super().__init__(model_name=model_name, **kwargs)
@@ -86,7 +85,7 @@ class TorchVGG16BN(TorchVGG):
 
 class TorchVGG19BN(TorchVGG):
 
-    output_names = ('5', '12', '25', '38', '51', '52')
+    output_names = ('6', '13', '26', '39', '52')
 
     def __init__(self, model_name='vgg19_bn', **kwargs):
         super().__init__(model_name=model_name, **kwargs)
