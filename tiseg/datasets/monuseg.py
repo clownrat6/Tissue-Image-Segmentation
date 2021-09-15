@@ -325,16 +325,13 @@ class MoNuSegDataset(Dataset):
 
         # results visulization
         single_loop_results = self.pre_eval_results[0]
-        aji = single_loop_results['aji']
-        dice = single_loop_results['dice']
-        recall = single_loop_results['recall']
-        precision = single_loop_results['precision']
-        print(f'aji: {aji}\ndice: '
-              f'{dice}\nrecall: {recall}\nprecision: '
-              f'{precision}')
-        temp_str = (f'aji: {aji:.2f}\ndice: '
-                    f'{dice:.2f}\nrecall: {recall:.2f}\nprecision: '
-                    f'{precision:.2f}')
+        aji = f'{single_loop_results["aji"] * 100:.2f}'
+        dice = f'{single_loop_results["dice"] * 100:.2f}'
+        recall = f'{single_loop_results["recall"] * 100:.2f}'
+        precision = f'{single_loop_results["precision"] * 100:.2f}'
+        temp_str = (f'aji: {aji:<10}\ndice: '
+                    f'{dice:<10}\nrecall: {recall:<10}\nprecision: '
+                    f'{precision:<10}')
         plt.suptitle(temp_str, fontsize=20, color='black')
         plt.tight_layout()
         plt.savefig(f'{data_id}_monuseg_semantic_compare.png', dpi=400)
