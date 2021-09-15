@@ -6,7 +6,7 @@ model = dict(
         type='TorchResNet18',
         in_channels=3,
         out_indices=(1, 2, 3, 4),
-        pretrained=True,
+        pretrained=False,
         norm_cfg=norm_cfg,
         act_cfg=dict(type='ReLU'),
     ),
