@@ -122,6 +122,7 @@ class DGM(nn.Module):
         self.direction_to_mask_attention = AU(9)
 
         # Prediction Operations
+        # dropout will be closed automatically when .eval()
         self.dropout = nn.Dropout2d(dropout_rate)
         self.point_pred_op = nn.Conv2d(feedforward_channels, 1, kernel_size=1)
         self.direction_pred_op = nn.Conv2d(
