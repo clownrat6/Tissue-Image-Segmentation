@@ -1,7 +1,7 @@
 _base_ = [
-    '../_base_/datasets/monuseg_320x320.py',
+    '../_base_/datasets/official_monuseg_320x320.py',
     './_base_/nuclei_cdnet_runtime.py',
-    './_base_/nuclei_cdnet_r50-d32.py',
+    './_base_/nuclei_cdnet_r50-d8.py',
     './_base_/nuclei_cdnet_schedule_20k.py',
 ]
 
