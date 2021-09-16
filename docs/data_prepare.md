@@ -22,8 +22,12 @@ data
 │   │            └── xxx.png
 │   ├── train
 │   ├── test
-│   ├── train.txt
-│   └── test.txt
+│   ├── train_c256_s256
+│   ├── test_c256_s256 # crop_size = 256 & crop_stride = 256
+│   ├── only-train_train.txt
+│   ├── only-train_test.txt
+│   ├── official_train.txt
+│   └── official_test.txt
 │
 │
 ├── cpm17
@@ -70,7 +74,16 @@ data
 1. Download train cohort `"MoNuSeg 2018 Training Data.zip"` and test cohort `"MoNuSegTestData.zip"` from [this](https://monuseg.grand-challenge.org/Data/);
 2. Uncompress them into `data/monuseg/MoNuSeg`;
 3. If you want to use official dataset split, run convertion script: `python tools/convert_dataset/monuseg.py data/monuseg official`;
-4. If you want to use train cohort of dataset to split train/test, run convertion script: `python tools/convert_dataset/monuseg.py data/monuseg only_train`;
+4. If you want to use train cohort of dataset to split train/test, run convertion script: `python tools/convert_dataset/monuseg.py data/monuseg only-train`;
+5. If you want to use official split of dataset, run convertion script: `python tools/convert_dataset/monuseg.py data/monuseg official`;
+6. If you want to use fix-crop dataset, run convertion script:
+
+```python
+# only-train split
+python tools/convert_dataset/monuseg.py data/monuseg official --crop-size 256 --crop-stride 256
+# official split
+python tools/convert_dataset/monuseg.py data/monuseg only-train --crop-size 256 --crop-stride 256
+```
 
 ## CPM17 Nuclei Segmentation Dataset
 
