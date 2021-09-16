@@ -383,7 +383,8 @@ class MoNuSegDataset(Dataset):
         if not set(metric).issubset(set(allowed_metrics)):
             raise KeyError('metric {} is not supported'.format(metric))
 
-        assert ('all' in metric) and (dump_path is not None)
+        if dump_path is not None:
+            assert 'all' in metric
 
         # clear pre-eval results
         self.pre_eval_results.clear()
