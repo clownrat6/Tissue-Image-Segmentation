@@ -10,6 +10,8 @@ from mmcv.runner.dist_utils import master_only
 class TrainingCurveHook(Hook):
     """Training loss & metric curve drawing in real-time.
 
+    This hook only support iter-based runner now.
+
     Args:
         save_dir (str, optional): The training curve picture save folder path.
         interval (int): The interval iterations of hook call. Default: 50

@@ -1,3 +1,4 @@
+import os
 import os.path as osp
 from collections import OrderedDict
 
@@ -14,6 +15,90 @@ from torch.utils.data import Dataset
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from .builder import DATASETS
 from .pipelines import Compose
+
+
+def draw_semantic(save_folder, data_id, image, pred, label,
+                  single_loop_results):
+    """draw semantic level picture with FP & FN."""
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(5 * 2, 5 * 2 + 3))
+
+    # prediction drawing
+    plt.subplot(221)
+    plt.imshow(pred)
+    plt.axis('off')
+    plt.title('Prediction', fontsize=15, color='black')
+
+    # ground truth drawing
+    plt.subplot(222)
+    plt.imshow(label)
+    plt.axis('off')
+    plt.title('Ground Truth', fontsize=15, color='black')
+
+    # image drawing
+    if isinstance(image, str):
+        image = cv2.imread(image)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    plt.subplot(223)
+    plt.imshow(image)
+    plt.axis('off')
+    plt.title('Image', fontsize=15, color='black')
+
+    canvas = np.zeros((*pred.shape, 3), dtype=np.uint8)
+    canvas[label == 1, :] = (255, 255, 2)
+    canvas[(pred == 0) * (label == 1), :] = (2, 255, 255)
+    canvas[(pred == 1) * (label == 0), :] = (255, 2, 255)
+    plt.subplot(224)
+    plt.imshow(canvas)
+    plt.axis('off')
+    plt.title('FP-FN-Ground Truth', fontsize=15, color='black')
+
+    # get the colors of the values, according to the
+    # colormap used by imshow
+    colors = [(255, 255, 2), (2, 255, 255), (255, 2, 255)]
+    label_list = [
+        'Ground Truth',
+        'TN',
+        'FP',
+    ]
+    for color, label in zip(colors, label_list):
+        color = list(color)
+        color = [x / 255 for x in color]
+        plt.plot(0, 0, '-', color=tuple(color), label=label)
+    plt.legend(loc='upper center', fontsize=9, bbox_to_anchor=(0.5, 0), ncol=3)
+
+    # results visulization
+    aji = f'{single_loop_results["aji"] * 100:.2f}'
+    dice = f'{single_loop_results["dice"] * 100:.2f}'
+    recall = f'{single_loop_results["recall"] * 100:.2f}'
+    precision = f'{single_loop_results["precision"] * 100:.2f}'
+    temp_str = (f'aji: {aji:<10}\ndice: '
+                f'{dice:<10}\nrecall: {recall:<10}\nprecision: '
+                f'{precision:<10}')
+    plt.suptitle(temp_str, fontsize=15, color='black')
+    plt.tight_layout()
+    plt.savefig(
+        f'{save_folder}/{data_id}_monuseg_semantic_compare.png', dpi=200)
+
+
+def draw_instance(save_folder, data_id, pred_instance, label_instance):
+    """draw instance level picture."""
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(5 * 2, 5))
+
+    plt.subplot(121)
+    plt.imshow(pred_instance)
+    plt.axis('off')
+
+    plt.subplot(122)
+    plt.imshow(label_instance)
+    plt.axis('off')
+
+    plt.tight_layout()
+    plt.savefig(
+        f'{save_folder}/{data_id}_monuseg_instance_compare.png', dpi=200)
 
 
 @DATASETS.register_module()
@@ -169,8 +254,9 @@ class MoNuSegDataset(Dataset):
     def pre_eval(self,
                  preds,
                  indices,
-                 draw_semantic=False,
-                 draw_instance=False):
+                 show_semantic=False,
+                 show_instance=False,
+                 show_folder=None):
         """Collect eval result from each iteration.
 
         Args:
@@ -178,10 +264,12 @@ class MoNuSegDataset(Dataset):
                 after argmax, shape (N, H, W).
             indices (list[int] | int): the prediction related ground truth
                 indices.
-            draw_semantic (bool): Illustrate semantic level prediction &
+            show_semantic (bool): Illustrate semantic level prediction &
                 ground truth. Default: False
-            draw_instance (bool): Illustrate instance level prediction &
+            show_instance (bool): Illustrate instance level prediction &
                 ground truth. Default: False
+            show_folder (str | None, optional): The folder path of
+                illustration. Default: None
 
         Returns:
             list[torch.Tensor]: (area_intersect, area_union, area_prediction,
@@ -193,17 +281,20 @@ class MoNuSegDataset(Dataset):
         if not isinstance(preds, list):
             preds = [preds]
 
-        # make it accessable in a single evaluation loop for semantic results
-        # drawing
-        self.pre_eval_results = []
+        if show_folder is None:
+            show_folder = '.monuseg_show'
+            if not osp.exists(show_folder):
+                os.makedirs(show_folder, 0o775)
+
+        pre_eval_results = []
 
         for pred, index in zip(preds, indices):
             seg_map = osp.join(self.ann_dir,
                                self.data_infos[index]['ann_name'])
             seg_map = mmcv.imread(seg_map, flag='unchanged', backend='pillow')
+            data_id = self.data_infos[index]['ann_name'].split('_')[0]
 
             # metric calculation post process codes:
-
             # extract inside
             pred = (pred == 1).astype(np.uint8)
             seg_map = (seg_map == 1).astype(np.uint8)
@@ -234,22 +325,29 @@ class MoNuSegDataset(Dataset):
             # pred = (pred > 0).astype(np.uint8)
             # seg_map = (seg_map > 0).astype(np.uint8)
 
-            self.pre_eval_results.append(
-                dict(
-                    aji=aji_metric,
-                    dice=dice_metric,
-                    recall=recall_metric,
-                    precision=precision_metric))
+            single_loop_results = dict(
+                name=data_id,
+                semantic_pred_map=pred_semantic,
+                instance_pred_map=pred_instance,
+                aji=aji_metric,
+                dice=dice_metric,
+                recall=recall_metric,
+                precision=precision_metric)
+            pre_eval_results.append(single_loop_results)
 
             # illustrating semantic level results
-            if draw_semantic:
-                self.draw_semantic(pred_semantic, seg_map_semantic, index)
+            if show_semantic:
+                data_info = self.data_infos[index]
+                image_path = osp.join(self.img_dir, data_info['img_name'])
+                draw_semantic(show_folder, data_id, image_path, pred_semantic,
+                              seg_map_semantic, single_loop_results)
 
             # illustrating instance level results
-            if draw_instance:
-                self.draw_instance(pred_instance, seg_map_instance, index)
+            if show_instance:
+                draw_instance(show_folder, data_id, pred_instance,
+                              seg_map_instance)
 
-        return self.pre_eval_results
+        return pre_eval_results
 
     def model_agnostic_postprocess(self, pred):
         """model free post-process for both instance-level & semantic-level."""
@@ -267,94 +365,6 @@ class MoNuSegDataset(Dataset):
             pred_instance, selem=morphology.disk(1))
 
         return pred_semantic, pred_instance
-
-    def draw_semantic(self, pred, label, index):
-        """draw semantic level picture with FP & FN."""
-        import matplotlib.pyplot as plt
-
-        # Only support single sample inference now
-        assert isinstance(index, int)
-
-        plt.figure(figsize=(7 * 2, 7 * 2 + 4))
-
-        # prediction drawing
-        plt.subplot(221)
-        plt.imshow(pred)
-        plt.axis('off')
-        plt.title('Prediction', fontsize=20, color='black')
-
-        # ground truth drawing
-        plt.subplot(222)
-        plt.imshow(label)
-        plt.axis('off')
-        plt.title('Ground Truth', fontsize=20, color='black')
-
-        # image drawing
-        data_info = self.data_infos[index]
-        data_id = osp.splitext(data_info['img_name'])[0]
-        image_path = osp.join(self.img_dir, data_info['img_name'])
-        image = cv2.imread(image_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        plt.subplot(223)
-        plt.imshow(image)
-        plt.axis('off')
-        plt.title('Image', fontsize=20, color='black')
-
-        canvas = np.zeros((*pred.shape, 3), dtype=np.uint8)
-        canvas[label == 1, :] = (255, 255, 2)
-        canvas[(pred == 0) * (label == 1), :] = (2, 255, 255)
-        canvas[(pred == 1) * (label == 0), :] = (255, 2, 255)
-        plt.subplot(224)
-        plt.imshow(canvas)
-        plt.axis('off')
-        plt.title('FP-FN-Ground Truth', fontsize=20, color='black')
-
-        # get the colors of the values, according to the
-        # colormap used by imshow
-        colors = [(255, 255, 2), (2, 255, 255), (255, 2, 255)]
-        label_list = [
-            'Ground Truth',
-            'TN',
-            'FP',
-        ]
-        for color, label in zip(colors, label_list):
-            color = list(color)
-            color = [x / 255 for x in color]
-            plt.plot(0, 0, '-', color=tuple(color), label=label)
-        plt.legend(loc='upper center', bbox_to_anchor=(0.5, 0), ncol=3)
-
-        # results visulization
-        single_loop_results = self.pre_eval_results[0]
-        aji = f'{single_loop_results["aji"] * 100:.2f}'
-        dice = f'{single_loop_results["dice"] * 100:.2f}'
-        recall = f'{single_loop_results["recall"] * 100:.2f}'
-        precision = f'{single_loop_results["precision"] * 100:.2f}'
-        temp_str = (f'aji: {aji:<10}\ndice: '
-                    f'{dice:<10}\nrecall: {recall:<10}\nprecision: '
-                    f'{precision:<10}')
-        plt.suptitle(temp_str, fontsize=20, color='black')
-        plt.tight_layout()
-        plt.savefig(f'{data_id}_monuseg_semantic_compare.png', dpi=400)
-
-    def draw_instance(self, pred_instance, label_instance, index):
-        """draw instance level picture."""
-        import matplotlib.pyplot as plt
-
-        plt.figure(figsize=(7 * 2, 7))
-
-        data_info = self.data_infos[index]
-        data_id = osp.splitext(data_info['img_name'])[0]
-
-        plt.subplot(121)
-        plt.imshow(pred_instance)
-        plt.axis('off')
-
-        plt.subplot(122)
-        plt.imshow(label_instance)
-        plt.axis('off')
-
-        plt.tight_layout()
-        plt.savefig(f'{data_id}_monuseg_instance_compare.png', dpi=400)
 
     def evaluate(self,
                  results,
@@ -385,9 +395,6 @@ class MoNuSegDataset(Dataset):
 
         if dump_path is not None:
             assert 'all' in metric
-
-        # clear pre-eval results
-        self.pre_eval_results.clear()
 
         eval_results = {}
         ret_metrics = {}
