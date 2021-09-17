@@ -27,8 +27,13 @@ class CDNetLabelMake(object):
             # Check if the input level is "semantic_with_edge"
             # "semantic_with_edge" means the semantic map has three classes
             # (background, nuclei_inside, nuclei_edge)
-            results['gt_semantic_map_with_edge'] = semantic_map
-            results['gt_semantic_map'] = (semantic_map == 1).astype(np.uint8)
+            semantic_inside_map = (semantic_map == 1).astype(np.uint8)
+            bound = morphology.dilation(semantic_inside_map) & (
+                ~morphology.erosion(semantic_inside_map))
+            semantic_inside_map[bound > 0] = 2
+            results['gt_semantic_map_with_edge'] = semantic_inside_map
+            results['gt_semantic_map'] = (semantic_inside_map == 1).astype(
+                np.uint8)
 
             semantic_map_edge = results['gt_semantic_map_with_edge']
             instance_map = measure.label(
