@@ -30,9 +30,6 @@ def parse_args():
         nargs='+',
         help='evaluation metrics, which depends on the dataset, e.g., "mIoU"'
         ' for generic datasets, and "cityscapes" for Cityscapes')
-    parser.add_argument('--show', action='store_true', help='show results')
-    parser.add_argument(
-        '--show-dir', help='directory where painted images will be saved')
     parser.add_argument(
         '--gpu-collect',
         action='store_true',
@@ -48,10 +45,7 @@ def parse_args():
         default='none',
         help='job launcher')
     parser.add_argument(
-        '--opacity',
-        type=float,
-        default=0.5,
-        help='Opacity of painted segmentation map. In (0, 1] range.')
+        '--work-dir', type=str, help='The dump folder of evaluation results')
     parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
@@ -62,11 +56,10 @@ def parse_args():
 def main():
     args = parse_args()
 
-    assert args.eval or args.format_only or args.show \
-        or args.show_dir, \
+    assert args.eval or args.format_only, \
         ('Please specify at least one operation (save/eval/format/show the '
          'results / save the results) with the argument "--out", "--eval"'
-         ', "--format-only", "--show" or "--show-dir"')
+         ', "--format-only"')
 
     if args.eval and args.format_only:
         raise ValueError('--eval and --format_only cannot be both specified')
@@ -118,6 +111,9 @@ def main():
 
         eval_kwargs = {} if args.eval_options is None else args.eval_options
 
+        eval_kwargs['dump_path'] = (None if args.work_dir is None else
+                                    f'{args.work_dir}/evaluation_dump.txt')
+
         if args.format_only:
             if 'imgfile_prefix' in eval_kwargs:
                 tmpdir = eval_kwargs['imgfile_prefix']
@@ -136,9 +132,6 @@ def main():
             results = single_gpu_test(
                 model,
                 data_loader,
-                args.show,
-                args.show_dir,
-                args.opacity,
                 pre_eval=args.eval is not None,
                 format_only=args.format_only,
                 format_args=eval_kwargs)

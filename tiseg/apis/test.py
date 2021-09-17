@@ -6,12 +6,10 @@ from mmcv.runner import get_dist_info
 
 def single_gpu_test(model,
                     data_loader,
-                    show=False,
-                    out_dir=None,
-                    opacity=0.5,
                     pre_eval=False,
                     format_only=False,
-                    format_args={}):
+                    format_args={},
+                    pre_eval_args={}):
     """Test with single GPU by progressive mode.
 
     Args:
@@ -49,7 +47,8 @@ def single_gpu_test(model,
         if pre_eval:
             # TODO: adapt samples_per_gpu > 1.
             # only samples_per_gpu=1 valid now
-            result = dataset.pre_eval(result, indices=batch_indices)
+            result = dataset.pre_eval(
+                result, indices=batch_indices, **pre_eval_args)
 
         results.extend(result)
 
@@ -65,7 +64,8 @@ def multi_gpu_test(model,
                    gpu_collect=False,
                    pre_eval=False,
                    format_only=False,
-                   format_args={}):
+                   format_args={},
+                   pre_eval_args={}):
     """Test model with multiple gpus by progressive mode.
 
     This method tests model with multiple gpus and collects the results
@@ -124,7 +124,8 @@ def multi_gpu_test(model,
         if pre_eval:
             # TODO: adapt samples_per_gpu > 1.
             # only samples_per_gpu=1 valid now
-            result = dataset.pre_eval(result, indices=batch_indices)
+            result = dataset.pre_eval(
+                result, indices=batch_indices, **pre_eval_args)
 
         results.extend(result)
 
