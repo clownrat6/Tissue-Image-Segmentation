@@ -6,3 +6,4 @@ prettytable
 rich
 scikit-image
 scipy
+lxml
