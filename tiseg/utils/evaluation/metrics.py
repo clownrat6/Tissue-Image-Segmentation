@@ -6,6 +6,35 @@ import torch
 from skimage import measure
 
 
+# TODO: refactor by pytorch library
+def binary_precision_recall(pred_label, target_label):
+    """two-class precision-recall calculation."""
+    assert len(np.unique(pred_label)) <= 2 and len(
+        np.unique(target_label)) <= 2
+    TP = (pred_label == 1) * (target_label == 1)
+    FP = (pred_label == 1) * (target_label == 0)
+    FN = (pred_label == 0) * (target_label == 1)
+
+    precision = np.sum(TP) / (np.sum(TP) + np.sum(FP))
+    recall = np.sum(TP) / (np.sum(TP) + np.sum(FN))
+
+    return precision, recall
+
+
+# TODO: refactor by pytorch library
+def binary_dice_similarity_coefficient(pred_label, target_label):
+    """two-class dice calculation."""
+    assert len(np.unique(pred_label)) <= 2 and len(
+        np.unique(target_label)) <= 2
+    TP = (pred_label == 1) * (target_label == 1)
+    Pred = (pred_label == 1)
+    GT = (target_label == 1)
+
+    dice = 2 * np.sum(TP) / (np.sum(Pred) + np.sum(GT))
+
+    return dice
+
+
 def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     """Aggregated Jaccard Index Calculation.
 

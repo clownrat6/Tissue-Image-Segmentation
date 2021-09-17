@@ -12,7 +12,9 @@ from skimage import measure, morphology
 from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
-from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
+from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
+                                            binary_dice_similarity_coefficient,
+                                            binary_precision_recall)
 from .builder import DATASETS
 from .pipelines import Compose
 
@@ -52,14 +54,14 @@ def draw_semantic(save_folder, data_id, image, pred, label,
     plt.subplot(224)
     plt.imshow(canvas)
     plt.axis('off')
-    plt.title('FP-FN-Ground Truth', fontsize=15, color='black')
+    plt.title('FN-FP-Ground Truth', fontsize=15, color='black')
 
     # get the colors of the values, according to the
     # colormap used by imshow
     colors = [(255, 255, 2), (2, 255, 255), (255, 2, 255)]
     label_list = [
         'Ground Truth',
-        'TN',
+        'FN',
         'FP',
     ]
     for color, label in zip(colors, label_list):
@@ -296,43 +298,47 @@ class MoNuSegDataset(Dataset):
 
             # metric calculation post process codes:
             # extract inside
+            pred_edge = (pred == 2).astype(np.uint8)
+            seg_map_edge = (seg_map == 2).astype(np.uint8)
             pred = (pred == 1).astype(np.uint8)
             seg_map = (seg_map == 1).astype(np.uint8)
 
             # model-agnostic post process operations
             pred_semantic, pred_instance = self.model_agnostic_postprocess(
                 pred)
-            # semantic metric calculation
-            seg_map_semantic = seg_map.copy()
-            TP = (pred_semantic == 1) * (seg_map_semantic == 1)
-            FP = (pred_semantic == 1) * (seg_map_semantic == 0)
-            FN = (pred_semantic == 0) * (seg_map_semantic == 1)
-            Pred = (pred_semantic == 1)
-            GT = (seg_map_semantic == 1)
-            precision_metric = np.sum(TP) / (np.sum(TP) + np.sum(FP))
-            recall_metric = np.sum(TP) / (np.sum(TP) + np.sum(FN))
-            dice_metric = 2 * np.sum(TP) / (np.sum(Pred) + np.sum(GT))
-
-            # instance metric calculation
-            seg_map_instance = measure.label(seg_map)
-            aji_metric = aggregated_jaccard_index(
-                pred_instance, seg_map_instance, is_semantic=False)
+            seg_map_semantic, seg_map_instance = seg_map.copy(), seg_map.copy()
 
             # TODO: (Important issue about post process)
             # This may be the dice metric calculation trick (Need be
             # considering carefully)
             # convert instance map (after postprocess) to semantic level
-            # pred = (pred > 0).astype(np.uint8)
-            # seg_map = (seg_map > 0).astype(np.uint8)
+            # pred_semantic = (pred_instance > 0).astype(np.uint8)
+            # seg_map_semantic = (seg_map_instance > 0).astype(np.uint8)
+
+            # semantic metric calculation
+            precision_metric, recall_metric = binary_precision_recall(
+                pred_semantic, seg_map_semantic)
+            dice_metric = binary_dice_similarity_coefficient(
+                pred_semantic, seg_map_semantic)
+            edge_precision_metric, edge_recall_metric = \
+                binary_precision_recall(pred_edge, seg_map_edge)
+            edge_dice_metric = binary_dice_similarity_coefficient(
+                pred_edge, seg_map_edge)
+
+            # instance metric calculation
+            seg_map_instance = measure.label(seg_map_instance)
+            aji_metric = aggregated_jaccard_index(
+                pred_instance, seg_map_instance, is_semantic=False)
 
             single_loop_results = dict(
                 name=data_id,
-                semantic_pred_map=pred_semantic,
-                instance_pred_map=pred_instance,
                 aji=aji_metric,
                 dice=dice_metric,
                 recall=recall_metric,
-                precision=precision_metric)
+                precision=precision_metric,
+                edge_dice=edge_dice_metric,
+                edge_recall=edge_recall_metric,
+                edge_precision=edge_precision_metric)
             pre_eval_results.append(single_loop_results)
 
             # illustrating semantic level results
@@ -389,73 +395,86 @@ class MoNuSegDataset(Dataset):
 
         if isinstance(metric, str):
             metric = [metric]
-        allowed_metrics = ['aji', 'dice', 'all']
+        allowed_metrics = ['all']
         if not set(metric).issubset(set(allowed_metrics)):
             raise KeyError('metric {} is not supported'.format(metric))
 
-        if dump_path is not None:
-            assert 'all' in metric
-
-        eval_results = {}
         ret_metrics = {}
+        # list to dict
+        for result in results:
+            for key, value in result.items():
+                if key not in ret_metrics:
+                    ret_metrics[key] = [value]
+                else:
+                    ret_metrics[key].append(value)
 
-        # test a list of files
-        if 'all' in metric:
-            aji_list = []
-            dice_list = []
-            for item in results:
-                aji_list.append(item['aji'])
-                dice_list.append(item['dice'])
-            ret_metrics['aji'] = np.array([sum(aji_list) / len(aji_list)])
-            ret_metrics['dice'] = np.array([sum(dice_list) / len(dice_list)])
+        # calculate average metric
+        assert 'name' in ret_metrics
+        name_list = ret_metrics.pop('name')
+        name_list.append('Average')
+        for key in ret_metrics.keys():
+            average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+            ret_metrics[key].append(average_value)
+            ret_metrics[key] = np.array(ret_metrics[key])
 
-            # TODO: Refactor for more general metric
-            if dump_path is not None:
-                name_list = self.data_infos
-                fp = open(f'{dump_path}', 'w')
-                fp.write(f'{"filename":<30} | {"aji":<30} | {"dice":<30}')
-                for data_info, aji, dice in zip(name_list, aji_list,
-                                                dice_list):
-                    name = data_info['ann_name'].split('_')[0]
-                    aji = f'{aji * 100:.2f}'
-                    dice = f'{dice * 100:.2f}'
-                    fp.write(f'{name:<30} | {aji:<30} | {dice:<30}')
-
-        if 'aji' in metric:
-            aji_list = []
-            for item in results:
-                aji_list.append(item['aji'])
-            ret_metrics['aji'] = np.array([sum(aji_list) / len(aji_list)])
-        if 'dice' in metric:
-            dice_list = []
-            for item in results:
-                dice_list.append(item['dice'])
-            ret_metrics['dice'] = np.array([sum(dice_list) / len(dice_list)])
+        # TODO: Refactor for more general metric
+        # if dump_path is not None:
+        #     fp = open(f'{dump_path}', 'w')
+        #     head_info = f'{"item_name":<30} | '
+        #     key_list = ret_metrics.keys()
+        #     # make metric record head info
+        #     for key in key_list:
+        #         head_info += f'{key:<30} | '
+        #     fp.write(head_info + '\n')
+        #     for idx, name in enumerate(name_list):
+        #         # make single line info
+        #         single_line_info = f'{name:<30} | '
+        #         for key in key_list:
+        #             format_value = f'{ret_metrics[key][idx] * 100:.2f}'
+        #             single_line_info += f'{format_value:<30} | '
+        #         fp.write(single_line_info + '\n')
 
         # for logger
-        ret_metrics_class = OrderedDict({
+        ret_metrics_items = OrderedDict({
             ret_metric: np.round(ret_metric_value * 100, 2)
             for ret_metric, ret_metric_value in ret_metrics.items()
         })
-        ret_metrics_class.update({'Class': ['Nuclei']})
-        ret_metrics_class.move_to_end('Class', last=False)
-        class_table_data = PrettyTable()
-        for key, val in ret_metrics_class.items():
-            class_table_data.add_column(key, val)
+        ret_metrics_items.update({'name': name_list})
+        ret_metrics_items.move_to_end('name', last=False)
+        items_table_data = PrettyTable()
+        for key, val in ret_metrics_items.items():
+            items_table_data.add_column(key, val)
 
         print_log('Per class:', logger)
-        print_log('\n' + class_table_data.get_string(), logger=logger)
+        print_log('\n' + items_table_data.get_string(), logger=logger)
 
+        # dump to txt
+        if dump_path is not None:
+            fp = open(f'{dump_path}', 'w')
+            fp.write(items_table_data.get_string())
+
+        eval_results = {}
+        # average results
         if 'aji' in ret_metrics:
-            eval_results['aji'] = ret_metrics['aji'][0]
+            eval_results['aji'] = ret_metrics['aji'][-1]
         if 'dice' in ret_metrics:
-            eval_results['dice'] = ret_metrics['dice'][0]
+            eval_results['dice'] = ret_metrics['dice'][-1]
+        if 'recall' in ret_metrics:
+            eval_results['recall'] = ret_metrics['recall'][-1]
+        if 'precision' in ret_metrics:
+            eval_results['precision'] = ret_metrics['precision'][-1]
+        if 'edge_dice' in ret_metrics:
+            eval_results['edge_dice'] = ret_metrics['edge_dice'][-1]
+        if 'edge_recall' in ret_metrics:
+            eval_results['edge_recall'] = ret_metrics['edge_recall'][-1]
+        if 'edge_precision' in ret_metrics:
+            eval_results['edge_precision'] = ret_metrics['edge_precision'][-1]
 
-        ret_metrics_class.pop('Class', None)
-        for key, value in ret_metrics_class.items():
+        ret_metrics_items.pop('Name', None)
+        for key, value in ret_metrics_items.items():
             eval_results.update({
-                key + '.' + str(name): value[idx] / 100.0
-                for idx, name in enumerate(['Nuclei'])
+                key + '.' + str(name): f'{value[idx]}:.3f'
+                for idx, name in enumerate(name_list)
             })
 
         # This ret value is used for eval hook. Eval hook will add these
