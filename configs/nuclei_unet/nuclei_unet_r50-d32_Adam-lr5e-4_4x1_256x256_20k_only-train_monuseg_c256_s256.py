@@ -21,3 +21,5 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='slide', crop_size=(256, 256), stride=(155, 155)),
 )
+
+data = dict(samples_per_gpu=4, workers_per_gpu=4)
