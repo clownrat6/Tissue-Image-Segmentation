@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/datasets/only-train_monuseg_256x256_c256_s256.py',
+    '../_base_/datasets/only-train_monuseg_320x320_c320_s231.py',
     './_base_/nuclei_unet_runtime.py',
     './_base_/nuclei_unet_r50-d32.py',
     './_base_/nuclei_unet_schedule_20k.py',
@@ -19,7 +19,7 @@ lr_config = dict(
 
 model = dict(
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=(256, 256), stride=(155, 155)),
+    test_cfg=dict(mode='slide', crop_size=(320, 320), stride=(231, 231)),
 )
 
-data = dict(samples_per_gpu=4, workers_per_gpu=4)
+data = dict(samples_per_gpu=8, workers_per_gpu=8)
