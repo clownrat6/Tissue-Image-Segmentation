@@ -470,10 +470,10 @@ class MoNuSegDataset(Dataset):
         if 'edge_precision' in ret_metrics:
             eval_results['edge_precision'] = ret_metrics['edge_precision'][-1]
 
-        ret_metrics_items.pop('Name', None)
+        ret_metrics_items.pop('name', None)
         for key, value in ret_metrics_items.items():
             eval_results.update({
-                key + '.' + str(name): f'{value[idx]}:.3f'
+                key + '.' + str(name): f'{value[idx]:.3f}'
                 for idx, name in enumerate(name_list)
             })
 
