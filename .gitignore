@@ -47,3 +47,7 @@ MANIFEST
 # Work dir
 work_dirs*/
 collect*/
+
+# compressed files
+*.zip
+*.rar
