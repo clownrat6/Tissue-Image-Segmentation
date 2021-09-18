@@ -122,7 +122,7 @@ class MoNuSegDataset(Dataset):
                  ann_dir,
                  data_root=None,
                  img_suffix='.tif',
-                 ann_suffix='_semantic_with_edge.png',
+                 ann_suffix='_instance.npy',
                  test_mode=False,
                  split=None):
 
@@ -317,8 +317,8 @@ class MoNuSegDataset(Dataset):
             # This may be the dice metric calculation trick (Need be
             # considering carefully)
             # convert instance map (after postprocess) to semantic level
-            # pred_semantic = (pred_instance > 0).astype(np.uint8)
-            # seg_map_semantic = (seg_map_instance > 0).astype(np.uint8)
+            pred_semantic = (pred_instance > 0).astype(np.uint8)
+            seg_map_semantic = (seg_map_instance > 0).astype(np.uint8)
 
             # semantic metric calculation
             precision_metric, recall_metric = binary_precision_recall(
@@ -372,6 +372,7 @@ class MoNuSegDataset(Dataset):
         # instance process & dilation
         pred = pred.copy()
         pred_instance = measure.label(pred)
+        # if re_edge=True, dilation pixel length should be 2
         pred_instance = morphology.dilation(
             pred_instance, selem=morphology.disk(1))
 

@@ -16,19 +16,20 @@ class CDNetLabelMake(object):
     """Label construction for CDNet."""
 
     def __init__(self,
-                 input_level='semantic_with_edge',
-                 re_edge=True,
+                 input_level='instance',
+                 re_edge=False,
                  num_angle_types=8):
         # If input with edge, re_edge can be set to False.
         # However, in order to generate better boundary, we will re-generate
         # edge.
-        assert re_edge or input_level == 'semantic_with_edge'
+        if re_edge:
+            assert input_level == 'semantic_with_edge'
         self.re_edge = re_edge
         self.input_level = input_level
         self.num_angle_types = num_angle_types
 
     def __call__(self, results):
-        assert self.input_level in ['semantic_with_edge']
+        assert self.input_level in ['instance', 'semantic_with_edge']
         if self.input_level == 'semantic_with_edge':
             semantic_map = results['gt_semantic_map']
 
@@ -46,8 +47,33 @@ class CDNetLabelMake(object):
             semantic_map_edge = results['gt_semantic_map_with_edge']
             instance_map = measure.label(
                 semantic_map_edge == 1, connectivity=1)
-            # Redundant dilation will cause instance connection.
+            # XXX: If re_edge, we need to dilate two pixels during
+            # model-agnostic postprocess.
+            if self.re_edge:
+                # re_edge will remove a pixel length of nuclei inside, so we
+                # need to dilate 1 pixel length.
+                instance_map = morphology.dilation(
+                    instance_map, selem=morphology.selem.disk(1))
+
             results['gt_instance_map'] = instance_map
+        elif self.input_level == 'instance':
+            # build semantic map from instance map
+            instance_map = results['gt_semantic_map']
+            semantic_map_edge = np.zeros_like(instance_map, dtype=np.uint8)
+            instance_id_list = list(np.unique(instance_map))
+            # remove background id
+            instance_id_list.remove(0)
+            for instance_id in instance_id_list:
+                single_instance_map = (instance_map == instance_id).astype(
+                    np.uint8)
+
+                semantic_map_edge += single_instance_map
+                bound = morphology.dilation(single_instance_map) & (
+                    ~morphology.erosion(single_instance_map))
+                semantic_map_edge[bound > 0] = 2
+            results['gt_semantic_map_with_edge'] = semantic_map_edge
+            results['gt_semantic_map'] = (semantic_map_edge == 1).astype(
+                np.uint8)
         else:
             raise NotImplementedError
 
@@ -103,8 +129,11 @@ class CDNetLabelMake(object):
             point_map[center[0], center[1]] = 1
 
             # Prepare for gradient map & direction map calculation
-            single_instance_map_dilation = morphology.dilation(
-                single_instance_map, morphology.disk(1))
+            if self.input_level == 'semantic_with_edge':
+                single_instance_map_dilation = morphology.dilation(
+                    single_instance_map, morphology.disk(1))
+            elif self.input_level == 'instance':
+                single_instance_map_dilation = single_instance_map
             instance_map_dilation += single_instance_map_dilation
 
             # Calculate distance from points of instance to instance center.

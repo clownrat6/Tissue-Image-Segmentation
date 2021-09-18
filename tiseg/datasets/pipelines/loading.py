@@ -132,10 +132,14 @@ class LoadAnnotations(object):
                                 results['ann_info']['ann_name'])
         else:
             filename = results['ann_info']['ann_name']
-        img_bytes = self.file_client.get(filename)
-        gt_semantic_map = mmcv.imfrombytes(
-            img_bytes, flag='unchanged',
-            backend=self.imdecode_backend).squeeze().astype(np.uint8)
+        suffix = osp.splitext(filename)[1]
+        if suffix == '.npy':
+            gt_semantic_map = np.load(filename)
+        else:
+            img_bytes = self.file_client.get(filename)
+            gt_semantic_map = mmcv.imfrombytes(
+                img_bytes, flag='unchanged',
+                backend=self.imdecode_backend).squeeze().astype(np.uint8)
         # modify if custom classes
         # For referring expression segmentation, label map may be unnecessary
         # That's because map always has two classes - background and object.
