@@ -18,6 +18,7 @@ from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
                                             binary_precision_recall)
 from .builder import DATASETS
 from .pipelines import Compose
+from .utils import re_instance
 
 
 def draw_semantic(save_folder, data_id, image, pred, label,
@@ -116,15 +117,24 @@ class MoNuSegDataset(Dataset):
 
     PALETTE = [[0, 0, 0], [255, 2, 255], [2, 255, 255]]
 
-    def __init__(self,
-                 pipeline,
-                 img_dir,
-                 ann_dir,
-                 data_root=None,
-                 img_suffix='.tif',
-                 ann_suffix='_instance.npy',
-                 test_mode=False,
-                 split=None):
+    def __init__(
+            self,
+            pipeline,
+            img_dir,
+            ann_dir,
+            data_root=None,
+            img_suffix='.tif',
+            #  ann_suffix='_semantic_with_edge.png',
+            ann_suffix='_instance.npy',
+            test_mode=False,
+            split=None):
+
+        # semantic level input or instance level input
+        assert ann_suffix in ['_semantic_with_edge.png', '_instance.npy']
+        if ann_suffix == '_semantic_with_edge.png':
+            self.input_level = 'semantic_with_edge'
+        elif ann_suffix == '_instance.npy':
+            self.input_level = 'instance'
 
         self.pipeline = Compose(pipeline)
 
@@ -298,20 +308,34 @@ class MoNuSegDataset(Dataset):
         for pred, index in zip(preds, indices):
             seg_map = osp.join(self.ann_dir,
                                self.data_infos[index]['ann_name'])
-            seg_map = mmcv.imread(seg_map, flag='unchanged', backend='pillow')
+            if self.input_level == 'semantic_with_edge':
+                seg_map = mmcv.imread(
+                    seg_map, flag='unchanged', backend='pillow')
+                seg_map_instance = measure.label(seg_map == 1)
+                seg_map_semantic = (seg_map == 1).astype(np.uint8)
+                seg_map_edge = (seg_map == 2).astype(np.uint8)
+            elif self.input_level == 'instance':
+                # instance level label make
+                seg_map_instance = np.load(seg_map)
+                seg_map_instance = re_instance(seg_map_instance)
+                # semantic level label make
+                seg_map_semantic = seg_map.replace('_instance.npy',
+                                                   '_semantic_with_edge.png')
+                seg_map_semantic = mmcv.imread(
+                    seg_map_semantic, flag='unchanged', backend='pillow')
+                seg_map_edge = (seg_map_semantic == 2).astype(np.uint8)
+                seg_map_semantic = (seg_map_semantic == 1).astype(np.uint8)
+
             data_id = self.data_infos[index]['ann_name'].split('_')[0]
 
             # metric calculation post process codes:
             # extract inside
             pred_edge = (pred == 2).astype(np.uint8)
-            seg_map_edge = (seg_map == 2).astype(np.uint8)
             pred = (pred == 1).astype(np.uint8)
-            seg_map = (seg_map == 1).astype(np.uint8)
 
             # model-agnostic post process operations
             pred_semantic, pred_instance = self.model_agnostic_postprocess(
                 pred)
-            seg_map_semantic, seg_map_instance = seg_map.copy(), seg_map.copy()
 
             # TODO: (Important issue about post process)
             # This may be the dice metric calculation trick (Need be
@@ -331,7 +355,6 @@ class MoNuSegDataset(Dataset):
                 pred_edge, seg_map_edge)
 
             # instance metric calculation
-            seg_map_instance = measure.label(seg_map_instance)
             aji_metric = aggregated_jaccard_index(
                 pred_instance, seg_map_instance, is_semantic=False)
 
