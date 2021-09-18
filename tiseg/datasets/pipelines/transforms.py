@@ -661,7 +661,7 @@ class RandomRotate(object):
             self.degree = degree
         assert len(self.degree) == 2, f'degree {self.degree} should be a ' \
                                       f'tuple of (min, max)'
-        self.pal_val = pad_val
+        self.pad_val = pad_val
         self.seg_pad_val = seg_pad_val
         self.center = center
         self.auto_bound = auto_bound
@@ -683,7 +683,7 @@ class RandomRotate(object):
             results['img'] = mmcv.imrotate(
                 results['img'],
                 angle=degree,
-                border_value=self.pal_val,
+                border_value=self.pad_val,
                 center=self.center,
                 auto_bound=self.auto_bound)
 
@@ -702,8 +702,61 @@ class RandomRotate(object):
         repr_str = self.__class__.__name__
         repr_str += f'(prob={self.prob}, ' \
                     f'degree={self.degree}, ' \
-                    f'pad_val={self.pal_val}, ' \
+                    f'pad_val={self.pad_val}, ' \
                     f'seg_pad_val={self.seg_pad_val}, ' \
+                    f'center={self.center}, ' \
+                    f'auto_bound={self.auto_bound})'
+        return repr_str
+
+
+# TODO: Add comments & Add doc string.
+@PIPELINES.register_module()
+class RandomSparseRotate(object):
+
+    def __init__(self,
+                 degree_list=[90, 180, 270],
+                 prob=0.5,
+                 pad_value=0,
+                 center=None,
+                 auto_bound=False):
+        self.degree_list = degree_list
+        self.prob = prob
+        self.pad_value = pad_value
+        self.center = center
+        self.auto_bound = auto_bound
+
+    def __call__(self, results):
+        rotate = True if np.random.rand() < self.prob else False
+
+        degree_select_index = np.random.randint(0, len(self.degree_list))
+        degree = self.degree_list[degree_select_index]
+
+        if rotate:
+            # rotate image
+            results['img'] = mmcv.imrotate(
+                results['img'],
+                angle=degree,
+                border_value=self.pad_value,
+                center=self.center,
+                auto_bound=self.auto_bound)
+
+            # rotate segs
+            for key in results.get('seg_fields', []):
+                results[key] = mmcv.imrotate(
+                    results[key],
+                    angle=degree,
+                    border_value=self.pad_value,
+                    center=self.center,
+                    auto_bound=self.auto_bound,
+                    interpolation='nearest')
+
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += f'(prob={self.prob}, ' \
+                    f'degree_list={self.degree_list}, ' \
+                    f'pad_val={self.pad_value}, ' \
                     f'center={self.center}, ' \
                     f'auto_bound={self.auto_bound})'
         return repr_str
