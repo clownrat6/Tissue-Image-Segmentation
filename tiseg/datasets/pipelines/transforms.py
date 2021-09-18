@@ -264,14 +264,16 @@ class RandomFlip(object):
     @deprecated_api_warning({'flip_ratio': 'prob'}, cls_name='RandomFlip')
     def __init__(self, prob=None, direction='horizontal'):
         self.prob = prob
-        self.direction = direction
         if prob is not None:
             assert prob >= 0 and prob <= 1
         if isinstance(direction, list):
-            assert sum([x in ['horizontal', 'vertical']
-                        for x in direction]) == len(direction)
+            assert sum([
+                x in ['horizontal', 'vertical', 'diagonal'] for x in direction
+            ]) == len(direction)
         else:
-            assert direction in ['horizontal', 'vertical']
+            assert direction in ['horizontal', 'vertical', 'diagonal']
+            direction = [direction]
+        self.direction = direction
 
     def __call__(self, results):
         """Call function to flip bounding boxes, masks, semantic segmentation
@@ -284,12 +286,14 @@ class RandomFlip(object):
             dict: Flipped results, 'flip', 'flip_direction' keys are added into
                 result dict.
         """
-        # TODO: Support vertical & horizontal flip at the same time.
         if 'flip' not in results['img_info']:
             flip = True if np.random.rand() < self.prob else False
             results['img_info']['flip'] = flip
         if 'flip_direction' not in results['img_info']:
-            results['img_info']['flip_direction'] = self.direction
+            # random select from direction list.
+            select_index = np.random.randint(0, len(self.direction))
+            results['img_info']['flip_direction'] = self.direction[
+                select_index]
         if results['img_info']['flip']:
             # flip image
             results['img'] = mmcv.imflip(

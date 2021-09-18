@@ -255,11 +255,13 @@ class Nuclei(BaseSegmentor):
         flip = meta[0]['img_info']['flip']
         if flip:
             flip_direction = meta[0]['img_info']['flip_direction']
-            assert flip_direction in ['horizontal', 'vertical']
+            assert flip_direction in ['horizontal', 'vertical', 'diagonal']
             if flip_direction == 'horizontal':
                 output = output.flip(dims=(3, ))
             elif flip_direction == 'vertical':
                 output = output.flip(dims=(2, ))
+            elif flip_direction == 'diagonal':
+                output = output.flip(dims=(2, 3))
 
         return output
 
