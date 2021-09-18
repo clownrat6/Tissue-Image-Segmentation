@@ -16,8 +16,8 @@ class CDNetLabelMake(object):
     """Label construction for CDNet."""
 
     def __init__(self,
-                 input_level='instance',
-                 re_edge=False,
+                 input_level='semantic_with_edge',
+                 re_edge=True,
                  num_angle_types=8):
         # If input with edge, re_edge can be set to False.
         # However, in order to generate better boundary, we will re-generate
