@@ -12,7 +12,7 @@ train_pipeline = [
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
     dict(type='CDNetLabelMake'),
-    dict(type='Standardization', **img_norm_cfg),
+    dict(type='Normalize', max_min=False),
     dict(type='Pad', size=crop_size, pad_val=0, seg_pad_val=0),
     dict(type='DefaultFormatBundle'),
     dict(
@@ -33,7 +33,7 @@ test_pipeline = [
         transforms=[
             dict(type='Resize', keep_ratio=True),
             dict(type='RandomFlip'),
-            dict(type='Standardization', **img_norm_cfg),
+            dict(type='Normalize', max_min=False),
             dict(type='ImageToTensor', keys=['img']),
             dict(type='Collect', data_keys=['img'], label_keys=[]),
         ])
