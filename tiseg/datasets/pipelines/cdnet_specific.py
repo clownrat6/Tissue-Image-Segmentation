@@ -15,7 +15,15 @@ from ..utils import (angle_to_vector, calculate_centerpoint,
 class CDNetLabelMake(object):
     """Label construction for CDNet."""
 
-    def __init__(self, input_level='semantic_with_edge', num_angle_types=8):
+    def __init__(self,
+                 input_level='semantic_with_edge',
+                 re_edge=True,
+                 num_angle_types=8):
+        # If input with edge, re_edge can be set to False.
+        # However, in order to generate better boundary, we will re-generate
+        # edge.
+        assert re_edge or input_level == 'semantic_with_edge'
+        self.re_edge = re_edge
         self.input_level = input_level
         self.num_angle_types = num_angle_types
 
@@ -27,13 +35,13 @@ class CDNetLabelMake(object):
             # Check if the input level is "semantic_with_edge"
             # "semantic_with_edge" means the semantic map has three classes
             # (background, nuclei_inside, nuclei_edge)
-            semantic_inside_map = (semantic_map == 1).astype(np.uint8)
-            bound = morphology.dilation(semantic_inside_map) & (
-                ~morphology.erosion(semantic_inside_map))
-            semantic_inside_map[bound > 0] = 2
-            results['gt_semantic_map_with_edge'] = semantic_inside_map
-            results['gt_semantic_map'] = (semantic_inside_map == 1).astype(
-                np.uint8)
+            if self.re_edge:
+                semantic_map = (semantic_map == 1).astype(np.uint8)
+                bound = morphology.dilation(semantic_map) & (
+                    ~morphology.erosion(semantic_map))
+                semantic_map[bound > 0] = 2
+            results['gt_semantic_map_with_edge'] = semantic_map
+            results['gt_semantic_map'] = (semantic_map == 1).astype(np.uint8)
 
             semantic_map_edge = results['gt_semantic_map_with_edge']
             instance_map = measure.label(

@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import warnings
 from collections import OrderedDict
 
 import cv2
@@ -283,7 +284,11 @@ class MoNuSegDataset(Dataset):
         if not isinstance(preds, list):
             preds = [preds]
 
-        if show_folder is None:
+        if show_folder is None and (show_semantic or show_instance):
+            warnings.warn(
+                'show_semantic or show_instance is set to True, but the '
+                'show_folder is None. We will use default show_folder: '
+                './monuseg_show')
             show_folder = '.monuseg_show'
             if not osp.exists(show_folder):
                 os.makedirs(show_folder, 0o775)
