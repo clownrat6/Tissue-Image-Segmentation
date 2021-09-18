@@ -55,7 +55,9 @@ class MultiScaleFlipAug(object):
                  img_scale,
                  img_ratios=None,
                  flip=False,
-                 flip_direction='horizontal'):
+                 flip_direction='horizontal',
+                 rotate=False,
+                 rotate_degree=90):
         self.transforms = Compose(transforms)
         if img_ratios is not None:
             img_ratios = img_ratios if isinstance(img_ratios,
@@ -77,18 +79,26 @@ class MultiScaleFlipAug(object):
             self.img_scale = img_scale if isinstance(img_scale,
                                                      list) else [img_scale]
         assert mmcv.is_list_of(self.img_scale, tuple) or self.img_scale is None
-        self.flip = flip
         self.img_ratios = img_ratios
+
+        self.flip = flip
         self.flip_direction = flip_direction if isinstance(
             flip_direction, list) else [flip_direction]
         assert mmcv.is_list_of(self.flip_direction, str)
-        if not self.flip and self.flip_direction != ['horizontal']:
-            warnings.warn(
-                'flip_direction has no effect when flip is set to False')
         if (self.flip
                 and not any([t['type'] == 'RandomFlip' for t in transforms])):
             warnings.warn(
                 'flip has no effect when RandomFlip is not in transforms')
+
+        self.rotate = rotate
+        self.rotate_degree = rotate_degree if isinstance(
+            rotate_degree, list) else [rotate_degree]
+        assert mmcv.is_list_of(self.rotate_degree, int)
+        flag = any([t['type'] == 'RandomSparseRotate' for t in transforms])
+        if (self.rotate and not flag):
+            warnings.warn(
+                'flip has no effect when RandomSparseRotate is not in '
+                'transforms')
 
     def __call__(self, results):
         """Call function to apply test time augment transforms on results.
@@ -112,20 +122,25 @@ class MultiScaleFlipAug(object):
         else:
             img_scale = self.img_scale
         flip_aug = [False, True] if self.flip else [False]
+        rotate_aug = [False, True] if self.rotate else [False]
         for scale in img_scale:
             for flip in flip_aug:
                 for direction in self.flip_direction:
-                    # copy only can copy top-level object and can't
-                    # copy son object.
-                    _results = results.copy()
-                    # only copy img & ann info (dict type)
-                    _results['img_info'] = results['img_info'].copy()
-                    _results['ann_info'] = results['ann_info'].copy()
-                    _results['img_info']['scale'] = scale
-                    _results['img_info']['flip'] = flip
-                    _results['img_info']['flip_direction'] = direction
-                    data = self.transforms(_results)
-                    aug_data.append(data)
+                    for rotate in rotate_aug:
+                        for degree in self.rotate_degree:
+                            # copy only can copy top-level object and can't
+                            # copy son object.
+                            _results = results.copy()
+                            # only copy img & ann info (dict type)
+                            _results['img_info'] = results['img_info'].copy()
+                            _results['ann_info'] = results['ann_info'].copy()
+                            _results['img_info']['scale'] = scale
+                            _results['img_info']['flip'] = flip
+                            _results['img_info']['flip_direction'] = direction
+                            _results['img_info']['rotate'] = rotate
+                            _results['img_info']['rotate_degree'] = degree
+                            data = self.transforms(_results)
+                            aug_data.append(data)
 
         # list of dict to dict of list
         aug_data_dict = {key: [] for key in aug_data[0]}
