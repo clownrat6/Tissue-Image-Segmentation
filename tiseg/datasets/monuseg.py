@@ -83,7 +83,7 @@ def draw_semantic(save_folder, data_id, image, pred, label,
     plt.suptitle(temp_str, fontsize=15, color='black')
     plt.tight_layout()
     plt.savefig(
-        f'{save_folder}/{data_id}_monuseg_semantic_compare.png', dpi=200)
+        f'{save_folder}/{data_id}_monuseg_semantic_compare.png', dpi=300)
 
 
 def draw_instance(save_folder, data_id, pred_instance, label_instance):
@@ -102,7 +102,7 @@ def draw_instance(save_folder, data_id, pred_instance, label_instance):
 
     plt.tight_layout()
     plt.savefig(
-        f'{save_folder}/{data_id}_monuseg_instance_compare.png', dpi=200)
+        f'{save_folder}/{data_id}_monuseg_instance_compare.png', dpi=300)
 
 
 @DATASETS.register_module()
@@ -311,9 +311,10 @@ class MoNuSegDataset(Dataset):
             if self.input_level == 'semantic_with_edge':
                 seg_map = mmcv.imread(
                     seg_map, flag='unchanged', backend='pillow')
-                seg_map_instance = measure.label(seg_map == 1)
-                seg_map_semantic = (seg_map == 1).astype(np.uint8)
+                seg_map_semantic = seg_map
+                seg_map_inside = (seg_map == 1).astype(np.uint8)
                 seg_map_edge = (seg_map == 2).astype(np.uint8)
+                seg_map_instance = measure.label(seg_map == 1)
             elif self.input_level == 'instance':
                 # instance level label make
                 seg_map_instance = np.load(seg_map)
@@ -324,31 +325,32 @@ class MoNuSegDataset(Dataset):
                 seg_map_semantic = mmcv.imread(
                     seg_map_semantic, flag='unchanged', backend='pillow')
                 seg_map_edge = (seg_map_semantic == 2).astype(np.uint8)
-                seg_map_semantic = (seg_map_semantic == 1).astype(np.uint8)
+                seg_map_inside = (seg_map_semantic == 1).astype(np.uint8)
 
             data_id = self.data_infos[index]['ann_name'].split('_')[0]
 
             # metric calculation post process codes:
             # extract inside
+            pred_semantic = pred
             pred_edge = (pred == 2).astype(np.uint8)
-            pred = (pred == 1).astype(np.uint8)
+            pred_inside = (pred == 1).astype(np.uint8)
 
             # model-agnostic post process operations
-            pred_semantic, pred_instance = self.model_agnostic_postprocess(
-                pred)
+            pred_inside, pred_instance = self.model_agnostic_postprocess(
+                pred_inside)
 
             # TODO: (Important issue about post process)
             # This may be the dice metric calculation trick (Need be
             # considering carefully)
             # convert instance map (after postprocess) to semantic level
-            pred_semantic = (pred_instance > 0).astype(np.uint8)
-            seg_map_semantic = (seg_map_instance > 0).astype(np.uint8)
+            pred_inside = (pred_instance > 0).astype(np.uint8)
+            seg_map_inside = (seg_map_instance > 0).astype(np.uint8)
 
             # semantic metric calculation
             precision_metric, recall_metric = binary_precision_recall(
-                pred_semantic, seg_map_semantic)
+                pred_inside, seg_map_inside)
             dice_metric = binary_dice_similarity_coefficient(
-                pred_semantic, seg_map_semantic)
+                pred_inside, seg_map_inside)
             edge_precision_metric, edge_recall_metric = \
                 binary_precision_recall(pred_edge, seg_map_edge)
             edge_dice_metric = binary_dice_similarity_coefficient(
