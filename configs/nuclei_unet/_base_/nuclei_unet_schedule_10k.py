@@ -3,7 +3,7 @@ _base_ = [
 ]
 evaluation = dict(
     _delete_=True,
-    interval=2000,
+    interval=1000,
     metric='all',
     save_best='aji',
     rule='greater',
@@ -11,6 +11,6 @@ evaluation = dict(
 checkpoint_config = dict(
     _delete_=True,
     by_epoch=False,
-    interval=2000,
+    interval=1000,
     max_keep_ckpts=1,
 )

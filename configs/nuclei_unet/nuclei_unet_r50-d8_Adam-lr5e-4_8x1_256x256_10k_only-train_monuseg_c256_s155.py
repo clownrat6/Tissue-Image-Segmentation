@@ -1,8 +1,8 @@
 _base_ = [
-    '../_base_/datasets/only-train_monuseg_256x256_c256_s256.py',
+    '../_base_/datasets/only-train_monuseg_256x256_c256_s155.py',
     './_base_/nuclei_unet_runtime.py',
-    './_base_/nuclei_unet_r50-d32.py',
-    './_base_/nuclei_unet_schedule_20k.py',
+    './_base_/nuclei_unet_r50-d8.py',
+    './_base_/nuclei_unet_schedule_10k.py',
 ]
 
 optimizer = dict(_delete_=True, type='Adam', lr=0.0005, weight_decay=0.0005)
