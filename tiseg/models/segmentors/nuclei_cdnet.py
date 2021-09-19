@@ -251,8 +251,22 @@ class NucleiCDNet(BaseSegmentor):
             seg_logit = self.slide_inference(img, meta, rescale)
         else:
             seg_logit = self.whole_inference(img, meta, rescale)
-        output = F.softmax(seg_logit, dim=1)
+        output = seg_logit
+        # output = F.softmax(seg_logit, dim=1)
         flip = meta[0]['img_info']['flip']
+        rotate = meta[0]['img_info']['rotate']
+        # reverse tta must have reverse order of origin tta
+        if rotate:
+            rotate_degree = meta[0]['img_info']['rotate_degree']
+            assert rotate_degree in [90, 180, 270]
+            # torch.rot90 has reverse direction of mmcv.imrotate
+            # TODO: recover rotate output (Need to conside the flip operation.)
+            if rotate_degree == 90:
+                output = output.rot90(dims=(2, 3))
+            elif rotate_degree == 180:
+                output = output.rot90(k=2, dims=(2, 3))
+            elif rotate_degree == 270:
+                output = output.rot90(k=3, dims=(2, 3))
         if flip:
             flip_direction = meta[0]['img_info']['flip_direction']
             assert flip_direction in ['horizontal', 'vertical', 'diagonal']

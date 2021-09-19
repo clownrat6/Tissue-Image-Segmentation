@@ -34,9 +34,11 @@ test_pipeline = [
         img_scale=(2048, 1000),
         # img_ratios=[0.5, 0.75, 1.0, 1.25, 1.5, 1.75],
         flip=False,
+        rotate=False,
         transforms=[
             dict(type='Resize', keep_ratio=True),
             dict(type='RandomFlip'),
+            dict(type='RandomSparseRotate'),
             dict(type='Normalize', max_min=False),
             dict(type='ImageToTensor', keys=['img']),
             dict(type='Collect', data_keys=['img'], label_keys=[]),
@@ -50,6 +52,7 @@ data = dict(
         data_root=data_root,
         img_dir='train_c320_s231/',
         ann_dir='train_c320_s231/',
+        ann_suffix='_semantic_with_edge.png',
         split='only-train_train_c320_s231.txt',
         pipeline=train_pipeline),
     val=dict(
@@ -57,6 +60,7 @@ data = dict(
         data_root=data_root,
         img_dir='train/',
         ann_dir='train/',
+        ann_suffix='_semantic_with_edge.png',
         split='only-train_test.txt',
         pipeline=test_pipeline),
     test=dict(
@@ -64,5 +68,6 @@ data = dict(
         data_root=data_root,
         img_dir='train/',
         ann_dir='train/',
+        ann_suffix='_semantic_with_edge.png',
         split='only-train_test.txt',
         pipeline=test_pipeline))
