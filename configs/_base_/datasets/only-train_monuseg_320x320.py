@@ -12,7 +12,7 @@ train_pipeline = [
     dict(
         type='RandomFlip',
         prob=0.5,
-        flip_direction=['horizontal', 'vertical', 'diagonal']),
+        direction=['horizontal', 'vertical', 'diagonal']),
     dict(type='PhotoMetricDistortion'),
     dict(
         type='CDNetLabelMake', input_level='semantic_with_edge', re_edge=True),
