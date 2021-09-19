@@ -124,8 +124,8 @@ class MoNuSegDataset(Dataset):
             ann_dir,
             data_root=None,
             img_suffix='.tif',
-            #  ann_suffix='_semantic_with_edge.png',
-            ann_suffix='_instance.npy',
+            ann_suffix='_semantic_with_edge.png',
+            # ann_suffix='_instance.npy',
             test_mode=False,
             split=None):
 
@@ -399,7 +399,7 @@ class MoNuSegDataset(Dataset):
         pred_instance = measure.label(pred)
         # if re_edge=True, dilation pixel length should be 2
         pred_instance = morphology.dilation(
-            pred_instance, selem=morphology.disk(1))
+            pred_instance, selem=morphology.disk(2))
 
         return pred_semantic, pred_instance
 
