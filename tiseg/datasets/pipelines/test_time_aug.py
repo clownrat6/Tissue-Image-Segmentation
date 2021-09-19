@@ -117,6 +117,10 @@ class MultiScaleFlipAug(object):
         aug_data = []
         if self.img_scale is None and mmcv.is_list_of(self.img_ratios, float):
             h, w = results['img'].shape[:2]
+            if h != w and self.rotate is True:
+                warnings.warn(
+                    'The image (height != width) is not suitable to do rotate '
+                    'tta.')
             img_scale = [(int(w * ratio), int(h * ratio))
                          for ratio in self.img_ratios]
         else:

@@ -71,10 +71,9 @@ def main():
         torch.backends.cudnn.benchmark = True
     if args.aug_test:
         # hard code index
-        cfg.data.test.pipeline[1].img_ratios = [
-            0.5, 0.75, 1.0, 1.25, 1.5, 1.75
-        ]
+        cfg.data.test.pipeline[1].img_ratios = [1.0]
         cfg.data.test.pipeline[1].flip = True
+        cfg.data.test.pipeline[1].rotate = True
     cfg.model.pretrained = None
 
     # init distributed env first, since logger depends on the dist info.
