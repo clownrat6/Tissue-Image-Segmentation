@@ -12,9 +12,10 @@ train_pipeline = [
     dict(
         type='RandomFlip',
         prob=0.5,
-        direction=['horizontal', 'vertical', 'diagonal']),
+        flip_direction=['horizontal', 'vertical', 'diagonal']),
     dict(type='PhotoMetricDistortion'),
-    dict(type='CDNetLabelMake', input_level='instance', re_edge=False),
+    dict(
+        type='CDNetLabelMake', input_level='semantic_with_edge', re_edge=True),
     dict(type='Normalize', max_min=False),
     dict(type='Pad', size=crop_size, pad_val=0, seg_pad_val=0),
     dict(type='DefaultFormatBundle'),
@@ -49,6 +50,7 @@ data = dict(
         data_root=data_root,
         img_dir='train/',
         ann_dir='train/',
+        ann_suffix='_semantic_with_edge.png',
         split='only-train_train.txt',
         pipeline=train_pipeline),
     val=dict(
@@ -56,6 +58,7 @@ data = dict(
         data_root=data_root,
         img_dir='train/',
         ann_dir='train/',
+        ann_suffix='_semantic_with_edge.png',
         split='only-train_test.txt',
         pipeline=test_pipeline),
     test=dict(
@@ -63,5 +66,6 @@ data = dict(
         data_root=data_root,
         img_dir='train/',
         ann_dir='train/',
+        ann_suffix='_semantic_with_edge.png',
         split='only-train_test.txt',
         pipeline=test_pipeline))

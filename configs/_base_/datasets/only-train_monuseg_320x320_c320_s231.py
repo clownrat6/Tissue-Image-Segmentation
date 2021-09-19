@@ -7,14 +7,15 @@ crop_size = (320, 320)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='Resize', img_scale=(2048, 320), ratio_range=(0.5, 2.0)),
+    dict(type='Resize', img_scale=(2048, 1000), ratio_range=(0.5, 2.0)),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
     dict(
         type='RandomFlip',
         prob=0.5,
-        direction=['horizontal', 'vertical', 'diagonal']),
+        flip_direction=['horizontal', 'vertical', 'diagonal']),
     dict(type='PhotoMetricDistortion'),
-    dict(type='CDNetLabelMake', input_level='instance', re_edge=False),
+    dict(
+        type='CDNetLabelMake', input_level='semantic_with_edge', re_edge=True),
     dict(type='Normalize', max_min=False),
     dict(type='Pad', size=crop_size, pad_val=0, seg_pad_val=0),
     dict(type='DefaultFormatBundle'),
