@@ -726,16 +726,20 @@ class RandomSparseRotate(object):
         self.auto_bound = auto_bound
 
     def __call__(self, results):
-        rotate = True if np.random.rand() < self.prob else False
+        if 'rotate' not in results['img_info']:
+            rotate = True if np.random.rand() < self.prob else False
+            results['img_info']['rotate'] = rotate
+        if 'rotate_degree' not in results['img_info']:
+            # random select from degree list.
+            select_index = np.random.randint(0, len(self.degree_list))
+            results['img_info']['rotate_degree'] = self.degree_list[
+                select_index]
 
-        degree_select_index = np.random.randint(0, len(self.degree_list))
-        degree = self.degree_list[degree_select_index]
-
-        if rotate:
+        if results['img_info']['rotate']:
             # rotate image
             results['img'] = mmcv.imrotate(
                 results['img'],
-                angle=degree,
+                angle=results['img_info']['rotate_degree'],
                 border_value=self.pad_value,
                 center=self.center,
                 auto_bound=self.auto_bound)
@@ -744,7 +748,7 @@ class RandomSparseRotate(object):
             for key in results.get('seg_fields', []):
                 results[key] = mmcv.imrotate(
                     results[key],
-                    angle=degree,
+                    angle=results['img_info']['rotate_degree'],
                     border_value=self.pad_value,
                     center=self.center,
                     auto_bound=self.auto_bound,
