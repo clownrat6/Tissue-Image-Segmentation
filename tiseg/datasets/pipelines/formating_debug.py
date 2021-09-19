@@ -283,6 +283,11 @@ class DefaultFormatBundle(object):
                 stack=True)
 
         import matplotlib.pyplot as plt
+        from tiseg.models.utils import generate_direction_differential_map
+        direction_map_tensor = to_tensor(direction_map[None,
+                                                       ...].astype(np.int64))
+        direct_diff_map = generate_direction_differential_map(
+            direction_map_tensor).numpy()[0]
         plt.subplot(231)
         plt.imshow(img_raw)
         plt.subplot(232)
@@ -293,6 +298,8 @@ class DefaultFormatBundle(object):
         plt.imshow(point_map)
         plt.subplot(235)
         plt.imshow(direction_map)
+        plt.subplot(236)
+        plt.imshow(direct_diff_map)
         plt.show()
         exit(0)
 
