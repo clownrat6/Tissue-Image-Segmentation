@@ -49,11 +49,9 @@ class NucleiUNetHead(NucleiBaseDecodeHead):
                     act_cfg=self.act_cfg,
                 ))
 
-        self.postprocess = nn.Sequential(
-            nn.Dropout2d(self.dropout_rate),
-            nn.Conv2d(
-                stage_channels[0], self.num_classes, kernel_size=1, stride=1),
-        )
+        self.dropout = nn.Dropout2d(self.dropout_rate),
+        self.postprocess = nn.Conv2d(
+            stage_channels[0], self.num_classes, kernel_size=1, stride=1)
 
     def forward(self, inputs):
         inputs = self._transform_inputs(inputs)
@@ -64,6 +62,7 @@ class NucleiUNetHead(NucleiBaseDecodeHead):
         for skip, decode_stage in zip(skips, self.decode_stages):
             x = decode_stage(skip, x)
 
-        out = self.postprocess(x)
+        out = self.dropout(x)
+        out = self.postprocess(out)
 
         return out
