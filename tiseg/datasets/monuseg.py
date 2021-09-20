@@ -311,12 +311,16 @@ class MoNuSegDataset(Dataset):
             seg_map = osp.join(self.ann_dir,
                                self.data_infos[index]['ann_name'])
             if self.input_level == 'semantic_with_edge':
-                seg_map = mmcv.imread(
+                # semantic level label make
+                seg_map_semantic = mmcv.imread(
                     seg_map, flag='unchanged', backend='pillow')
-                seg_map_semantic = seg_map
-                seg_map_inside = (seg_map == 1).astype(np.uint8)
-                seg_map_edge = (seg_map == 2).astype(np.uint8)
-                seg_map_instance = measure.label(seg_map == 1)
+                seg_map_inside = (seg_map_semantic == 1).astype(np.uint8)
+                seg_map_edge = (seg_map_semantic == 2).astype(np.uint8)
+                # instance level label make
+                seg_map_instance = seg_map.replace('_semantic_with_edge.png',
+                                                   '_instance.npy')
+                seg_map_instance = np.load(seg_map_instance)
+                seg_map_instance = re_instance(seg_map_instance)
             elif self.input_level == 'instance':
                 # instance level label make
                 seg_map_instance = np.load(seg_map)
