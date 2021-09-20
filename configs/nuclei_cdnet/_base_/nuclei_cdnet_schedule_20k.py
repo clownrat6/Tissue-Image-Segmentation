@@ -5,7 +5,7 @@ evaluation = dict(
     _delete_=True,
     interval=2000,
     metric='all',
-    save_best='aji',
+    save_best='Aji',
     rule='greater',
 )
 checkpoint_config = dict(
