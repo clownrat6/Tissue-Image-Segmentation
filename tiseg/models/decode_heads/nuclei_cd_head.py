@@ -8,8 +8,8 @@ from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..builder import HEADS
 from ..losses import GeneralizedDiceLoss, mdice, miou
-from ..utils import (UNetDecoderLayer, UNetNeckLayer,
-                     generate_direction_differential_map)
+from ..utils import UNetDecoderLayer, generate_direction_differential_map
+from .nuclei_decode_head import NucleiBaseDecodeHead
 
 
 class RU(nn.Module):
@@ -99,6 +99,8 @@ class DGM(nn.Module):
     Args:
         in_channels (int): The input channels of DGM.
         feedforward_channels (int): The feedforward channels of DGM.
+        num_classes (int): The number of mask semantic classes.
+        num_angles (int): The number of angle types. Default: 8
         norm_cfg (dict): The normalize layer config. Default: dict(type='BN')
         act_cfg (dict): The activation layer config. Default: dict(type='ReLU')
     """
@@ -106,28 +108,40 @@ class DGM(nn.Module):
     def __init__(self,
                  in_channels,
                  feedforward_channels,
+                 num_classes,
+                 num_angles=8,
                  dropout_rate=0.1,
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU')):
         super().__init__()
-        self.mask_pre_branch = RU(in_channels, feedforward_channels, norm_cfg,
-                                  act_cfg)
-        self.direction_pre_branch = RU(feedforward_channels,
-                                       feedforward_channels, norm_cfg, act_cfg)
-        self.point_pre_branch = RU(feedforward_channels, feedforward_channels,
-                                   norm_cfg, act_cfg)
+        self.in_channels = in_channels
+        self.feedforward_channels = feedforward_channels
+        self.num_classes = num_classes
+        self.num_angles = num_angles
+        self.dropout_rate = dropout_rate
+
+        self.mask_pre_branch = RU(self.in_channels, self.feedforward_channels,
+                                  norm_cfg, act_cfg)
+        self.direction_pre_branch = RU(self.feedforward_channels,
+                                       self.feedforward_channels, norm_cfg,
+                                       act_cfg)
+        self.point_pre_branch = RU(self.feedforward_channels,
+                                   self.feedforward_channels, norm_cfg,
+                                   act_cfg)
 
         # Cross Branch Attention
         self.point_to_direction_attention = AU(1)
-        self.direction_to_mask_attention = AU(9)
+        self.direction_to_mask_attention = AU(self.num_angles + 1)
 
         # Prediction Operations
         # dropout will be closed automatically when .eval()
-        self.dropout = nn.Dropout2d(dropout_rate)
-        self.point_pred_op = nn.Conv2d(feedforward_channels, 1, kernel_size=1)
+        self.dropout = nn.Dropout2d(self.dropout_rate)
+        self.point_pred_op = nn.Conv2d(
+            self.feedforward_channels, 1, kernel_size=1)
         self.direction_pred_op = nn.Conv2d(
-            feedforward_channels, 9, kernel_size=1)
-        self.mask_pred_op = nn.Conv2d(feedforward_channels, 3, kernel_size=1)
+            self.feedforward_channels, self.num_angles + 1, kernel_size=1)
+        self.mask_pred_op = nn.Conv2d(
+            self.feedforward_channels, self.num_classes, kernel_size=1)
 
     def forward(self, x):
         mask_feature = self.mask_pre_branch(x)
@@ -157,7 +171,7 @@ class DGM(nn.Module):
 
 
 @HEADS.register_module()
-class NucleiCDHead(nn.Module):
+class NucleiCDHead(NucleiBaseDecodeHead):
     """CDNet: Centripetal Direction Network for Nuclear Instance Segmentation
 
     This head is the implementation of `CDNet <->`_.
@@ -169,58 +183,21 @@ class NucleiCDHead(nn.Module):
             Default: [3, 3, 3, 3]
         stage_channels (list[int]): The feedforward channels of each stage.
             Default: [16, 32, 64, 128]
-        extra_stage_channels (int, optional): Set the extra stage channels.
-            Default: None
-        extra_stage_convs (int, optional): Set the number of extra stage convs.
-            Default: None.
     """
 
     def __init__(self,
-                 in_channels,
-                 dropout_rate=0.1,
+                 num_angles=8,
                  stage_convs=[3, 3, 3, 3],
-                 stage_channels=[16, 32, 64, 128],
-                 extra_stage_channels=None,
-                 extra_stage_convs=None,
-                 norm_cfg=None,
-                 act_cfg=dict(type='ReLU'),
-                 in_index=-1,
-                 input_transform='multiple_select',
-                 align_corners=False):
+                 stage_channels=[16, 32, 64, 128]):
         super().__init__()
-        self._init_inputs(in_channels, in_index, input_transform)
-        self.in_channels = in_channels
-        self.dropout_rate = dropout_rate
-        self.norm_cfg = norm_cfg
-        self.act_cfg = act_cfg
-        self.in_index = in_index
+        self.num_angles = num_angles
         self.stage_channels = stage_channels
-        self.extra_stage_channels = extra_stage_channels
-        self.extra_stage_convs = extra_stage_convs
-        self.align_corners = align_corners
-        if extra_stage_channels is None:
-            assert extra_stage_convs is None, 'Extra stage can\'t be set.'
+        self.stage_convs = stage_convs
 
         # initial check
         assert len(self.in_channels) == len(self.in_index) == len(
             self.stage_channels)
         num_stages = len(self.in_channels)
-
-        # make extra stage
-        self.with_extra_stage = False
-        if self.extra_stage_channels is not None:
-            self.stage_channels.append(extra_stage_channels)
-            self.extra_downsampling = nn.MaxPool2d(
-                kernel_size=3, stride=2, padding=1)
-            self.extra_stage = UNetNeckLayer(
-                self.in_channels[-1],
-                self.extra_stage_channels,
-                self.extra_stage_convs,
-                norm_cfg=self.norm_cfg,
-                act_cfg=self.act_cfg)
-            self.with_extra_stage = True
-        else:
-            self.stage_channels.append(None)
 
         # judge if the num_stages is valid
         assert num_stages in [
@@ -228,6 +205,7 @@ class NucleiCDHead(nn.Module):
         ], 'Only support four stage or four stage with an extra stage now.'
 
         # make channel pair
+        self.stage_channels.append(None)
         channel_pairs = [(self.in_channels[idx], self.stage_channels[idx],
                           self.stage_channels[idx + 1])
                          for idx in range(num_stages)]
@@ -235,7 +213,7 @@ class NucleiCDHead(nn.Module):
 
         self.decode_stages = nn.ModuleList()
         for (skip_channels, feedforward_channels,
-             in_channels), depth in zip(channel_pairs, stage_convs):
+             in_channels), depth in zip(channel_pairs, self.stage_convs):
             self.decode_stages.append(
                 UNetDecoderLayer(
                     in_channels=in_channels,
@@ -250,93 +228,26 @@ class NucleiCDHead(nn.Module):
         self.post_process = DGM(
             stage_channels[0],
             stage_channels[0],
-            dropout_rate=dropout_rate,
+            num_classes=self.num_classes,
+            num_angles=self.number_angles,
+            dropout_rate=self.dropout_rate,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
-
-    def _init_inputs(self, in_channels, in_index, input_transform):
-        """Check and initialize input transforms.
-
-        The in_channels, in_index and input_transform must match.
-        Specifically, when input_transform is None, only single feature map
-        will be selected. So in_channels and in_index must be of type int.
-        When input_transform
-
-        Args:
-            in_channels (int|Sequence[int]): Input channels.
-            in_index (int|Sequence[int]): Input feature index.
-            input_transform (str|None): Transformation type of input features.
-                Options: 'resize_concat', 'multiple_select', None.
-                'resize_concat': Multiple feature maps will be resize to the
-                    same size as first one and than concat together.
-                    Usually used in FCN head of HRNet.
-                'multiple_select': Multiple feature maps will be bundle into
-                    a list and passed into decode head.
-                None: Only one select feature map is allowed.
-        """
-
-        if input_transform is not None:
-            assert input_transform in ['resize_concat', 'multiple_select']
-        self.input_transform = input_transform
-        self.in_index = in_index
-        if input_transform is not None:
-            assert isinstance(in_channels, (list, tuple))
-            assert isinstance(in_index, (list, tuple))
-            assert len(in_channels) == len(in_index)
-            if input_transform == 'resize_concat':
-                self.in_channels = sum(in_channels)
-            else:
-                self.in_channels = in_channels
-        else:
-            assert isinstance(in_channels, int)
-            assert isinstance(in_index, int)
-            self.in_channels = in_channels
-
-    def _transform_inputs(self, inputs):
-        """Transform inputs for decoder.
-
-        Args:
-            inputs (list[Tensor]): List of multi-level img features.
-
-        Returns:
-            Tensor: The transformed inputs
-        """
-
-        if self.input_transform == 'resize_concat':
-            inputs = [inputs[i] for i in self.in_index]
-            upsampled_inputs = [
-                resize(
-                    input=x,
-                    size=inputs[0].shape[2:],
-                    mode='bilinear',
-                    align_corners=self.align_corners) for x in inputs
-            ]
-            inputs = torch.cat(upsampled_inputs, dim=1)
-        elif self.input_transform == 'multiple_select':
-            inputs = [inputs[i] for i in self.in_index]
-        else:
-            inputs = inputs[self.in_index]
-
-        return inputs
 
     def forward(self, inputs):
         inputs = self._transform_inputs(inputs)
 
-        # extra stage process
-        x = inputs[-1]
-        if self.with_extra_stage:
-            x = self.extra_downsampling(x)
-            x = self.extra_stage(x)
-        else:
-            x = None
-
         # decode stage feed forward
+        x = None
         skips = inputs[::-1]
         for skip, decode_stage in zip(skips, self.decode_stages):
             x = decode_stage(skip, x)
 
         # post process
-        mask_out, direction_out, point_out = self.post_process(x)
+        out = self.post_process(x)
+
+        # CDNet has three branches
+        mask_out, direction_out, point_out = out
 
         return mask_out, direction_out, point_out
 

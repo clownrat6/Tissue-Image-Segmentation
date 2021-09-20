@@ -55,10 +55,8 @@ class NucleiUNetHead(NucleiBaseDecodeHead):
     def forward(self, inputs):
         inputs = self._transform_inputs(inputs)
 
-        # extra stage process
-        x = None
-
         # decode stage feed forward
+        x = None
         skips = inputs[::-1]
         for skip, decode_stage in zip(skips, self.decode_stages):
             x = decode_stage(skip, x)
