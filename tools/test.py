@@ -73,6 +73,7 @@ def main():
         # hard code index
         cfg.data.test.pipeline[1].img_ratios = [1.0]
         cfg.data.test.pipeline[1].flip = True
+        cfg.data.test.pipeline[1].flip_direction = ['horizontal', 'vertical', 'diagonal']
         cfg.data.test.pipeline[1].rotate = True
     cfg.model.pretrained = None
 
