@@ -188,8 +188,9 @@ class NucleiCDHead(NucleiBaseDecodeHead):
     def __init__(self,
                  num_angles=8,
                  stage_convs=[3, 3, 3, 3],
-                 stage_channels=[16, 32, 64, 128]):
-        super().__init__()
+                 stage_channels=[16, 32, 64, 128],
+                 **kwargs):
+        super().__init__(**kwargs)
         self.num_angles = num_angles
         self.stage_channels = stage_channels
         self.stage_convs = stage_convs
@@ -229,7 +230,7 @@ class NucleiCDHead(NucleiBaseDecodeHead):
             stage_channels[0],
             stage_channels[0],
             num_classes=self.num_classes,
-            num_angles=self.number_angles,
+            num_angles=self.num_angles,
             dropout_rate=self.dropout_rate,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
