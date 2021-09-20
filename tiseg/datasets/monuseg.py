@@ -14,8 +14,10 @@ from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
 from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
-                                            binary_dice_similarity_coefficient,
-                                            binary_precision_recall)
+                                            dice_similarity_coefficient,
+                                            pre_eval_all_semantic_metric,
+                                            pre_eval_to_metrics,
+                                            precision_recall)
 from .builder import DATASETS
 from .pipelines import Compose
 from .utils import re_instance
@@ -346,15 +348,19 @@ class MoNuSegDataset(Dataset):
             pred_inside = (pred_instance > 0).astype(np.uint8)
             seg_map_inside = (seg_map_instance > 0).astype(np.uint8)
 
-            # semantic metric calculation
-            precision_metric, recall_metric = binary_precision_recall(
-                pred_inside, seg_map_inside)
-            dice_metric = binary_dice_similarity_coefficient(
-                pred_inside, seg_map_inside)
+            # semantic metric calculation (remove background class)
+            precision_metric, recall_metric = precision_recall(
+                pred_inside, seg_map_inside, 2)[1]
+            dice_metric = dice_similarity_coefficient(pred_inside,
+                                                      seg_map_inside, 2)[1]
             edge_precision_metric, edge_recall_metric = \
-                binary_precision_recall(pred_edge, seg_map_edge)
-            edge_dice_metric = binary_dice_similarity_coefficient(
-                pred_edge, seg_map_edge)
+                precision_recall(pred_edge, seg_map_edge, 2)[1]
+            edge_dice_metric = dice_similarity_coefficient(
+                pred_edge, seg_map_edge, 2)[1]
+            pre_eval_semantic_inside = pre_eval_all_semantic_metric(
+                pred_inside, seg_map_inside, 2)
+            pre_eval_semantic_edge = pre_eval_all_semantic_metric(
+                pred_edge, seg_map_edge, 2)
 
             # instance metric calculation
             aji_metric = aggregated_jaccard_index(
@@ -362,13 +368,15 @@ class MoNuSegDataset(Dataset):
 
             single_loop_results = dict(
                 name=data_id,
-                aji=aji_metric,
-                dice=dice_metric,
-                recall=recall_metric,
-                precision=precision_metric,
-                edge_dice=edge_dice_metric,
-                edge_recall=edge_recall_metric,
-                edge_precision=edge_precision_metric)
+                Aji=aji_metric,
+                Dice=dice_metric,
+                Recall=recall_metric,
+                Precision=precision_metric,
+                edge_Dice=edge_dice_metric,
+                edge_Recall=edge_recall_metric,
+                edge_Precision=edge_precision_metric,
+                pre_eval_semantic_inside=pre_eval_semantic_inside,
+                pre_eval_semantic_edge=pre_eval_semantic_edge)
             pre_eval_results.append(single_loop_results)
 
             # illustrating semantic level results
@@ -426,7 +434,9 @@ class MoNuSegDataset(Dataset):
 
         if isinstance(metric, str):
             metric = [metric]
-        allowed_metrics = ['all']
+        if 'all' in metric:
+            metric = ['IoU', 'Dice', 'Precision', 'Recall']
+        allowed_metrics = ['IoU', 'Dice', 'Precision', 'Recall']
         if not set(metric).issubset(set(allowed_metrics)):
             raise KeyError('metric {} is not supported'.format(metric))
 
@@ -439,12 +449,32 @@ class MoNuSegDataset(Dataset):
                 else:
                     ret_metrics[key].append(value)
 
+        # pop semantic results to calculate semantic metric by confused matrix
+        pre_eval_semantic_inside_results = ret_metrics.pop(
+            'pre_eval_semantic_inside')
+        pre_eval_semantic_edge_results = ret_metrics.pop(
+            'pre_eval_semantic_edge')
+        results_inside = pre_eval_to_metrics(pre_eval_semantic_inside_results,
+                                             metric)
+        results_edge = pre_eval_to_metrics(pre_eval_semantic_edge_results,
+                                           metric)
+
         # calculate average metric
         assert 'name' in ret_metrics
         name_list = ret_metrics.pop('name')
         name_list.append('Average')
         for key in ret_metrics.keys():
-            average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+            # XXX: Using average value may have lower metric value than using
+            # confused matrix.
+            # average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+            # [1] will remove background class.
+            if 'edge' in key:
+                average_value = results_edge[key.replace('edge_', '')][1]
+            elif key in metric:
+                average_value = results_inside[key][1]
+            elif key == 'Aji':
+                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+
             ret_metrics[key].append(average_value)
             ret_metrics[key] = np.array(ret_metrics[key])
 
