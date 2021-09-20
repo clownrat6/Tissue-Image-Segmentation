@@ -49,7 +49,7 @@ class NucleiUNetHead(NucleiBaseDecodeHead):
                     act_cfg=self.act_cfg,
                 ))
 
-        self.dropout = nn.Dropout2d(self.dropout_rate),
+        self.dropout = nn.Dropout2d(self.dropout_rate)
         self.postprocess = nn.Conv2d(
             stage_channels[0], self.num_classes, kernel_size=1, stride=1)
 
