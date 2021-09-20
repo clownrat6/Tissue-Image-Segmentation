@@ -1,7 +1,7 @@
 _base_ = [
     '../_base_/datasets/only-train_monuseg_320x320.py',
     './_base_/nuclei_cdnet_runtime.py',
-    './_base_/nuclei_cdnet_r50-d32.py',
+    './_base_/nuclei_cdnet_r50-d8.py',
     './_base_/nuclei_cdnet_schedule_20k.py',
 ]
 
@@ -22,4 +22,4 @@ model = dict(
     test_cfg=dict(mode='slide', crop_size=(320, 320), stride=(231, 231)),
 )
 
-data = dict(samples_per_gpu=4, workers_per_gpu=4)
+data = dict(samples_per_gpu=8, workers_per_gpu=8)
