@@ -516,20 +516,20 @@ class MoNuSegDataset(Dataset):
 
         eval_results = {}
         # average results
-        if 'aji' in ret_metrics:
-            eval_results['aji'] = ret_metrics['aji'][-1]
-        if 'dice' in ret_metrics:
-            eval_results['dice'] = ret_metrics['dice'][-1]
-        if 'recall' in ret_metrics:
-            eval_results['recall'] = ret_metrics['recall'][-1]
-        if 'precision' in ret_metrics:
-            eval_results['precision'] = ret_metrics['precision'][-1]
-        if 'edge_dice' in ret_metrics:
-            eval_results['edge_dice'] = ret_metrics['edge_dice'][-1]
-        if 'edge_recall' in ret_metrics:
-            eval_results['edge_recall'] = ret_metrics['edge_recall'][-1]
-        if 'edge_precision' in ret_metrics:
-            eval_results['edge_precision'] = ret_metrics['edge_precision'][-1]
+        if 'Aji' in ret_metrics:
+            eval_results['Aji'] = ret_metrics['Aji'][-1]
+        if 'Dice' in ret_metrics:
+            eval_results['Dice'] = ret_metrics['Dice'][-1]
+        if 'Recall' in ret_metrics:
+            eval_results['Recall'] = ret_metrics['Recall'][-1]
+        if 'Precision' in ret_metrics:
+            eval_results['Precision'] = ret_metrics['Precision'][-1]
+        if 'edge_Dice' in ret_metrics:
+            eval_results['edge_Dice'] = ret_metrics['edge_Dice'][-1]
+        if 'edge_Recall' in ret_metrics:
+            eval_results['edge_Recall'] = ret_metrics['edge_Recall'][-1]
+        if 'edge_Precision' in ret_metrics:
+            eval_results['edge_Precision'] = ret_metrics['edge_Precision'][-1]
 
         ret_metrics_items.pop('name', None)
         for key, value in ret_metrics_items.items():
