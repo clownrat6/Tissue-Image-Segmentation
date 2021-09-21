@@ -1,4 +1,6 @@
+import os
 import os.path as osp
+import warnings
 from collections import OrderedDict
 
 import mmcv
@@ -11,9 +13,14 @@ from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
 from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
-                                            intersect_and_union)
+                                            dice_similarity_coefficient,
+                                            pre_eval_all_semantic_metric,
+                                            pre_eval_to_metrics,
+                                            precision_recall)
 from .builder import DATASETS
 from .pipelines import Compose
+from .utils import re_instance
+from .monuseg import draw_semantic, draw_instance
 
 
 @DATASETS.register_module()
@@ -24,15 +31,24 @@ class CPM17Dataset(Dataset):
 
     PALETTE = [[0, 0, 0], [255, 2, 255], [2, 255, 255]]
 
-    def __init__(self,
-                 pipeline,
-                 img_dir,
-                 ann_dir,
-                 data_root=None,
-                 img_suffix='.png',
-                 ann_suffix='_semantic_with_edge.png',
-                 test_mode=False,
-                 split=None):
+    def __init__(
+            self,
+            pipeline,
+            img_dir,
+            ann_dir,
+            data_root=None,
+            img_suffix='.png',
+            ann_suffix='_semantic_with_edge.png',
+            # ann_suffix='_instance.npy',
+            test_mode=False,
+            split=None):
+
+        # semantic level input or instance level input
+        assert ann_suffix in ['_semantic_with_edge.png', '_instance.npy']
+        if ann_suffix == '_semantic_with_edge.png':
+            self.input_level = 'semantic_with_edge'
+        elif ann_suffix == '_instance.npy':
+            self.input_level = 'instance'
 
         self.pipeline = Compose(pipeline)
 
@@ -158,12 +174,17 @@ class CPM17Dataset(Dataset):
     def get_gt_seg_maps(self):
         """Ground Truth maps generator."""
         for data_info in self.data_infos:
-            instance_map = osp.join(self.ann_dir, data_info['ann_name'])
+            seg_map = osp.join(self.ann_dir, data_info['ann_name'])
             gt_seg_map = mmcv.imread(
-                instance_map, flag='unchanged', backend='pillow')
+                seg_map, flag='unchanged', backend='pillow')
             yield gt_seg_map
 
-    def pre_eval(self, preds, indices):
+    def pre_eval(self,
+                 preds,
+                 indices,
+                 show_semantic=False,
+                 show_instance=False,
+                 show_folder=None):
         """Collect eval result from each iteration.
 
         Args:
@@ -171,6 +192,12 @@ class CPM17Dataset(Dataset):
                 after argmax, shape (N, H, W).
             indices (list[int] | int): the prediction related ground truth
                 indices.
+            show_semantic (bool): Illustrate semantic level prediction &
+                ground truth. Default: False
+            show_instance (bool): Illustrate instance level prediction &
+                ground truth. Default: False
+            show_folder (str | None, optional): The folder path of
+                illustration. Default: None
 
         Returns:
             list[torch.Tensor]: (area_intersect, area_union, area_prediction,
@@ -182,45 +209,131 @@ class CPM17Dataset(Dataset):
         if not isinstance(preds, list):
             preds = [preds]
 
+        if show_folder is None and (show_semantic or show_instance):
+            warnings.warn(
+                'show_semantic or show_instance is set to True, but the '
+                'show_folder is None. We will use default show_folder: '
+                './monuseg_show')
+            show_folder = '.monuseg_show'
+            if not osp.exists(show_folder):
+                os.makedirs(show_folder, 0o775)
+
         pre_eval_results = []
 
         for pred, index in zip(preds, indices):
             seg_map = osp.join(self.ann_dir,
                                self.data_infos[index]['ann_name'])
-            seg_map = mmcv.imread(seg_map, flag='unchanged', backend='pillow')
+            if self.input_level == 'semantic_with_edge':
+                # semantic level label make
+                seg_map_semantic = mmcv.imread(
+                    seg_map, flag='unchanged', backend='pillow')
+                seg_map_inside = (seg_map_semantic == 1).astype(np.uint8)
+                seg_map_edge = (seg_map_semantic == 2).astype(np.uint8)
+                # instance level label make
+                seg_map_instance = seg_map.replace('_semantic_with_edge.png',
+                                                   '_instance.npy')
+                seg_map_instance = np.load(seg_map_instance)
+                seg_map_instance = re_instance(seg_map_instance)
+            elif self.input_level == 'instance':
+                # instance level label make
+                seg_map_instance = np.load(seg_map)
+                seg_map_instance = re_instance(seg_map_instance)
+                # semantic level label make
+                seg_map_semantic = seg_map.replace('_instance.npy',
+                                                   '_semantic_with_edge.png')
+                seg_map_semantic = mmcv.imread(
+                    seg_map_semantic, flag='unchanged', backend='pillow')
+                seg_map_edge = (seg_map_semantic == 2).astype(np.uint8)
+                seg_map_inside = (seg_map_semantic == 1).astype(np.uint8)
+
+            data_id = self.data_infos[index]['ann_name']
 
             # metric calculation post process codes:
-
             # extract inside
-            pred = (pred == 1).astype(np.uint8)
-            seg_map = (seg_map == 1).astype(np.uint8)
+            pred_semantic = pred
+            pred_edge = (pred == 2).astype(np.uint8)
+            pred_inside = (pred == 1).astype(np.uint8)
 
-            # fill instance holes
-            pred = binary_fill_holes(pred)
-            # remove small instance
-            pred = remove_small_objects(pred, 20)
+            # model-agnostic post process operations
+            pred_inside, pred_instance = self.model_agnostic_postprocess(
+                pred_inside)
 
-            # instance process & dilation
-            pred = measure.label(pred)
-            pred = morphology.dilation(pred, selem=morphology.disk(1))
-            seg_map = measure.label(seg_map)
+            # TODO: (Important issue about post process)
+            # This may be the dice metric calculation trick (Need be
+            # considering carefully)
+            # convert instance map (after postprocess) to semantic level
+            pred_inside = (pred_instance > 0).astype(np.uint8)
+            seg_map_inside = (seg_map_instance > 0).astype(np.uint8)
 
-            # pre eval aji and dice metric
+            # semantic metric calculation (remove background class)
+            precision_metric, recall_metric = precision_recall(
+                pred_inside, seg_map_inside, 2)[1]
+            dice_metric = dice_similarity_coefficient(pred_inside,
+                                                      seg_map_inside, 2)[1]
+            edge_precision_metric, edge_recall_metric = \
+                precision_recall(pred_edge, seg_map_edge, 2)[1]
+            edge_dice_metric = dice_similarity_coefficient(
+                pred_edge, seg_map_edge, 2)[1]
+            pre_eval_semantic_inside = pre_eval_all_semantic_metric(
+                pred_inside, seg_map_inside, 2)
+            pre_eval_semantic_edge = pre_eval_all_semantic_metric(
+                pred_edge, seg_map_edge, 2)
+
+            # instance metric calculation
             aji_metric = aggregated_jaccard_index(
-                pred, seg_map, is_semantic=False)
+                pred_instance, seg_map_instance, is_semantic=False)
 
-            # convert to semantic level
-            pred = (pred > 0).astype(np.uint8)
-            seg_map = (seg_map > 0).astype(np.uint8)
+            single_loop_results = dict(
+                name=data_id,
+                Aji=aji_metric,
+                Dice=dice_metric,
+                Recall=recall_metric,
+                Precision=precision_metric,
+                edge_Dice=edge_dice_metric,
+                edge_Recall=edge_recall_metric,
+                edge_Precision=edge_precision_metric,
+                pre_eval_semantic_inside=pre_eval_semantic_inside,
+                pre_eval_semantic_edge=pre_eval_semantic_edge)
+            pre_eval_results.append(single_loop_results)
 
-            intersect, union, _, _ = intersect_and_union(pred, seg_map, 2)
-            dice_metric = (2 * intersect / (union + intersect))[1].numpy()
+            # illustrating semantic level results
+            if show_semantic:
+                data_info = self.data_infos[index]
+                image_path = osp.join(self.img_dir, data_info['img_name'])
+                draw_semantic(show_folder, data_id, image_path, pred_semantic,
+                              seg_map_semantic, single_loop_results)
 
-            pre_eval_results.append(dict(aji=aji_metric, dice=dice_metric))
+            # illustrating instance level results
+            if show_instance:
+                draw_instance(show_folder, data_id, pred_instance,
+                              seg_map_instance)
 
         return pre_eval_results
 
-    def evaluate(self, results, metric='all', logger=None, **kwargs):
+    def model_agnostic_postprocess(self, pred):
+        """model free post-process for both instance-level & semantic-level."""
+        # fill instance holes
+        pred = binary_fill_holes(pred)
+        # remove small instance
+        pred = remove_small_objects(pred, 20)
+        pred = pred.astype(np.uint8)
+        pred_semantic = pred.copy()
+
+        # instance process & dilation
+        pred = pred.copy()
+        pred_instance = measure.label(pred)
+        # if re_edge=True, dilation pixel length should be 2
+        pred_instance = morphology.dilation(
+            pred_instance, selem=morphology.disk(2))
+
+        return pred_semantic, pred_instance
+
+    def evaluate(self,
+                 results,
+                 metric='all',
+                 logger=None,
+                 dump_path=None,
+                 **kwargs):
         """Evaluate the dataset.
 
         Args:
@@ -229,6 +342,8 @@ class CPM17Dataset(Dataset):
                 'Dice' are supported.
             logger (logging.Logger | None | str): Logger used for printing
                 related information during evaluation. Default: None.
+            dump_path (str | None, optional): The dump path of each item
+                evaluation results. Default: None
 
         Returns:
             dict[str, float]: Default metrics.
@@ -236,58 +351,91 @@ class CPM17Dataset(Dataset):
 
         if isinstance(metric, str):
             metric = [metric]
-        allowed_metrics = ['aji', 'dice', 'all']
+        if 'all' in metric:
+            metric = ['IoU', 'Dice', 'Precision', 'Recall']
+        allowed_metrics = ['IoU', 'Dice', 'Precision', 'Recall']
         if not set(metric).issubset(set(allowed_metrics)):
             raise KeyError('metric {} is not supported'.format(metric))
 
-        eval_results = {}
         ret_metrics = {}
-        # test a list of files
-        if 'all' in metric:
-            # dict to list
-            aji_list = []
-            dice_list = []
-            for item in results:
-                aji_list.append(item['aji'])
-                dice_list.append(item['dice'])
-            ret_metrics['aji'] = np.array([sum(aji_list) / len(aji_list)])
-            ret_metrics['dice'] = np.array([sum(dice_list) / len(dice_list)])
+        # list to dict
+        for result in results:
+            for key, value in result.items():
+                if key not in ret_metrics:
+                    ret_metrics[key] = [value]
+                else:
+                    ret_metrics[key].append(value)
 
-        if 'aji' in metric:
-            aji_list = []
-            for item in results:
-                aji_list.append(item['aji'])
-            ret_metrics['aji'] = np.array([sum(aji_list) / len(aji_list)])
-        if 'dice' in metric:
-            dice_list = []
-            for item in results:
-                dice_list.append(item['dice'])
-            ret_metrics['dice'] = np.array([sum(dice_list) / len(dice_list)])
+        # pop semantic results to calculate semantic metric by confused matrix
+        pre_eval_semantic_inside_results = ret_metrics.pop(
+            'pre_eval_semantic_inside')
+        pre_eval_semantic_edge_results = ret_metrics.pop(
+            'pre_eval_semantic_edge')
+        results_inside = pre_eval_to_metrics(pre_eval_semantic_inside_results,
+                                             metric)
+        results_edge = pre_eval_to_metrics(pre_eval_semantic_edge_results,
+                                           metric)
+
+        # calculate average metric
+        assert 'name' in ret_metrics
+        name_list = ret_metrics.pop('name')
+        name_list.append('Average')
+        for key in ret_metrics.keys():
+            # XXX: Using average value may have lower metric value than using
+            # confused matrix.
+            # average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+            # [1] will remove background class.
+            if 'edge' in key:
+                average_value = results_edge[key.replace('edge_', '')][1]
+            elif key in metric:
+                average_value = results_inside[key][1]
+            elif key == 'Aji':
+                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+
+            ret_metrics[key].append(average_value)
+            ret_metrics[key] = np.array(ret_metrics[key])
 
         # for logger
-        ret_metrics_class = OrderedDict({
+        ret_metrics_items = OrderedDict({
             ret_metric: np.round(ret_metric_value * 100, 2)
             for ret_metric, ret_metric_value in ret_metrics.items()
         })
-        ret_metrics_class.update({'Class': ['Nuclei']})
-        ret_metrics_class.move_to_end('Class', last=False)
-        class_table_data = PrettyTable()
-        for key, val in ret_metrics_class.items():
-            class_table_data.add_column(key, val)
+        ret_metrics_items.update({'name': name_list})
+        ret_metrics_items.move_to_end('name', last=False)
+        items_table_data = PrettyTable()
+        for key, val in ret_metrics_items.items():
+            items_table_data.add_column(key, val)
 
         print_log('Per class:', logger)
-        print_log('\n' + class_table_data.get_string(), logger=logger)
+        print_log('\n' + items_table_data.get_string(), logger=logger)
 
-        if 'aji' in ret_metrics:
-            eval_results['aji'] = ret_metrics['aji'][0]
-        if 'dice' in ret_metrics:
-            eval_results['dice'] = ret_metrics['dice'][0]
+        # dump to txt
+        if dump_path is not None:
+            fp = open(f'{dump_path}', 'w')
+            fp.write(items_table_data.get_string())
 
-        ret_metrics_class.pop('Class', None)
-        for key, value in ret_metrics_class.items():
+        eval_results = {}
+        # average results
+        if 'Aji' in ret_metrics:
+            eval_results['Aji'] = ret_metrics['Aji'][-1]
+        if 'Dice' in ret_metrics:
+            eval_results['Dice'] = ret_metrics['Dice'][-1]
+        if 'Recall' in ret_metrics:
+            eval_results['Recall'] = ret_metrics['Recall'][-1]
+        if 'Precision' in ret_metrics:
+            eval_results['Precision'] = ret_metrics['Precision'][-1]
+        if 'edge_Dice' in ret_metrics:
+            eval_results['edge_Dice'] = ret_metrics['edge_Dice'][-1]
+        if 'edge_Recall' in ret_metrics:
+            eval_results['edge_Recall'] = ret_metrics['edge_Recall'][-1]
+        if 'edge_Precision' in ret_metrics:
+            eval_results['edge_Precision'] = ret_metrics['edge_Precision'][-1]
+
+        ret_metrics_items.pop('name', None)
+        for key, value in ret_metrics_items.items():
             eval_results.update({
-                key + '.' + str(name): value[idx] / 100.0
-                for idx, name in enumerate(['Nuclei'])
+                key + '.' + str(name): f'{value[idx]:.3f}'
+                for idx, name in enumerate(name_list)
             })
 
         # This ret value is used for eval hook. Eval hook will add these

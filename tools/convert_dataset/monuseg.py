@@ -287,9 +287,11 @@ def main():
 
     if crop_size is not None:
         train_part_name = f'train_c{crop_size}_s{crop_stride}'
+        val_part_name = 'val'
         test_part_name = 'test'
     else:
         train_part_name = 'train'
+        val_part_name = 'val'
         test_part_name = 'test'
 
     # storage path of convertion dataset
@@ -325,6 +327,7 @@ def main():
             x.rstrip('.tif') for x in os.listdir(train_image_folder)
             if '.tif' in x
         ]
+        val_item_list = None
         test_item_list = [
             x.rstrip('.tif') for x in os.listdir(test_image_folder)
             if '.tif' in x
@@ -332,6 +335,12 @@ def main():
     elif split == 'only-train':
         train_item_list = only_train_split_dict[
             'train'] + only_train_split_dict['val']
+        val_item_list = None
+        test_item_list = only_train_split_dict[
+            'test1'] + only_train_split_dict['test2']
+    elif split == 'only-train_with_val':
+        train_item_list = only_train_split_dict['train']
+        val_item_list = only_train_split_dict['val']
         test_item_list = only_train_split_dict[
             'test1'] + only_train_split_dict['test2']
 
@@ -347,6 +356,11 @@ def main():
         [fp.write(item + '\n') for item in real_train_item_list]
     with open(osp.join(root_path, f'{split}_{test_part_name}.txt'), 'w') as fp:
         [fp.write(item + '\n') for item in real_test_item_list]
+
+    if val_item_list is not None:
+        with open(osp.join(root_path, f'{split}_{test_part_name}.txt'),
+                  'w') as fp:
+            [fp.write(item + '\n') for item in real_test_item_list]
 
 
 if __name__ == '__main__':
