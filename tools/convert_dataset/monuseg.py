@@ -272,7 +272,7 @@ def main():
     crop_size = args.crop_size
     crop_stride = args.crop_stride
 
-    assert split in ['official', 'only-train']
+    assert split in ['official', 'only-train_t16', 'only-train_t12_v4']
 
     flag1 = (crop_size is not None) and (crop_stride is not None)
     flag2 = (crop_size is None) and (crop_stride is None)
@@ -332,13 +332,13 @@ def main():
             x.rstrip('.tif') for x in os.listdir(test_image_folder)
             if '.tif' in x
         ]
-    elif split == 'only-train':
+    elif split == 'only-train_t16':
         train_item_list = only_train_split_dict[
             'train'] + only_train_split_dict['val']
         val_item_list = None
         test_item_list = only_train_split_dict[
             'test1'] + only_train_split_dict['test2']
-    elif split == 'only-train_with_val':
+    elif split == 'only-train_t12_v4':
         train_item_list = only_train_split_dict['train']
         val_item_list = only_train_split_dict['val']
         test_item_list = only_train_split_dict[
@@ -358,7 +358,7 @@ def main():
         [fp.write(item + '\n') for item in real_test_item_list]
 
     if val_item_list is not None:
-        with open(osp.join(root_path, f'{split}_{test_part_name}.txt'),
+        with open(osp.join(root_path, f'{split}_{val_part_name}.txt'),
                   'w') as fp:
             [fp.write(item + '\n') for item in real_test_item_list]
 
