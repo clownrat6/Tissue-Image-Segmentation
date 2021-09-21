@@ -7,7 +7,6 @@ crop_size = (320, 320)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='Resize', img_scale=(2048, 1000), ratio_range=(0.5, 2.0)),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
     dict(
         type='RandomFlip',
@@ -32,9 +31,11 @@ test_pipeline = [
     dict(
         type='MultiScaleFlipAug',
         img_scale=(2048, 1000),
-        # img_ratios=[0.5, 0.75, 1.0, 1.25, 1.5, 1.75],
-        flip=False,
-        rotate=False,
+        img_ratios=[1.0],
+        flip=True,
+        flip_direction=['horizontal', 'vertical', 'diagonal'],
+        rotate=True,
+        rotate_degree=[90],
         transforms=[
             dict(type='Resize', keep_ratio=True),
             dict(type='RandomFlip'),
