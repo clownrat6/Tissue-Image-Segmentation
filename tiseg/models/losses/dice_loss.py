@@ -24,8 +24,8 @@ def _convert_to_one_hot(tensor, bins, on_value=1, off_value=0):
 
 class GeneralizedDiceLoss(nn.Module):
     """This Generalized Dice Loss (for Multi-Class) implementation refer to:
-    "Generalised Dice Overlap as a Deep Learning Loss Function for Highly.
 
+    "Generalised Dice Overlap as a Deep Learning Loss Function for Highly
     Unbalanced Segmentations" - `https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7610921/` # noqa
     """
 
