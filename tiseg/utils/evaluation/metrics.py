@@ -216,10 +216,10 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     paired_target = list(paired_target + 1)  # index to instance ID
     paired_pred = list(paired_pred + 1)
     # It seems that only unpaired Predictions need to be added into union.
-    # unpaired_target = np.array(
-    #     [idx for idx in target_id_list[1:] if idx not in paired_target])
-    # for target_id in unpaired_target:
-    #     overall_union += target_masks[target_id].sum()
+    unpaired_target = np.array(
+        [idx for idx in target_id_list[1:] if idx not in paired_target])
+    for target_id in unpaired_target:
+        overall_union += target_masks[target_id].sum()
     unpaired_pred = np.array(
         [idx for idx in pred_id_list[1:] if idx not in paired_pred])
     for pred_id in unpaired_pred:
