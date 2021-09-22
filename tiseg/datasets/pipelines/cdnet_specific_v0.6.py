@@ -37,30 +37,35 @@ class CDNetLabelMake(object):
             # "semantic_with_edge" means the semantic map has three classes
             # (background, nuclei_inside, nuclei_edge)
             if self.re_edge:
-                semantic_map = (semantic_map == 1).astype(np.uint8)
-                bound = morphology.dilation(semantic_map) & (
-                    ~morphology.erosion(semantic_map))
-                semantic_map[bound > 0] = 2
-                # semantic_map_inside = (semantic_map == 1).astype(np.uint8)
-                # bound = morphology.dilation(semantic_map_inside) & (
-                #     ~morphology.erosion(semantic_map_inside))
-                # semantic_map_inside[bound > 0] = 2
-                # semantic_map = semantic_map_inside
+                semantic_map_with_edge = np.zeros_like(semantic_map)
+                semantic_map_inside = (semantic_map == 1).astype(np.uint8)
+                bound = morphology.dilation(
+                    semantic_map_inside,
+                    selem=morphology.selem.disk(1)) & (~morphology.erosion(
+                        semantic_map_inside, selem=morphology.selem.disk(1)))
+                semantic_map_with_edge[semantic_map_inside > 0] = 1
+                semantic_map_with_edge[bound > 0] = 2
+                semantic_map = semantic_map_with_edge
             results['gt_semantic_map_with_edge'] = semantic_map
-            results['gt_semantic_map'] = (semantic_map == 1).astype(np.uint8)
+            results['gt_semantic_map_inside'] = (semantic_map == 1).astype(
+                np.uint8)
 
-            semantic_map_edge = results['gt_semantic_map_with_edge']
+            semantic_map_with_edge = results['gt_semantic_map_with_edge']
             instance_map = measure.label(
-                semantic_map_edge == 1, connectivity=1)
+                semantic_map_with_edge == 1, connectivity=1)
             # XXX: If re_edge, we need to dilate two pixels during
             # model-agnostic postprocess.
             if self.re_edge:
                 # re_edge will remove a pixel length of nuclei inside, so we
                 # need to dilate 1 pixel length.
                 instance_map = morphology.dilation(
+                    instance_map, selem=morphology.selem.disk(2))
+            else:
+                instance_map = morphology.dilation(
                     instance_map, selem=morphology.selem.disk(1))
 
             results['gt_instance_map'] = instance_map
+            results['gt_semantic_map'] = (instance_map > 0).astype(np.uint8)
         elif self.input_level == 'instance':
             # build semantic map from instance map
             instance_map = results['gt_semantic_map']
@@ -87,8 +92,9 @@ class CDNetLabelMake(object):
             self.calculate_point_map(instance_map))
 
         # direction map calculation
-        direction_map = self.calculate_direction_map(instance_map_dilation,
-                                                     gradient_map)
+        semantic_map = results['gt_semantic_map']
+        direction_map = self.calculate_direction_map(gradient_map,
+                                                     semantic_map)
 
         results['gt_point_map'] = point_map
         results['gt_direction_map'] = direction_map
@@ -98,18 +104,18 @@ class CDNetLabelMake(object):
 
         return results
 
-    def calculate_direction_map(self, instance_map, gradient_map):
+    def calculate_direction_map(self, gradient_map, semantic_map):
         # Prepare for gradient map & direction map calculation
         # instance_map = morphology.dilation(instance_map, morphology.disk(1))
         # continue angle calculation
         angle_map = np.degrees(
             np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
-        angle_map[instance_map == 0] = 0
+        angle_map[semantic_map == 0] = 0
         vector_map = angle_to_vector(angle_map, self.num_angle_types)
         # angle type judgement
         direction_map = vector_to_label(vector_map, self.num_angle_types)
 
-        direction_map[instance_map == 0] = -1
+        direction_map[semantic_map == 0] = -1
         direction_map = direction_map + 1
 
         return direction_map
@@ -136,8 +142,9 @@ class CDNetLabelMake(object):
 
             # Prepare for gradient map & direction map calculation
             if self.input_level == 'semantic_with_edge':
-                single_instance_map_dilation = morphology.dilation(
-                    single_instance_map, morphology.disk(1))
+                single_instance_map_dilation = single_instance_map
+                # single_instance_map_dilation = morphology.dilation(
+                #     single_instance_map, morphology.disk(1))
             elif self.input_level == 'instance':
                 single_instance_map_dilation = single_instance_map
             instance_map_dilation += single_instance_map_dilation
