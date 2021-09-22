@@ -349,6 +349,7 @@ def main():
         real_train_item_list.extend(real_train_item_dict[x])
         for x in train_item_list
     ]
+    real_val_item_list = val_item_list
     real_test_item_list = test_item_list
 
     with open(osp.join(root_path, f'{split}_{train_part_name}.txt'),
@@ -357,10 +358,10 @@ def main():
     with open(osp.join(root_path, f'{split}_{test_part_name}.txt'), 'w') as fp:
         [fp.write(item + '\n') for item in real_test_item_list]
 
-    if val_item_list is not None:
+    if real_val_item_list is not None:
         with open(osp.join(root_path, f'{split}_{val_part_name}.txt'),
                   'w') as fp:
-            [fp.write(item + '\n') for item in real_test_item_list]
+            [fp.write(item + '\n') for item in real_val_item_list]
 
 
 if __name__ == '__main__':
