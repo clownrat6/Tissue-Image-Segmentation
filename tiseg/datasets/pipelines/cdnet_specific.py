@@ -41,11 +41,6 @@ class CDNetLabelMake(object):
                 bound = morphology.dilation(semantic_map) & (
                     ~morphology.erosion(semantic_map))
                 semantic_map[bound > 0] = 2
-                # semantic_map_inside = (semantic_map == 1).astype(np.uint8)
-                # bound = morphology.dilation(semantic_map_inside) & (
-                #     ~morphology.erosion(semantic_map_inside))
-                # semantic_map_inside[bound > 0] = 2
-                # semantic_map = semantic_map_inside
             results['gt_semantic_map_with_edge'] = semantic_map
             results['gt_semantic_map'] = (semantic_map == 1).astype(np.uint8)
 
