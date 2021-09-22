@@ -1,11 +1,11 @@
 import argparse
 import os
 import os.path as osp
-import shutil
+from functools import partial
 
+import mmcv
 import numpy as np
 from PIL import Image
-from rich.progress import track
 from scipy.io import loadmat
 from skimage import morphology
 
@@ -52,77 +52,227 @@ def convert_instance_to_semantic(instance_map, with_edge=True):
     return semantic_map
 
 
-def convert_each_cohort(raw_path, new_path):
+def pillow_save(save_path, array):
+    """storage image array by using pillow."""
+    array = Image.fromarray(array)
+    array.save(save_path)
+
+
+def crop_patches(image, crop_size, crop_stride):
+    """crop image into several patches according to the crop size & slide
+    stride."""
+    h_crop = w_crop = crop_size
+    h_stride = w_stride = crop_stride
+
+    assert image.ndim >= 2
+
+    h_img, w_img = image.shape[:2]
+
+    image_patch_list = []
+
+    h_grids = max(h_img - h_crop + h_stride - 1, 0) // h_stride + 1
+    w_grids = max(w_img - w_crop + w_stride - 1, 0) // w_stride + 1
+
+    for h_idx in range(h_grids):
+        for w_idx in range(w_grids):
+            y1 = h_idx * h_stride
+            x1 = w_idx * w_stride
+            y2 = min(y1 + h_crop, h_img)
+            x2 = min(x1 + w_crop, w_img)
+            y1 = max(y2 - h_crop, 0)
+            x1 = max(x2 - w_crop, 0)
+            crop_img = image[y1:y2, x1:x2]
+
+            image_patch_list.append(crop_img)
+
+    return image_patch_list
+
+
+def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
+                      crop_size, crop_stride):
+    """meta process of single item data."""
+
+    image_path = osp.join(raw_image_folder, item + '.png')
+    label_path = osp.join(raw_label_folder, item + '.mat')
+
+    # image & label extraction
+    image = np.array(Image.open(image_path))
+    instance_label = convert_mat_to_array(label_path)
+    semantic_label = convert_instance_to_semantic(
+        instance_label, with_edge=False)
+    semantic_label_edge = convert_instance_to_semantic(
+        instance_label, with_edge=True)
+
+    # split map into patches
+    if crop_size is not None:
+        crop_stride = crop_stride
+        image_patches = crop_patches(image, crop_size, crop_stride)
+        instance_patches = crop_patches(instance_label, crop_size, crop_stride)
+        semantic_patches = crop_patches(semantic_label, crop_size, crop_stride)
+        semantic_edge_patches = crop_patches(semantic_label_edge, crop_size,
+                                             crop_stride)
+
+        assert len(image_patches) == len(instance_patches) == len(
+            semantic_patches) == len(semantic_edge_patches)
+
+        item_len = len(image_patches)
+        # record patch item name
+        sub_item_list = [
+            f'{item}_{i}_c{crop_size}_s{crop_stride}' for i in range(item_len)
+        ]
+    else:
+        image_patches = [image]
+        instance_patches = [instance_label]
+        semantic_patches = [semantic_label]
+        semantic_edge_patches = [semantic_label_edge]
+        # record patch item name
+        sub_item_list = [item]
+
+    # patch storage
+    patch_batches = zip(image_patches, instance_patches, semantic_patches,
+                        semantic_edge_patches)
+    for patch, sub_item in zip(patch_batches, sub_item_list):
+        # jump when exists
+        if osp.exists(osp.join(new_path, sub_item + '.png')):
+            continue
+        # save image
+        pillow_save(osp.join(new_path, sub_item + '.png'), patch[0])
+        # save instance level label
+        np.save(osp.join(new_path, sub_item + '_instance.npy'), patch[1])
+        # save semantic level label
+        pillow_save(osp.join(new_path, sub_item + '_semantic.png'), patch[2])
+        pillow_save(
+            osp.join(new_path, sub_item + '_semantic_with_edge.png'), patch[3])
+
+    return {item: sub_item_list}
+
+
+def convert_cohort(raw_image_folder,
+                   raw_label_folder,
+                   new_path,
+                   item_list,
+                   crop_size=None,
+                   crop_stride=None):
     if not osp.exists(new_path):
         os.makedirs(new_path, 0o775)
 
-    raw_image_folder = osp.join(raw_path, 'Images')
-    raw_label_folder = osp.join(raw_path, 'Labels')
+    fix_kwargs = {
+        'raw_image_folder': raw_image_folder,
+        'raw_label_folder': raw_label_folder,
+        'new_path': new_path,
+        'crop_size': crop_size,
+        'crop_stride': crop_stride
+    }
 
-    item_list = [osp.splitext(x)[0] for x in os.listdir(raw_image_folder)]
+    meta_process = partial(parse_single_item, **fix_kwargs)
 
-    for item in track(item_list):
-        image_path = osp.join(raw_image_folder, item + '.png')
-        label_path = osp.join(raw_label_folder, item + '.mat')
+    real_item_dict = {}
+    results = mmcv.track_parallel_progress(meta_process, item_list, 4)
+    [real_item_dict.update(result) for result in results]
 
-        image = np.array(Image.open(image_path))
-        instance_label = convert_mat_to_array(label_path)
-        semantic_label = convert_instance_to_semantic(
-            instance_label, with_edge=False)
-        semantic_label_edge = convert_instance_to_semantic(
-            instance_label, with_edge=True)
-
-        assert image.shape[:2] == instance_label.shape
-
-        # Save image
-        dst_image_path = osp.join(new_path, item + '.png')
-        shutil.copy(image_path, dst_image_path)
-
-        # Save instance level label
-        dst_instance_label_path = osp.join(new_path, item + '_instance.png')
-        instance_label_png = Image.fromarray(semantic_label_edge)
-        instance_label_png.save(dst_instance_label_path)
-
-        # Save semantic level label
-        dst_semantic_edge_label_path = osp.join(
-            new_path, item + '_semantic_with_edge.png')
-        semantic_label_edge_png = Image.fromarray(semantic_label_edge)
-        semantic_label_edge_png.save(dst_semantic_edge_label_path)
-
-        dst_semantic_label_path = osp.join(new_path, item + '_semantic.png')
-        semantic_label_png = Image.fromarray(semantic_label)
-        semantic_label_png.save(dst_semantic_label_path)
-
-    return item_list
+    return real_item_dict
 
 
 def parse_args():
     parser = argparse.ArgumentParser('Convert cpm17 dataset.')
     parser.add_argument('root_path', help='dataset root path.')
+    parser.add_argument('split', help='split mode selection.')
+    parser.add_argument(
+        '-c',
+        '--crop-size',
+        type=int,
+        help='the crop size of fix crop in dataset convertion operation')
+    parser.add_argument(
+        '-s',
+        '--crop-stride',
+        type=int,
+        help='the crop slide stride of fix crop')
 
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 def main():
     args = parse_args()
     root_path = args.root_path
+    split = args.split
+    crop_size = args.crop_size
+    crop_stride = args.crop_stride
+
+    assert split in ['official']
+
+    flag1 = (crop_size is not None) and (crop_stride is not None)
+    flag2 = (crop_size is None) and (crop_stride is None)
+    assert flag1 or flag2, (
+        '--crop-size and --crop-stride only valid when both of them are set')
+
+    if crop_size is not None:
+        train_part_name = f'train_c{crop_size}_s{crop_stride}'
+        val_part_name = 'val'
+        test_part_name = 'test'
+    else:
+        train_part_name = 'train'
+        val_part_name = 'val'
+        test_part_name = 'test'
 
     train_raw_path = osp.join(root_path, 'CPM17', 'train')
     test_raw_path = osp.join(root_path, 'CPM17', 'test')
 
-    train_new_path = osp.join(root_path, 'train')
-    test_new_path = osp.join(root_path, 'test')
+    train_new_path = osp.join(root_path, train_part_name)
+    test_new_path = osp.join(root_path, test_part_name)
 
     # make train cohort dataset
-    item_list = convert_each_cohort(train_raw_path, train_new_path)
-    with open(osp.join(root_path, 'train.txt'), 'w') as fp:
-        [fp.write(item + '\n') for item in item_list]
+    train_image_folder = osp.join(train_raw_path, 'Images')
+    train_label_folder = osp.join(train_raw_path, 'Labels')
 
     # make test cohort dataset
-    item_list = convert_each_cohort(test_raw_path, test_new_path)
-    with open(osp.join(root_path, 'test.txt'), 'w') as fp:
-        [fp.write(item + '\n') for item in item_list]
+    test_image_folder = osp.join(test_raw_path, 'Images')
+    test_label_folder = osp.join(test_raw_path, 'Labels')
+
+    # record convertion item
+    full_train_item_list = [
+        x.rstrip('.png') for x in os.listdir(train_image_folder) if '.png' in x
+    ]
+    full_test_item_list = [
+        x.rstrip('.png') for x in os.listdir(test_image_folder) if '.png' in x
+    ]
+
+    # convertion main loop
+    real_train_item_dict = convert_cohort(train_image_folder,
+                                          train_label_folder, train_new_path,
+                                          full_train_item_list, crop_size,
+                                          crop_stride)
+    _ = convert_cohort(test_image_folder, test_label_folder, test_new_path,
+                       full_test_item_list, None, None)
+
+    if split == 'official':
+        train_item_list = [
+            x.rstrip('.png') for x in os.listdir(train_image_folder)
+            if '.png' in x
+        ]
+        val_item_list = None
+        test_item_list = [
+            x.rstrip('.png') for x in os.listdir(test_image_folder)
+            if '.png' in x
+        ]
+
+    real_train_item_list = []
+    [
+        real_train_item_list.extend(real_train_item_dict[x])
+        for x in train_item_list
+    ]
+    real_val_item_list = val_item_list
+    real_test_item_list = test_item_list
+
+    with open(osp.join(root_path, f'{split}_{train_part_name}.txt'),
+              'w') as fp:
+        [fp.write(item + '\n') for item in real_train_item_list]
+    with open(osp.join(root_path, f'{split}_{test_part_name}.txt'), 'w') as fp:
+        [fp.write(item + '\n') for item in real_test_item_list]
+
+    if real_val_item_list is not None:
+        with open(osp.join(root_path, f'{split}_{val_part_name}.txt'),
+                  'w') as fp:
+            [fp.write(item + '\n') for item in real_val_item_list]
 
 
 if __name__ == '__main__':
