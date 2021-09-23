@@ -309,7 +309,7 @@ class DefaultFormatBundle(object):
         # canvas[direct_diff_map > 0, :] = (2, 255, 255)
         # canvas[semantic_map_with_edge == 1, :] = (255, 2, 255)
         canvas[semantic_map_with_edge == 1] = (2, 255, 255)
-        canvas[semantic_map_with_edge == 2] = (255, 2, 255)
+        canvas[semantic_map_with_edge == 2] = (0, 0, 255)
         canvas[direct_diff_map > 0] = (255, 0, 0)
         plt.imshow(canvas)
         plt.axis('off')
