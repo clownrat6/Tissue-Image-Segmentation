@@ -217,7 +217,7 @@ class Nuclei(BaseSegmentor):
         return preds
 
     # TODO: refactor code stryle
-    def slide_inference_plus(self, img, meta, rescale):
+    def split_inference(self, img, meta, rescale):
         """using half-and-half strategy to slide inference."""
         window_size = self.test_cfg.crop_size[0]
         overlap_size = (self.test_cfg.crop_size[0] -
