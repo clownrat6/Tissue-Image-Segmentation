@@ -106,6 +106,7 @@ class CDNetLabelMake(object):
 
         results['gt_point_map'] = point_map
         results['gt_direction_map'] = direction_map
+        results['seg_fields'].append('gt_semantic_map')
         results['seg_fields'].append('gt_semantic_map_with_edge')
         results['seg_fields'].append('gt_direction_map')
         results['seg_fields'].append('gt_point_map')

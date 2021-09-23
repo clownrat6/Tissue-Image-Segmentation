@@ -115,8 +115,10 @@ def convert_instance_to_semantic(instances,
         value = float(f'{value:.2f}')
         single_instance_map = instances == value
         if with_edge:
-            boundary = morphology.dilation(single_instance_map) & (
-                ~morphology.erosion(single_instance_map))
+            boundary = morphology.dilation(
+                single_instance_map,
+                morphology.selem.disk(1)) & (~morphology.erosion(
+                    single_instance_map, morphology.selem.disk(1)))
             mask += single_instance_map
             mask[boundary > 0] = 2
         else:
@@ -156,7 +158,12 @@ def crop_patches(image, crop_size, crop_stride):
             x1 = max(x2 - w_crop, 0)
             crop_img = image[y1:y2, x1:x2]
 
+            print(y1, y2, x1, x2)
+
             image_patch_list.append(crop_img)
+
+    print(len(image_patch_list))
+    exit(0)
 
     return image_patch_list
 
