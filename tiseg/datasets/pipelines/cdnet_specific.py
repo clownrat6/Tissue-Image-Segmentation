@@ -31,40 +31,50 @@ class CDNetLabelMake(object):
     def __call__(self, results):
         assert self.input_level in ['instance', 'semantic_with_edge']
         if self.input_level == 'semantic_with_edge':
-            semantic_map = results['gt_semantic_map']
+            raw_semantic_map = results['gt_semantic_map']
 
             # Check if the input level is "semantic_with_edge"
             # "semantic_with_edge" means the semantic map has three classes
             # (background, nuclei_inside, nuclei_edge)
             if self.re_edge:
-                semantic_map = (semantic_map == 1).astype(np.uint8)
-                bound = morphology.dilation(semantic_map) & (
-                    ~morphology.erosion(semantic_map))
-                semantic_map[bound > 0] = 2
-                # semantic_map_inside = (semantic_map == 1).astype(np.uint8)
-                # bound = morphology.dilation(semantic_map_inside) & (
-                #     ~morphology.erosion(semantic_map_inside))
-                # semantic_map_inside[bound > 0] = 2
-                # semantic_map = semantic_map_inside
-            results['gt_semantic_map_with_edge'] = semantic_map
-            results['gt_semantic_map'] = (semantic_map == 1).astype(np.uint8)
+                semantic_map_inside = (raw_semantic_map == 1).astype(np.uint8)
+                bound = morphology.dilation(
+                    semantic_map_inside,
+                    selem=morphology.selem.disk(1)) & (~morphology.erosion(
+                        semantic_map_inside, selem=morphology.selem.disk(1)))
+                # fuse boundary & inside
+                semantic_map_with_edge = np.zeros_like(raw_semantic_map)
+                semantic_map_with_edge[semantic_map_inside > 0] = 1
+                semantic_map_with_edge[bound > 0] = 2
+            else:
+                semantic_map_inside = (raw_semantic_map == 1).astype(np.uint8)
+                semantic_map_with_edge = raw_semantic_map
 
-            semantic_map_edge = results['gt_semantic_map_with_edge']
+            results['gt_semantic_map_inside'] = semantic_map_inside
+            results['gt_semantic_map_with_edge'] = semantic_map_with_edge
+
             instance_map = measure.label(
-                semantic_map_edge == 1, connectivity=1)
+                semantic_map_inside == 1, connectivity=1)
+
             # XXX: If re_edge, we need to dilate two pixels during
             # model-agnostic postprocess.
             if self.re_edge:
-                # re_edge will remove a pixel length of nuclei inside, so we
-                # need to dilate 1 pixel length.
+                # re_edge will remove a pixel length of nuclei inside and raw
+                # semantic map has already remove a pixel length of nuclei
+                # inside, so we need to dilate 2 pixel length.
+                instance_map = morphology.dilation(
+                    instance_map, selem=morphology.selem.disk(2))
+            else:
                 instance_map = morphology.dilation(
                     instance_map, selem=morphology.selem.disk(1))
 
             results['gt_instance_map'] = instance_map
+            results['gt_semantic_map'] = (instance_map > 0).astype(np.uint8)
         elif self.input_level == 'instance':
             # build semantic map from instance map
             instance_map = results['gt_semantic_map']
-            semantic_map_edge = np.zeros_like(instance_map, dtype=np.uint8)
+            semantic_map_with_edge = np.zeros_like(
+                instance_map, dtype=np.uint8)
             instance_id_list = list(np.unique(instance_map))
             # remove background id
             instance_id_list.remove(0)
@@ -72,23 +82,27 @@ class CDNetLabelMake(object):
                 single_instance_map = (instance_map == instance_id).astype(
                     np.uint8)
 
-                semantic_map_edge += single_instance_map
                 bound = morphology.dilation(single_instance_map) & (
                     ~morphology.erosion(single_instance_map))
-                semantic_map_edge[bound > 0] = 2
-            results['gt_semantic_map_with_edge'] = semantic_map_edge
-            results['gt_semantic_map'] = (semantic_map_edge == 1).astype(
-                np.uint8)
+
+                semantic_map_with_edge[single_instance_map > 0] = 1
+                semantic_map_with_edge[bound > 0] = 2
+
+            results['gt_semantic_map_inside'] = (
+                semantic_map_with_edge == 1).astype(np.uint8)
+            results['gt_semantic_map_with_edge'] = semantic_map_with_edge
+            results['gt_instance_map'] = instance_map
+            results['gt_semantic_map'] = (instance_map > 0).astype(np.uint8)
         else:
             raise NotImplementedError
 
         # point map calculation & gradient map calculation
-        point_map, gradient_map, instance_map_dilation = (
+        point_map, gradient_map, instance_map = (
             self.calculate_point_map(instance_map))
 
         # direction map calculation
-        direction_map = self.calculate_direction_map(instance_map_dilation,
-                                                     gradient_map)
+        direction_map = self.calculate_direction_map(gradient_map,
+                                                     instance_map)
 
         results['gt_point_map'] = point_map
         results['gt_direction_map'] = direction_map
@@ -100,7 +114,6 @@ class CDNetLabelMake(object):
 
     def calculate_direction_map(self, instance_map, gradient_map):
         # Prepare for gradient map & direction map calculation
-        # instance_map = morphology.dilation(instance_map, morphology.disk(1))
         # continue angle calculation
         angle_map = np.degrees(
             np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
@@ -120,7 +133,7 @@ class CDNetLabelMake(object):
         distance_to_center_map = np.zeros((H, W), dtype=np.float32)
         gradient_map = np.zeros((H, W, 2), dtype=np.float32)
         point_map = np.zeros((H, W), dtype=np.float32)
-        instance_map_dilation = np.zeros((H, W), dtype=np.float32)
+        instance_map = np.zeros((H, W), dtype=np.float32)
 
         markers_unique = np.unique(instance_map)
         markers_len = len(np.unique(instance_map)) - 1
@@ -134,23 +147,17 @@ class CDNetLabelMake(object):
             assert single_instance_map[center[0], center[1]] > 0
             point_map[center[0], center[1]] = 1
 
-            # Prepare for gradient map & direction map calculation
-            if self.input_level == 'semantic_with_edge':
-                single_instance_map_dilation = morphology.dilation(
-                    single_instance_map, morphology.disk(1))
-            elif self.input_level == 'instance':
-                single_instance_map_dilation = single_instance_map
-            instance_map_dilation += single_instance_map_dilation
+            instance_map += single_instance_map
 
             # Calculate distance from points of instance to instance center.
             distance_to_center_instance = self.calculate_distance_to_center(
-                single_instance_map_dilation, center)
+                single_instance_map, center)
             distance_to_center_map += distance_to_center_instance
 
             # Calculate gradient of (to center) distance
             gradient_map_instance = self.calculate_gradient(
-                single_instance_map_dilation, distance_to_center_instance)
-            gradient_map[(single_instance_map_dilation != 0), :] = 0
+                single_instance_map, distance_to_center_instance)
+            gradient_map[(single_instance_map != 0), :] = 0
             gradient_map += gradient_map_instance
         assert int(point_map.sum()) == markers_len
 
@@ -158,7 +165,7 @@ class CDNetLabelMake(object):
         point_map_gaussian = gaussian_filter(
             point_map * 255, sigma=2, order=0).astype(np.float32)
 
-        return point_map_gaussian, gradient_map, instance_map_dilation
+        return point_map_gaussian, gradient_map, instance_map
 
     def calculate_distance_to_center(self, single_instance_map, center):
         H, W = single_instance_map.shape[:2]
