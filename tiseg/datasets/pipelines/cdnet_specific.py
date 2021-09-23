@@ -97,12 +97,11 @@ class CDNetLabelMake(object):
             raise NotImplementedError
 
         # point map calculation & gradient map calculation
-        point_map, gradient_map, instance_map = (
-            self.calculate_point_map(instance_map))
+        point_map, gradient_map = (self.calculate_point_map(instance_map))
 
         # direction map calculation
-        direction_map = self.calculate_direction_map(gradient_map,
-                                                     instance_map)
+        direction_map = self.calculate_direction_map(instance_map,
+                                                     gradient_map)
 
         results['gt_point_map'] = point_map
         results['gt_direction_map'] = direction_map
@@ -134,7 +133,6 @@ class CDNetLabelMake(object):
         distance_to_center_map = np.zeros((H, W), dtype=np.float32)
         gradient_map = np.zeros((H, W, 2), dtype=np.float32)
         point_map = np.zeros((H, W), dtype=np.float32)
-        instance_map = np.zeros((H, W), dtype=np.float32)
 
         markers_unique = np.unique(instance_map)
         markers_len = len(np.unique(instance_map)) - 1
@@ -147,8 +145,6 @@ class CDNetLabelMake(object):
             # Count each center to judge if some instances don't get center
             assert single_instance_map[center[0], center[1]] > 0
             point_map[center[0], center[1]] = 1
-
-            instance_map += single_instance_map
 
             # Calculate distance from points of instance to instance center.
             distance_to_center_instance = self.calculate_distance_to_center(
@@ -166,7 +162,7 @@ class CDNetLabelMake(object):
         point_map_gaussian = gaussian_filter(
             point_map * 255, sigma=2, order=0).astype(np.float32)
 
-        return point_map_gaussian, gradient_map, instance_map
+        return point_map_gaussian, gradient_map
 
     def calculate_distance_to_center(self, single_instance_map, center):
         H, W = single_instance_map.shape[:2]
