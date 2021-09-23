@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -214,6 +215,66 @@ class Nuclei(BaseSegmentor):
                 align_corners=self.align_corners,
                 warning=False)
         return preds
+
+    # TODO: refactor code stryle
+    def slide_inference_plus(self, img, meta, rescale):
+        """using half-and-half strategy to slide inference."""
+        window_size = self.test_cfg.crop_size[0]
+        overlap_size = (self.test_cfg.crop_size[0] -
+                        self.test_cfg.stride[0]) * 2
+
+        N, C, H, W = img.shape
+
+        input = img
+
+        # zero pad for border patches
+        pad_h = 0
+        if H - window_size > 0:
+            pad_h = (window_size - overlap_size) - (H - window_size) % (
+                window_size - overlap_size)
+            tmp = torch.zeros((N, C, pad_h, W)).to(img.device)
+            input = torch.cat((input, tmp), dim=2)
+
+        if W - window_size > 0:
+            pad_w = (window_size - overlap_size) - (W - window_size) % (
+                window_size - overlap_size)
+            tmp = torch.zeros((N, C, H + pad_h, pad_w)).to(img.device)
+            input = torch.cat((input, tmp), dim=3)
+
+        _, C1, H1, W1 = input.size()
+
+        output = torch.zeros((input.size(0), 3, H1, W1)).to(img.device)
+        for i in range(0, H1 - overlap_size, window_size - overlap_size):
+            r_end = i + window_size if i + window_size < H1 else H1
+            ind1_s = i + overlap_size // 2 if i > 0 else 0
+            ind1_e = (
+                i + window_size -
+                overlap_size // 2 if i + window_size < H1 else H1)
+            for j in range(0, W1 - overlap_size, window_size - overlap_size):
+                c_end = j + window_size if j + window_size < W1 else W1
+
+                input_patch = input[:, :, i:r_end, j:c_end]
+                input_var = input_patch
+                output_patch = self.encode_decode(input_var, meta)
+
+                ind2_s = j + overlap_size // 2 if j > 0 else 0
+                ind2_e = (
+                    j + window_size -
+                    overlap_size // 2 if j + window_size < W1 else W1)
+                output[:, :, ind1_s:ind1_e,
+                       ind2_s:ind2_e] = output_patch[:, :,
+                                                     ind1_s - i:ind1_e - i,
+                                                     ind2_s - j:ind2_e - j]
+
+        output = output[:, :, :H, :W]
+        if rescale:
+            output = resize(
+                output,
+                size=meta[0]['img_info']['ori_shape'][:2],
+                mode='bilinear',
+                align_corners=self.align_corners,
+                warning=False)
+        return output
 
     def whole_inference(self, img, meta, rescale):
         """Inference with full image."""
