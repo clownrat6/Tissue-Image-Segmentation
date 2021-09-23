@@ -7,7 +7,6 @@ crop_size = (256, 256)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
     dict(
         type='RandomFlip',
         prob=0.5,
@@ -15,6 +14,7 @@ train_pipeline = [
     dict(type='PhotoMetricDistortion'),
     dict(
         type='CDNetLabelMake', input_level='semantic_with_edge', re_edge=True),
+    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
     dict(type='Normalize', max_min=False),
     dict(type='Pad', size=crop_size, pad_val=0, seg_pad_val=0),
     dict(type='DefaultFormatBundle'),
@@ -51,10 +51,10 @@ data = dict(
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='train_c256_s256/',
-        ann_dir='train_c256_s256/',
+        img_dir='train_c300_s260/',
+        ann_dir='train_c300_s260/',
         ann_suffix='_semantic_with_edge.png',
-        split='only-train_train_c256_s256.txt',
+        split='only-train_t16_train_c300_s260.txt',
         pipeline=train_pipeline),
     val=dict(
         type=dataset_type,
@@ -62,7 +62,7 @@ data = dict(
         img_dir='train/',
         ann_dir='train/',
         ann_suffix='_semantic_with_edge.png',
-        split='only-train_test.txt',
+        split='only-train_t16_test.txt',
         pipeline=test_pipeline),
     test=dict(
         type=dataset_type,
@@ -70,5 +70,5 @@ data = dict(
         img_dir='train/',
         ann_dir='train/',
         ann_suffix='_semantic_with_edge.png',
-        split='only-train_test.txt',
+        split='only-train_t16_test.txt',
         pipeline=test_pipeline))

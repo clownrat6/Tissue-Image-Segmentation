@@ -19,8 +19,7 @@ from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
                                             precision_recall)
 from .builder import DATASETS
 from .pipelines import Compose
-from .utils import re_instance
-from .monuseg import draw_semantic, draw_instance
+from .utils import draw_instance, draw_semantic, re_instance
 
 
 @DATASETS.register_module()
@@ -213,8 +212,8 @@ class CPM17Dataset(Dataset):
             warnings.warn(
                 'show_semantic or show_instance is set to True, but the '
                 'show_folder is None. We will use default show_folder: '
-                './monuseg_show')
-            show_folder = '.monuseg_show'
+                './cpm17_show')
+            show_folder = '.cpm17_show'
             if not osp.exists(show_folder):
                 os.makedirs(show_folder, 0o775)
 
