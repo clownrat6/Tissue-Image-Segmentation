@@ -82,9 +82,8 @@ class CDNetLabelMake(object):
             self.calculate_point_map(instance_map))
 
         # direction map calculation
-        semantic_map_inside = results['gt_semantic_map']
-        direction_map = self.calculate_direction_map(gradient_map,
-                                                     semantic_map_inside)
+        direction_map = self.calculate_direction_map(instance_map_dilation,
+                                                     gradient_map)
 
         results['gt_point_map'] = point_map
         results['gt_direction_map'] = direction_map
@@ -94,18 +93,18 @@ class CDNetLabelMake(object):
 
         return results
 
-    def calculate_direction_map(self, gradient_map, semantic_map):
+    def calculate_direction_map(self, instance_map, gradient_map):
         # Prepare for gradient map & direction map calculation
         # instance_map = morphology.dilation(instance_map, morphology.disk(1))
         # continue angle calculation
         angle_map = np.degrees(
             np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
-        angle_map[semantic_map == 0] = 0
+        angle_map[instance_map == 0] = 0
         vector_map = angle_to_vector(angle_map, self.num_angle_types)
         # angle type judgement
         direction_map = vector_to_label(vector_map, self.num_angle_types)
 
-        direction_map[semantic_map == 0] = -1
+        direction_map[instance_map == 0] = -1
         direction_map = direction_map + 1
 
         return direction_map
