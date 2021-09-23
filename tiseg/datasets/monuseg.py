@@ -91,15 +91,28 @@ def draw_semantic(save_folder, data_id, image, pred, label,
 def draw_instance(save_folder, data_id, pred_instance, label_instance):
     """draw instance level picture."""
     import matplotlib.pyplot as plt
+    import random
+
+    def colorize_instance_map(instance_map):
+        ''' generate rgb using a list comprehension '''
+        colorful_instance_map = np.zeros((*instance_map.shape, 3),
+                                         dtype=np.uint8)
+        instance_id_list = list(np.unique(instance_map))
+        instance_id_list.remove(0)
+        for instance_id in instance_id_list:
+            r, g, b = [random.random() * 255 for i in range(3)]
+            colorful_instance_map[instance_map == instance_id, :] = (r, g, b)
+
+        return colorful_instance_map
 
     plt.figure(figsize=(5 * 2, 5))
 
     plt.subplot(121)
-    plt.imshow(pred_instance)
+    plt.imshow(colorize_instance_map(pred_instance))
     plt.axis('off')
 
     plt.subplot(122)
-    plt.imshow(label_instance)
+    plt.imshow(colorize_instance_map(label_instance))
     plt.axis('off')
 
     plt.tight_layout()
