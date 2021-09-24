@@ -158,12 +158,7 @@ def crop_patches(image, crop_size, crop_stride):
             x1 = max(x2 - w_crop, 0)
             crop_img = image[y1:y2, x1:x2]
 
-            print(y1, y2, x1, x2)
-
             image_patch_list.append(crop_img)
-
-    print(len(image_patch_list))
-    exit(0)
 
     return image_patch_list
 

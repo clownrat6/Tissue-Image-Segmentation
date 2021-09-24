@@ -26,8 +26,7 @@ class EvalHook(_EvalHook):
             return
 
         from tiseg.apis import single_gpu_test
-        results = single_gpu_test(
-            runner.model, self.dataloader, pre_eval=True)
+        results = single_gpu_test(runner.model, self.dataloader, pre_eval=True)
 
         runner.log_buffer.clear()
         runner.log_buffer.output['eval_iter_num'] = len(self.dataloader)

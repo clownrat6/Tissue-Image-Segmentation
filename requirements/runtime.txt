@@ -1,4 +1,5 @@
 lxml
+lxml
 matplotlib
 numba
 numpy
@@ -6,4 +7,3 @@ prettytable
 rich
 scikit-image
 scipy
-lxml
