@@ -68,12 +68,12 @@ def draw_semantic(save_folder, data_id, image, pred, label,
     plt.legend(loc='upper center', fontsize=9, bbox_to_anchor=(0.5, 0), ncol=3)
 
     # results visulization
-    aji = f'{single_loop_results["aji"] * 100:.2f}'
-    dice = f'{single_loop_results["dice"] * 100:.2f}'
-    recall = f'{single_loop_results["recall"] * 100:.2f}'
-    precision = f'{single_loop_results["precision"] * 100:.2f}'
-    temp_str = (f'aji: {aji:<10}\ndice: '
-                f'{dice:<10}\nrecall: {recall:<10}\nprecision: '
+    aji = f'{single_loop_results["Aji"] * 100:.2f}'
+    dice = f'{single_loop_results["Dice"] * 100:.2f}'
+    recall = f'{single_loop_results["Recall"] * 100:.2f}'
+    precision = f'{single_loop_results["Precision"] * 100:.2f}'
+    temp_str = (f'Aji: {aji:<10}\nDice: '
+                f'{dice:<10}\nRecall: {recall:<10}\nPrecision: '
                 f'{precision:<10}')
     plt.suptitle(temp_str, fontsize=15, color='black')
     plt.tight_layout()
