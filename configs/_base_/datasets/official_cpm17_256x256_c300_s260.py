@@ -7,10 +7,14 @@ crop_size = (256, 256)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
-    dict(type='RandomFlip', prob=0.5),
+    dict(
+        type='RandomFlip',
+        prob=0.5,
+        direction=['horizontal', 'vertical', 'diagonal']),
     dict(type='PhotoMetricDistortion'),
-    dict(type='CDNetLabelMake'),
+    dict(
+        type='CDNetLabelMake', input_level='semantic_with_edge', re_edge=True),
+    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
     dict(type='Normalize', max_min=False),
     dict(type='Pad', size=crop_size, pad_val=0, seg_pad_val=0),
     dict(type='DefaultFormatBundle'),
