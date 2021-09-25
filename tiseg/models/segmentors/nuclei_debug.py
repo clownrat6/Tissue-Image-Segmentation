@@ -342,6 +342,25 @@ class Nuclei(BaseSegmentor):
     def simple_test(self, img, meta, rescale=True):
         """Simple test with single image."""
         seg_logit = self.inference(img, meta, rescale)
+
+        import os.path as osp
+        import matplotlib.pyplot as plt
+
+        seg_logit = F.softmax(seg_logit, dim=1)
+
+        item_name = osp.splitext(meta[0]['img_info']['ori_filename'])[0]
+        inside_logit = seg_logit.cpu().numpy()[0, 1, :, :]
+        edge_logit = seg_logit.cpu().numpy()[0, 2, :, :]
+
+        plt.figure(dpi=300)
+        plt.subplot(121)
+        plt.imshow(inside_logit)
+        plt.axis('off')
+        plt.subplot(122)
+        plt.imshow(edge_logit)
+        plt.axis('off')
+        plt.tight_layout()
+        plt.savefig(f'{item_name}.png')
         seg_pred = seg_logit.argmax(dim=1)
         # Extract inside class
         seg_pred = seg_pred.cpu().numpy()
@@ -362,8 +381,12 @@ class Nuclei(BaseSegmentor):
             cur_seg_logit = self.inference(imgs[i], metas[i], rescale)
             seg_logit += cur_seg_logit
         seg_logit /= len(imgs)
+
         import os.path as osp
         import matplotlib.pyplot as plt
+
+        seg_logit = F.softmax(seg_logit, dim=1)
+
         item_name = osp.splitext(metas[0][0]['img_info']['ori_filename'])[0]
         inside_logit = seg_logit.cpu().numpy()[0, 1, :, :]
         edge_logit = seg_logit.cpu().numpy()[0, 2, :, :]
