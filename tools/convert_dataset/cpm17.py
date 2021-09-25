@@ -9,6 +9,8 @@ from PIL import Image
 from scipy.io import loadmat
 from skimage import morphology
 
+from tiseg.datasets.utils import colorize_instance_map
+
 
 def convert_mat_to_array(mat, array_key='inst_map', save_path=None):
     """Convert matlab format array file to numpy array file."""
@@ -52,10 +54,13 @@ def convert_instance_to_semantic(instance_map, with_edge=True):
     return semantic_map
 
 
-def pillow_save(save_path, array):
+def pillow_save(save_path, array, palette=None):
     """storage image array by using pillow."""
-    array = Image.fromarray(array)
-    array.save(save_path)
+    image = Image.fromarray(array.astype(np.uint8))
+    if palette is not None:
+        image = image.convert('P')
+        image.putpalette(palette)
+    image.save(save_path)
 
 
 def crop_patches(image, crop_size, crop_stride):
@@ -139,10 +144,22 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
         pillow_save(osp.join(new_path, sub_item + '.png'), patch[0])
         # save instance level label
         np.save(osp.join(new_path, sub_item + '_instance.npy'), patch[1])
-        # save semantic level label
-        pillow_save(osp.join(new_path, sub_item + '_semantic.png'), patch[2])
         pillow_save(
-            osp.join(new_path, sub_item + '_semantic_with_edge.png'), patch[3])
+            osp.join(new_path, sub_item + '_instance_colorized.png'),
+            colorize_instance_map(patch[1]))
+        # save semantic level label
+        palette = np.zeros((2, 3), dtype=np.uint8)
+        palette[0, :] = (0, 0, 0)
+        palette[1, :] = (255, 255, 2)
+        pillow_save(
+            osp.join(new_path, sub_item + '_semantic.png'), patch[2], palette)
+        palette = np.zeros((3, 3), dtype=np.uint8)
+        palette[0, :] = (0, 0, 0)
+        palette[1, :] = (255, 0, 0)
+        palette[2, :] = (0, 255, 0)
+        pillow_save(
+            osp.join(new_path, sub_item + '_semantic_with_edge.png'), patch[3],
+            palette)
 
     return {item: sub_item_list}
 
