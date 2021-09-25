@@ -389,40 +389,43 @@ class NucleiCDHead(NucleiBaseDecodeHead):
         # retrieval mask_out / direction_out / point_out
         mask_logit, direction_logit, point_logit = self.forward(inputs)
 
-        # The whole image is too huge. So we use slide inference in default.
-        mask_logit = resize(
-            input=mask_logit,
-            size=test_cfg['crop_size'],
-            mode='bilinear',
-            align_corners=self.align_corners)
-        direction_logit = resize(
-            input=direction_logit,
-            size=test_cfg['crop_size'],
-            mode='bilinear',
-            align_corners=self.align_corners)
-        point_logit = resize(
-            input=point_logit,
-            size=test_cfg['crop_size'],
-            mode='bilinear',
-            align_corners=self.align_corners)
+        use_ddm = test_cfg.get('use_ddm', False)
+        if use_ddm:
+            # The whole image is too huge. So we use slide inference in
+            # default.
+            mask_logit = resize(
+                input=mask_logit,
+                size=test_cfg['crop_size'],
+                mode='bilinear',
+                align_corners=self.align_corners)
+            direction_logit = resize(
+                input=direction_logit,
+                size=test_cfg['crop_size'],
+                mode='bilinear',
+                align_corners=self.align_corners)
+            point_logit = resize(
+                input=point_logit,
+                size=test_cfg['crop_size'],
+                mode='bilinear',
+                align_corners=self.align_corners)
 
-        # make direction differential map
-        direction_map = torch.argmax(direction_logit, dim=1)
-        direction_differential_map = generate_direction_differential_map(
-            direction_map, 9)
+            # make direction differential map
+            direction_map = torch.argmax(direction_logit, dim=1)
+            direction_differential_map = generate_direction_differential_map(
+                direction_map, 9)
 
-        # using point map to remove center point direction differential map
-        point_logit = point_logit[:, 0, :, :]
-        point_logit = point_logit - torch.min(point_logit) / (
-            torch.max(point_logit) - torch.min(point_logit))
+            # using point map to remove center point direction differential map
+            point_logit = point_logit[:, 0, :, :]
+            point_logit = point_logit - torch.min(point_logit) / (
+                torch.max(point_logit) - torch.min(point_logit))
 
-        # mask out some redundant direction differential
-        direction_differential_map[point_logit > 0.2] = 0
+            # mask out some redundant direction differential
+            direction_differential_map[point_logit > 0.2] = 0
 
-        # using direction differential map to enhance edge
-        mask_logit = F.softmax(mask_logit, dim=1)
-        mask_logit[:, 2, :, :] = (mask_logit[:, 2, :, :] +
-                                  direction_differential_map) * (
-                                      1 + 2 * direction_differential_map)
+            # using direction differential map to enhance edge
+            mask_logit = F.softmax(mask_logit, dim=1)
+            mask_logit[:, 2, :, :] = (mask_logit[:, 2, :, :] +
+                                      direction_differential_map) * (
+                                          1 + 2 * direction_differential_map)
 
         return mask_logit

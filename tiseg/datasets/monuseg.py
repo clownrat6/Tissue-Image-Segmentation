@@ -368,15 +368,14 @@ class MoNuSegDataset(Dataset):
                 else:
                     ret_metrics[key].append(value)
 
+        # TODO: Try to find a method to solve these codes.
         # pop semantic results to calculate semantic metric by confused matrix
         pre_eval_semantic_inside_results = ret_metrics.pop(
             'pre_eval_semantic_inside')
         pre_eval_semantic_edge_results = ret_metrics.pop(
             'pre_eval_semantic_edge')
-        results_inside = pre_eval_to_metrics(pre_eval_semantic_inside_results,
-                                             metric)
-        results_edge = pre_eval_to_metrics(pre_eval_semantic_edge_results,
-                                           metric)
+        _ = pre_eval_to_metrics(pre_eval_semantic_inside_results, metric)
+        _ = pre_eval_to_metrics(pre_eval_semantic_edge_results, metric)
 
         # calculate average metric
         assert 'name' in ret_metrics
@@ -388,9 +387,9 @@ class MoNuSegDataset(Dataset):
             # average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
             # [1] will remove background class.
             if 'edge' in key:
-                average_value = results_edge[key.replace('edge_', '')][1]
+                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
             elif key in metric:
-                average_value = results_inside[key][1]
+                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
             elif key == 'Aji':
                 average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
 
