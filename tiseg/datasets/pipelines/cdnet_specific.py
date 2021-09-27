@@ -105,10 +105,14 @@ class CDNetLabelMake(object):
 
         results['gt_point_map'] = point_map
         results['gt_direction_map'] = direction_map
-        results['seg_fields'].append('gt_semantic_map')
-        results['seg_fields'].append('gt_semantic_map_with_edge')
-        results['seg_fields'].append('gt_direction_map')
-        results['seg_fields'].append('gt_point_map')
+
+        additional_key_list = [
+            'gt_semantic_map', 'gt_semantic_map_with_edge', 'gt_direction_map',
+            'gt_point_map'
+        ]
+        for additional_key in additional_key_list:
+            if additional_key not in results['seg_fields']:
+                results['seg_fields'].append(additional_key)
 
         return results
 
