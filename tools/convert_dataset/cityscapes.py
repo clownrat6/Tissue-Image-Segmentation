@@ -48,14 +48,30 @@ label_id_map = {
     }
 }
 
+PALETTE = [(0, 0, 0), (220, 20, 60), (255, 0, 0), (0, 0, 142), (0, 0, 70),
+           (0, 60, 100), (0, 80, 100), (0, 0, 230), (119, 11, 32),
+           (255, 255, 2)]
+
 
 def pillow_load(path):
     return np.array(Image.open(path))
 
 
-def pillow_save(array, path):
-    Image.fromarray(array).save(path)
+def pillow_save(array, path, palette=None):
+    image = Image.fromarray(array)
+    if palette is not None:
+        image = image.convert('P')
+        image.putpalette(palette)
+    image.save(path)
     return path
+
+
+def pillow_show(array, palette=None):
+    image = Image.fromarray(array)
+    if palette is not None:
+        image = image.convert('P')
+        image.putpalette(palette)
+    image.show()
 
 
 def convert_json_to_label(json_file):
@@ -95,6 +111,8 @@ def convert_instance_to_semantic(instances, with_edge=True):
         save_path = re.compile('.*gtFine').findall(
             instances)[0] + '_semantic_with_edge.png'
         instances = pillow_load(instances)
+    # remove semantic related label
+    instances[instances < 1000] = 0
     height, width = instances.shape[:2]
     mask = np.zeros([height, width], dtype=np.uint8)
     instance_id_list = list(np.unique(instances))
@@ -113,7 +131,8 @@ def convert_instance_to_semantic(instances, with_edge=True):
             # official dataset doesn't have edge class.
             mask[boundary > 0] = convert_official_to_local(None)
     if save_path is not None:
-        return pillow_save(mask, save_path)
+        mask_palette = np.array(PALETTE).astype(np.uint8)
+        return pillow_save(mask, save_path, mask_palette)
     else:
         return mask
 
