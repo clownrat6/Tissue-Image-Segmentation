@@ -1,9 +1,9 @@
 _base_ = [
-    '../../_base_/schedules/schedule_20k.py',
+    '../../_base_/schedules/schedule_80k.py',
 ]
 evaluation = dict(
     _delete_=True,
-    interval=1000,
+    interval=4000,
     metric='all',
     save_best='Aji',
     rule='greater',

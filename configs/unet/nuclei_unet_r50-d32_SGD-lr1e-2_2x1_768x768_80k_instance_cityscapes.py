@@ -1,8 +1,8 @@
 _base_ = [
     '../_base_/datasets/instance_cityscapes_768x768.py',
-    './_base_/cdnet_runtime.py',
-    './_base_/cdnet_r50-d32.py',
-    './_base_/cdnet_schedule_80k.py',
+    './_base_/unet_runtime.py',
+    './_base_/unet_r50-32.py',
+    './_base_/unet_schedule_80k.py',
 ]
 
 optimizer = dict(_delete_=True, type='SGD', lr=0.01, weight_decay=0.0005)
@@ -19,8 +19,7 @@ lr_config = dict(
 
 model = dict(
     train_cfg=dict(),
-    test_cfg=dict(
-        mode='slide', crop_size=(768, 768), stride=(513, 513), use_ddm=True),
+    test_cfg=dict(mode='slide', crop_size=(768, 768), stride=(513, 513)),
 )
 
 data = dict(samples_per_gpu=2, workers_per_gpu=2)
