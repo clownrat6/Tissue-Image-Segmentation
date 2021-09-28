@@ -125,8 +125,14 @@ class MultiScaleFlipAug(object):
                          for ratio in self.img_ratios]
         else:
             img_scale = self.img_scale
+        # XXX: This code may return three flip direction which cause three
+        # logit addition.
         flip_aug = [False, True] if self.flip else [False]
+        self.flip_direction = self.flip_direction if self.flip else [
+            'horizontal'
+        ]
         rotate_aug = [False, True] if self.rotate else [False]
+        self.rotate_degree = self.rotate_degree if self.rotate else [90]
         for scale in img_scale:
             for flip in flip_aug:
                 for direction in self.flip_direction:

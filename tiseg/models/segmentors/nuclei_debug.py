@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -8,8 +9,8 @@ from .base import BaseSegmentor
 
 
 @SEGMENTORS.register_module()
-class NucleiCDNet(BaseSegmentor):
-    """Segmentor for CDNet Nuclei Segmentation.
+class Nuclei(BaseSegmentor):
+    """Segmentor for Nuclei Segmentation.
 
     EncoderDecoder typically consists of backbone, decode_head, auxiliary_head.
     Note that auxiliary_head is only used for deep supervision during training,
@@ -25,7 +26,7 @@ class NucleiCDNet(BaseSegmentor):
                  test_cfg=None,
                  pretrained=None,
                  init_cfg=None):
-        super(NucleiCDNet, self).__init__(init_cfg)
+        super(Nuclei, self).__init__(init_cfg)
         if pretrained is not None:
             assert backbone.get('pretrained') is None, \
                 'both backbone and segmentor set pretrained weight'
@@ -45,8 +46,7 @@ class NucleiCDNet(BaseSegmentor):
         """Initialize ``decode_head``"""
         self.decode_head = builder.build_head(decode_head)
         self.align_corners = self.decode_head.align_corners
-        # (background, nuclei, nuclei edge)
-        self.num_classes = 3
+        self.num_classes = self.decode_head.num_classes
 
     def _init_auxiliary_head(self, auxiliary_head):
         """Initialize ``auxiliary_head``"""
@@ -87,12 +87,6 @@ class NucleiCDNet(BaseSegmentor):
         losses.update(add_prefix(loss_decode, 'decode'))
         return losses
 
-    def _decode_head_forward_test(self, x, metas):
-        """Run forward function and calculate loss for decode head in
-        inference."""
-        seg_logits = self.decode_head.forward_test(x, metas, self.test_cfg)
-        return seg_logits
-
     def _auxiliary_head_forward_train(self, x, metas, label):
         """Run forward function and calculate loss for auxiliary head in
         training."""
@@ -106,6 +100,40 @@ class NucleiCDNet(BaseSegmentor):
             loss_aux = self.auxiliary_head.forward_train(
                 x, metas, label, self.train_cfg)
             losses.update(add_prefix(loss_aux, 'aux'))
+
+        return losses
+
+    def _decode_head_forward_test(self, x, metas):
+        """Run forward function and calculate loss for decode head in
+        inference."""
+        seg_logits = self.decode_head.forward_test(x, metas, self.test_cfg)
+        return seg_logits
+
+    def forward_train(self, data, metas, label):
+        """Forward function for training.
+
+        Args:
+            data (dict): Input data wrapper, inner structure:
+                data = dict('img': Tensor (NxCxHxW)).
+            metas (list[dict]): List of data info dict where each dict
+                has: 'img_info', 'ann_info'.
+            label (dict): Label wrapper, inner structure:
+                label = dict('gt_semantic_map': Tensor (NxCxHxW).
+
+        Returns:
+            dict[str, Tensor]: a dictionary of loss components
+        """
+
+        x = self.extract_feat(data['img'])
+
+        losses = dict()
+
+        loss_decode = self._decode_head_forward_train(x, metas, label)
+        losses.update(loss_decode)
+
+        if self.with_auxiliary_head:
+            loss_aux = self._auxiliary_head_forward_train(x, metas, label)
+            losses.update(loss_aux)
 
         return losses
 
@@ -147,34 +175,6 @@ class NucleiCDNet(BaseSegmentor):
         else:
             return self.aug_test(imgs, metas, **kwargs)
 
-    def forward_train(self, data, metas, label):
-        """Forward function for training.
-
-        Args:
-            data (dict): Input data wrapper, inner structure:
-                data = dict('img': Tensor (NxCxHxW)).
-            metas (list[dict]): List of data info dict where each dict
-                has: 'img_info', 'ann_info'.
-            label (dict): Label wrapper, inner structure:
-                label = dict('gt_semantic_map': Tensor (NxCxHxW).
-
-        Returns:
-            dict[str, Tensor]: a dictionary of loss components
-        """
-
-        x = self.extract_feat(data['img'])
-
-        losses = dict()
-
-        loss_decode = self._decode_head_forward_train(x, metas, label)
-        losses.update(loss_decode)
-
-        if self.with_auxiliary_head:
-            loss_aux = self._auxiliary_head_forward_train(x, metas, label)
-            losses.update(loss_aux)
-
-        return losses
-
     # TODO refactor
     def slide_inference(self, img, meta, rescale):
         """Inference by sliding-window with overlap.
@@ -215,6 +215,66 @@ class NucleiCDNet(BaseSegmentor):
                 align_corners=self.align_corners,
                 warning=False)
         return preds
+
+    # TODO: refactor code stryle
+    def split_inference(self, img, meta, rescale):
+        """using half-and-half strategy to slide inference."""
+        window_size = self.test_cfg.crop_size[0]
+        overlap_size = (self.test_cfg.crop_size[0] -
+                        self.test_cfg.stride[0]) * 2
+
+        N, C, H, W = img.shape
+
+        input = img
+
+        # zero pad for border patches
+        pad_h = 0
+        if H - window_size > 0:
+            pad_h = (window_size - overlap_size) - (H - window_size) % (
+                window_size - overlap_size)
+            tmp = torch.zeros((N, C, pad_h, W)).to(img.device)
+            input = torch.cat((input, tmp), dim=2)
+
+        if W - window_size > 0:
+            pad_w = (window_size - overlap_size) - (W - window_size) % (
+                window_size - overlap_size)
+            tmp = torch.zeros((N, C, H + pad_h, pad_w)).to(img.device)
+            input = torch.cat((input, tmp), dim=3)
+
+        _, C1, H1, W1 = input.size()
+
+        output = torch.zeros((input.size(0), 3, H1, W1)).to(img.device)
+        for i in range(0, H1 - overlap_size, window_size - overlap_size):
+            r_end = i + window_size if i + window_size < H1 else H1
+            ind1_s = i + overlap_size // 2 if i > 0 else 0
+            ind1_e = (
+                i + window_size -
+                overlap_size // 2 if i + window_size < H1 else H1)
+            for j in range(0, W1 - overlap_size, window_size - overlap_size):
+                c_end = j + window_size if j + window_size < W1 else W1
+
+                input_patch = input[:, :, i:r_end, j:c_end]
+                input_var = input_patch
+                output_patch = self.encode_decode(input_var, meta)
+
+                ind2_s = j + overlap_size // 2 if j > 0 else 0
+                ind2_e = (
+                    j + window_size -
+                    overlap_size // 2 if j + window_size < W1 else W1)
+                output[:, :, ind1_s:ind1_e,
+                       ind2_s:ind2_e] = output_patch[:, :,
+                                                     ind1_s - i:ind1_e - i,
+                                                     ind2_s - j:ind2_e - j]
+
+        output = output[:, :, :H, :W]
+        if rescale:
+            output = resize(
+                output,
+                size=meta[0]['img_info']['ori_shape'][:2],
+                mode='bilinear',
+                align_corners=self.align_corners,
+                warning=False)
+        return output
 
     def whole_inference(self, img, meta, rescale):
         """Inference with full image."""
@@ -282,6 +342,25 @@ class NucleiCDNet(BaseSegmentor):
     def simple_test(self, img, meta, rescale=True):
         """Simple test with single image."""
         seg_logit = self.inference(img, meta, rescale)
+
+        import os.path as osp
+        import matplotlib.pyplot as plt
+
+        seg_logit = F.softmax(seg_logit, dim=1)
+
+        item_name = osp.splitext(meta[0]['img_info']['ori_filename'])[0]
+        inside_logit = seg_logit.cpu().numpy()[0, 1, :, :]
+        edge_logit = seg_logit.cpu().numpy()[0, 2, :, :]
+
+        plt.figure(dpi=300)
+        plt.subplot(121)
+        plt.imshow(inside_logit)
+        plt.axis('off')
+        plt.subplot(122)
+        plt.imshow(edge_logit)
+        plt.axis('off')
+        plt.tight_layout()
+        plt.savefig(f'{item_name}.png')
         seg_pred = seg_logit.argmax(dim=1)
         # Extract inside class
         seg_pred = seg_pred.cpu().numpy()
@@ -302,6 +381,25 @@ class NucleiCDNet(BaseSegmentor):
             cur_seg_logit = self.inference(imgs[i], metas[i], rescale)
             seg_logit += cur_seg_logit
         seg_logit /= len(imgs)
+
+        import os.path as osp
+        import matplotlib.pyplot as plt
+
+        seg_logit = F.softmax(seg_logit, dim=1)
+
+        item_name = osp.splitext(metas[0][0]['img_info']['ori_filename'])[0]
+        inside_logit = seg_logit.cpu().numpy()[0, 1, :, :]
+        edge_logit = seg_logit.cpu().numpy()[0, 2, :, :]
+
+        plt.figure(dpi=300)
+        plt.subplot(121)
+        plt.imshow(inside_logit)
+        plt.axis('off')
+        plt.subplot(122)
+        plt.imshow(edge_logit)
+        plt.axis('off')
+        plt.tight_layout()
+        plt.savefig(f'{item_name}.png')
         seg_pred = seg_logit.argmax(dim=1)
         # Extract inside class
         seg_pred = seg_pred.cpu().numpy()

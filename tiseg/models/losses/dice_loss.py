@@ -24,7 +24,7 @@ def _convert_to_one_hot(tensor, bins, on_value=1, off_value=0):
 
 class GeneralizedDiceLoss(nn.Module):
     """This Generalized Dice Loss (for Multi-Class) implementation refer to:
-    
+
     "Generalised Dice Overlap as a Deep Learning Loss Function for Highly
     Unbalanced Segmentations" - `https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7610921/` # noqa
     """
@@ -64,6 +64,44 @@ class GeneralizedDiceLoss(nn.Module):
         generalized_dice_loss = 1 - generalized_dice_score
 
         return generalized_dice_loss
+
+
+class MultiClassDiceLoss(nn.Module):
+    """Calculate each class dice loss, then sum per class dice loss as a total
+    loss."""
+
+    def __init__(self, num_classes):
+        super(MultiClassDiceLoss, self).__init__()
+        self.num_classes = num_classes
+
+    def forward(self, logit, target, weights=None):
+        assert target.ndim == 3
+        # one-hot encoding for target
+        target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(
+            0, 3, 1, 2).contiguous()
+        smooth = 1e-4
+        # softmax for logit
+        logit = F.softmax(logit, dim=1)
+
+        N, C, _, _ = target_one_hot.shape
+
+        loss = 0
+
+        for i in range(C):
+            logit_per_class = logit[:, i]
+            target_per_class = target_one_hot[:, i]
+
+            intersection = logit_per_class * target_per_class
+            # calculate per class dice loss
+            dice_loss_per_class = 2 * (intersection.sum((-2, -1)) + smooth) / (
+                logit_per_class.sum((-2, -1)) + target_per_class.sum(
+                    (-2, -1)) + smooth)
+            dice_loss_per_class = 1 - dice_loss_per_class.sum() / N
+            if weights is not None:
+                dice_loss_per_class *= weights[i]
+            loss += dice_loss_per_class
+
+        return loss
 
 
 class DiceLoss(nn.Module):

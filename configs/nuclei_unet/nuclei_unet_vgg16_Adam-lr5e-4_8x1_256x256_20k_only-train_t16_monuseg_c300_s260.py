@@ -1,8 +1,8 @@
 _base_ = [
-    '../_base_/datasets/only-train_monuseg_256x256_c256_s155.py',
+    '../_base_/datasets/only-train_t16_monuseg_256x256_c300_s260.py',
     './_base_/nuclei_unet_runtime.py',
-    './_base_/nuclei_unet_r50-d8_v0.2.py',
-    './_base_/nuclei_unet_schedule_10k.py',
+    './_base_/nuclei_unet_vgg16.py',
+    './_base_/nuclei_unet_schedule_20k.py',
 ]
 
 optimizer = dict(_delete_=True, type='Adam', lr=0.0005, weight_decay=0.0005)
@@ -19,7 +19,7 @@ lr_config = dict(
 
 model = dict(
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=(256, 256), stride=(155, 155)),
+    test_cfg=dict(mode='slide', crop_size=(256, 256), stride=(216, 216)),
 )
 
 data = dict(samples_per_gpu=8, workers_per_gpu=8)

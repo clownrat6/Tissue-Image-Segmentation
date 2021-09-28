@@ -1,3 +1,5 @@
+cityscapesscripts
+lxml
 lxml
 matplotlib
 numba
@@ -6,4 +8,3 @@ prettytable
 rich
 scikit-image
 scipy
-lxml

@@ -7,7 +7,7 @@ from mmcv.cnn import ConvModule, build_activation_layer
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..builder import HEADS
-from ..losses import GeneralizedDiceLoss, mdice, miou
+from ..losses import MultiClassDiceLoss, mdice, miou
 from ..utils import UNetDecoderLayer, generate_direction_differential_map
 from .nuclei_decode_head import NucleiBaseDecodeHead
 
@@ -313,7 +313,8 @@ class NucleiCDHead(NucleiBaseDecodeHead):
     def _mask_loss(self, mask_logit, mask_label):
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = GeneralizedDiceLoss(num_classes=3)
+        mask_dice_loss_calculator = MultiClassDiceLoss(
+            num_classes=self.num_classes)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         mask_ce_loss = torch.mean(
@@ -340,10 +341,11 @@ class NucleiCDHead(NucleiBaseDecodeHead):
     def _direction_loss(self, direction_logit, direction_label):
         direction_loss = {}
         direction_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = GeneralizedDiceLoss(num_classes=9)
+        direction_dice_loss_calculator = MultiClassDiceLoss(
+            num_classes=self.num_angles + 1)
         direction_ce_loss = torch.mean(
             direction_ce_loss_calculator(direction_logit, direction_label))
-        direction_dice_loss = mask_dice_loss_calculator(
+        direction_dice_loss = direction_dice_loss_calculator(
             direction_logit, direction_label)
         # loss weight
         alpha = 1
@@ -387,40 +389,43 @@ class NucleiCDHead(NucleiBaseDecodeHead):
         # retrieval mask_out / direction_out / point_out
         mask_logit, direction_logit, point_logit = self.forward(inputs)
 
-        # The whole image is too huge. So we use slide inference in default.
-        mask_logit = resize(
-            input=mask_logit,
-            size=test_cfg['crop_size'],
-            mode='bilinear',
-            align_corners=self.align_corners)
-        direction_logit = resize(
-            input=direction_logit,
-            size=test_cfg['crop_size'],
-            mode='bilinear',
-            align_corners=self.align_corners)
-        point_logit = resize(
-            input=point_logit,
-            size=test_cfg['crop_size'],
-            mode='bilinear',
-            align_corners=self.align_corners)
+        use_ddm = test_cfg.get('use_ddm', False)
+        if use_ddm:
+            # The whole image is too huge. So we use slide inference in
+            # default.
+            mask_logit = resize(
+                input=mask_logit,
+                size=test_cfg['crop_size'],
+                mode='bilinear',
+                align_corners=self.align_corners)
+            direction_logit = resize(
+                input=direction_logit,
+                size=test_cfg['crop_size'],
+                mode='bilinear',
+                align_corners=self.align_corners)
+            point_logit = resize(
+                input=point_logit,
+                size=test_cfg['crop_size'],
+                mode='bilinear',
+                align_corners=self.align_corners)
 
-        # make direction differential map
-        direction_map = torch.argmax(direction_logit, dim=1)
-        direction_differential_map = generate_direction_differential_map(
-            direction_map, 9)
+            # make direction differential map
+            direction_map = torch.argmax(direction_logit, dim=1)
+            direction_differential_map = generate_direction_differential_map(
+                direction_map, 9)
 
-        # using point map to remove center point direction differential map
-        point_logit = point_logit[:, 0, :, :]
-        point_logit = point_logit - torch.min(point_logit) / (
-            torch.max(point_logit) - torch.min(point_logit))
+            # using point map to remove center point direction differential map
+            point_logit = point_logit[:, 0, :, :]
+            point_logit = point_logit - torch.min(point_logit) / (
+                torch.max(point_logit) - torch.min(point_logit))
 
-        # mask out some redundant direction differential
-        direction_differential_map[point_logit > 0.2] = 0
+            # mask out some redundant direction differential
+            direction_differential_map[point_logit > 0.2] = 0
 
-        # using direction differential map to enhance edge
-        mask_logit = F.softmax(mask_logit, dim=1)
-        mask_logit[:, 2, :, :] = (mask_logit[:, 2, :, :] +
-                                  direction_differential_map) * (
-                                      1 + 2 * direction_differential_map)
+            # using direction differential map to enhance edge
+            mask_logit = F.softmax(mask_logit, dim=1)
+            mask_logit[:, 2, :, :] = (mask_logit[:, 2, :, :] +
+                                      direction_differential_map) * (
+                                          1 + 2 * direction_differential_map)
 
         return mask_logit

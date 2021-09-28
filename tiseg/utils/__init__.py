@@ -6,6 +6,7 @@ from .hooks.training_curve import TrainingCurveHook
 from .logger import get_root_logger
 from .misc import add_prefix, tensor2maps
 from .ops.interpolate import Upsample, resize
+from .optimizer.radam import RAdam
 
 # base utils
 __all__ = ['collect_env', 'get_root_logger', 'add_prefix', 'tensor2maps']
@@ -21,3 +22,6 @@ __all__ += ['resize', 'Upsample']
 
 # hook utils
 __all__ += ['TrainingCurveHook']
+
+# optimizer utils
+__all__ += ['RAdam']

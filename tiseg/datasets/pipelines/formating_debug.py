@@ -288,6 +288,7 @@ class DefaultFormatBundle(object):
                                                        ...].astype(np.int64))
         direct_diff_map = generate_direction_differential_map(
             direction_map_tensor).numpy()[0]
+        plt.figure(dpi=300)
         plt.subplot(231)
         plt.imshow(img_raw)
         plt.axis('off')
@@ -308,7 +309,7 @@ class DefaultFormatBundle(object):
         # canvas[direct_diff_map > 0, :] = (2, 255, 255)
         # canvas[semantic_map_with_edge == 1, :] = (255, 2, 255)
         canvas[semantic_map_with_edge == 1] = (2, 255, 255)
-        canvas[semantic_map_with_edge == 2] = (255, 2, 255)
+        canvas[semantic_map_with_edge == 2] = (0, 0, 255)
         canvas[direct_diff_map > 0] = (255, 0, 0)
         plt.imshow(canvas)
         plt.axis('off')
