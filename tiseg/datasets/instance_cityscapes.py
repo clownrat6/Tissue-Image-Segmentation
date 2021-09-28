@@ -47,7 +47,7 @@ class InstanceCityscapesDataset(Dataset):
                  img_dir,
                  ann_dir,
                  data_root=None,
-                 img_suffix='.png',
+                 img_suffix='_leftImg8bit.png',
                  ann_suffix='_gtFine_semantic_with_edge.png',
                  test_mode=False,
                  split=None):

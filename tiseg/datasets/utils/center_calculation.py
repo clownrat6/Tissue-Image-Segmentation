@@ -45,7 +45,7 @@ def calculate_centerpoint(instance_mask, H, W):
                             smaller_bound = mid
                         else:
                             larger_bound = mid
-                    max_distance = max(max_distance, smaller_bound)
+                    max_distance = max(max_distance, larger_bound)
                     min_distance = min(min_distance, smaller_bound)
                 assert (max_distance > 0 and min_distance > 0)
                 centerness = min_distance / max_distance

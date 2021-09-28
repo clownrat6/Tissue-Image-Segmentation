@@ -97,7 +97,7 @@ class CDNetLabelMake(object):
             raise NotImplementedError
 
         # point map calculation & gradient map calculation
-        point_map, gradient_map = (self.calculate_point_map(instance_map))
+        point_map, gradient_map = self.calculate_point_map(instance_map)
 
         # direction map calculation
         direction_map = self.calculate_direction_map(instance_map,
