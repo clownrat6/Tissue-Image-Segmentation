@@ -111,15 +111,15 @@ def convert_instance_to_semantic(instances, with_edge=True):
         save_path = re.compile('.*gtFine').findall(
             instances)[0] + '_semantic_with_edge.png'
         instances = pillow_load(instances)
-    # remove semantic related label
+    # remove semantic related label (set as background)
     instances[instances < 1000] = 0
     height, width = instances.shape[:2]
     mask = np.zeros([height, width], dtype=np.uint8)
     instance_id_list = list(np.unique(instances))
+    # remove background
+    instance_id_list.remove(0)
     for instance_id in instance_id_list:
         single_instance_map = (instances == instance_id).astype(np.uint8)
-        if int(instance_id / 1000) == 255:
-            continue
         local_id = convert_official_to_local(int(instance_id / 1000))
         mask[single_instance_map > 0] = local_id
         if with_edge:
@@ -196,6 +196,16 @@ def semantic_edge_label_conversion(gt_dir, out_dir, nproc=1):
                                      instance_files, nproc)
     else:
         mmcv.track_progress(convert_instance_to_semantic, instance_files)
+
+    split_names = ['train', 'val', 'test']
+
+    for split in split_names:
+        filenames = []
+        for poly in mmcv.scandir(
+                osp.join(gt_dir, split), '_polygons.json', recursive=True):
+            filenames.append(poly.replace('_gtFine_polygons.json', ''))
+        with open(osp.join(out_dir, f'{split}.txt'), 'w') as f:
+            f.writelines(f + '\n' for f in filenames)
 
 
 def parse_args():
