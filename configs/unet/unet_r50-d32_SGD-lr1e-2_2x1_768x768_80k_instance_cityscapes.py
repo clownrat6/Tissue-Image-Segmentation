@@ -1,7 +1,7 @@
 _base_ = [
     '../_base_/datasets/instance_cityscapes_768x768.py',
     './_base_/unet_runtime.py',
-    './_base_/unet_r50-32.py',
+    './_base_/unet_r50-d32.py',
     './_base_/unet_schedule_80k.py',
 ]
 
