@@ -164,15 +164,10 @@ def instance_label_conversion(gt_dir, out_dir, nproc=1):
         poly_file = osp.join(gt_dir, poly)
         poly_files.append(poly_file)
     if nproc > 1:
-        instance_files = mmcv.track_parallel_progress(convert_json_to_instance,
-                                                      poly_files, nproc)
-        mmcv.track_parallel_progress(convert_instance_to_semantic,
-                                     instance_files, nproc)
+        mmcv.track_parallel_progress(convert_json_to_instance, poly_files,
+                                     nproc)
     else:
-        instance_files = mmcv.track_progress(convert_json_to_instance,
-                                             poly_files)
-        mmcv.track_progress(convert_instance_to_semantic, instance_files,
-                            nproc)
+        mmcv.track_progress(convert_json_to_instance, poly_files)
 
     split_names = ['train', 'val', 'test']
 

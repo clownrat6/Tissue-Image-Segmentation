@@ -95,6 +95,7 @@ class LoadImageFromFile(object):
         return repr_str
 
 
+# TODO: Modify doc string & comments
 @PIPELINES.register_module()
 class LoadAnnotations(object):
     """Load semantic level annotations.
@@ -108,8 +109,10 @@ class LoadAnnotations(object):
     """
 
     def __init__(self,
+                 instance_suffix=None,
                  file_client_args=dict(backend='disk'),
                  imdecode_backend='pillow'):
+        self.instance_suffix = instance_suffix
         self.file_client_args = file_client_args.copy()
         self.file_client = None
         self.imdecode_backend = imdecode_backend
@@ -146,7 +149,16 @@ class LoadAnnotations(object):
         if results['ann_info'].get('label_map', None) is not None:
             for old_id, new_id in results['ann_info']['label_map'].items():
                 gt_semantic_map[gt_semantic_map == old_id] = new_id
+        if self.instance_suffix is not None:
+            extra_filename = filename.replace(
+                results['ann_info']['ann_suffix'], self.instance_suffix)
+            gt_instance_map = mmcv.imread(
+                extra_filename,
+                flag='unchanged',
+                backend=self.imdecode_backend)
+            results['gt_instance_map'] = gt_instance_map
         results['gt_semantic_map'] = gt_semantic_map
+        results['seg_fields'].append('gt_instance_map')
         results['seg_fields'].append('gt_semantic_map')
         return results
 
