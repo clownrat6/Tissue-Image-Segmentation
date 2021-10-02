@@ -132,7 +132,8 @@ class NucleiBaseDecodeHead(nn.Module):
         """calculate mask branch loss."""
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = GeneralizedDiceLoss(num_classes=3)
+        mask_dice_loss_calculator = GeneralizedDiceLoss(
+            num_classes=self.num_classes)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         mask_ce_loss = torch.mean(
@@ -153,8 +154,10 @@ class NucleiBaseDecodeHead(nn.Module):
         # loss
         clean_mask_logit = mask_logit.clone().detach()
         clean_mask_label = mask_label.clone().detach()
-        wrap_dict['mask_dice'] = mdice(clean_mask_logit, clean_mask_label, 3)
-        wrap_dict['mask_iou'] = miou(clean_mask_logit, clean_mask_label, 3)
+        wrap_dict['mask_dice'] = mdice(clean_mask_logit, clean_mask_label,
+                                       self.num_classes)
+        wrap_dict['mask_iou'] = miou(clean_mask_logit, clean_mask_label,
+                                     self.num_classes)
 
         # metric calculate
         mask_pred = (torch.argmax(mask_logit,
