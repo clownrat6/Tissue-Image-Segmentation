@@ -101,7 +101,7 @@ if __name__ == '__main__':
         long_description_content_type='text/markdown',
         author='cyanlaser',
         author_email='cyanblueviolet@gmail.com',
-        keywords='computer vision, referring expression segmentation',
+        keywords='computer vision, nuclei segmentation',
         url='https://github.com/sennnnn/Torch_Image_Segmentation',
         packages=find_packages(exclude=('configs', 'tools', 'demo')),
         include_package_data=True,
