@@ -6,14 +6,20 @@ img_norm_cfg = dict(
 crop_size = (768, 768)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations'),
-    dict(type='Resize', img_scale=(2048, 1024), ratio_range=(0.5, 2.0)),
-    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
-    dict(type='RandomFlip', prob=0.5),
-    dict(type='PhotoMetricDistortion'),
-    dict(type='Standardization', **img_norm_cfg),
     dict(
-        type='CDNetLabelMake', input_level='semantic_with_edge', re_edge=True),
+        type='LoadAnnotations',
+        instance_suffix='_gtFine_instanceTrainIds.png'),
+    dict(type='Resize', img_scale=(768, 768), keep_ratio=False),
+    # dict(type='Resize', img_scale=(2048, 1024), ratio_range=(0.5, 2.0)),
+    # dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
+    # dict(type='RandomFlip', prob=0.5),
+    # dict(type='PhotoMetricDistortion'),
+    # dict(type='Standardization', **img_norm_cfg),
+    dict(
+        type='CityscapesLabelMake',
+        num_classes=10,
+        edge_label_id=9,
+        re_edge=True),
     dict(type='Pad', size=crop_size, pad_val=0, seg_pad_val=0),
     dict(type='DefaultFormatBundle'),
     dict(
