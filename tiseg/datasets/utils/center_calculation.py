@@ -32,15 +32,15 @@ def calculate_centerpoint(instance_mask, H, W):
                 min_distance = 10000000
                 for k in range(8):
                     smaller_bound = 0
-                    larger_bound = max(H, W)
+                    larger_bound = 1000000
                     # binary search for min distance between point and
                     # background when searching along direction K.
                     while abs(smaller_bound - larger_bound) > 0.1:
                         mid = (smaller_bound + larger_bound) / 2
                         x_offset = round(i + Directions[k][0] * mid)
                         y_offset = round(j + Directions[k][1] * mid)
-                        if (x_offset >= 0 and y_offset < H and y_offset >= 0
-                                and x_offset < W
+                        if (x_offset >= 0 and y_offset < W and y_offset >= 0
+                                and x_offset < H
                                 and instance_mask[x_offset][y_offset] > 0):
                             smaller_bound = mid
                         else:
