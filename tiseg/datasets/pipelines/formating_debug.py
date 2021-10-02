@@ -243,7 +243,6 @@ class DefaultFormatBundle(object):
         """
 
         img_raw = results['img']
-        semantic_map = results['gt_semantic_map']
         semantic_map_with_edge = results['gt_semantic_map_with_edge']
         point_map = results['gt_point_map']
         direction_map = results['gt_direction_map']
@@ -282,21 +281,34 @@ class DefaultFormatBundle(object):
                                                       ...].astype(np.int64)),
                 stack=True)
 
+        PALETTE = [(0, 0, 0), (220, 20, 60), (255, 0, 0), (0, 0, 142),
+                   (0, 0, 70), (0, 60, 100), (0, 80, 100), (0, 0, 230),
+                   (119, 11, 32), (255, 255, 2)]
+
+        import cv2
         import matplotlib.pyplot as plt
         from tiseg.models.utils import generate_direction_differential_map
         direction_map_tensor = to_tensor(direction_map[None,
                                                        ...].astype(np.int64))
         direct_diff_map = generate_direction_differential_map(
             direction_map_tensor).numpy()[0]
+        img_raw = cv2.cvtColor(img_raw, cv2.COLOR_BGR2RGB)
         plt.figure(dpi=300)
         plt.subplot(231)
         plt.imshow(img_raw)
         plt.axis('off')
         plt.subplot(232)
-        plt.imshow(semantic_map)
+        canvas = np.zeros((*semantic_map_with_edge.shape, 3), dtype=np.uint8)
+        for id, color in enumerate(PALETTE):
+            print(id, color)
+            canvas[semantic_map_with_edge == id, :] = color
+        plt.imshow(canvas)
         plt.axis('off')
         plt.subplot(233)
-        plt.imshow(semantic_map_with_edge)
+        blend = np.zeros_like(img_raw, dtype=np.uint8)
+        for i in range(3):
+            blend[:, :, i] = canvas[:, :, i] * 0.5 + img_raw[:, :, i] * 0.5
+        plt.imshow(blend)
         plt.axis('off')
         plt.subplot(234)
         plt.imshow(point_map)
@@ -313,6 +325,7 @@ class DefaultFormatBundle(object):
         canvas[direct_diff_map > 0] = (255, 0, 0)
         plt.imshow(canvas)
         plt.axis('off')
+        plt.tight_layout()
         plt.savefig('1.png')
         exit(0)
 
