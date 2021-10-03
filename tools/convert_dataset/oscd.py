@@ -1,33 +1,51 @@
-"""image w/o instance annotations.
+"""# image w/o instance annotations.
 
-image_id: image_filename
-161: net (13004).jpg
-293: net (6405).jpg
-609: net (665).jpg
-796: net (8577).jpg
-1288: net (4403).jpg
-1449: net (2006).jpg
-1562: net (12506).jpg
-1902: net (4007).jpg
-2278: net (9182).jpg
-3438: net (904).jpg
-3476: net (4016).jpg
-4264: net (2003).jpg
-4695: net (11398).jpg
-5116: net (12548).jpg
-5208: net (3325).jpg
-5566: net (3511).jpg
-6290: net (11800).jpg
-6436: net (9181).jpg
-6587: net (2218).jpg
-6698: net (3555).jpg
-7102: net (4012).jpg
+| image_id | split | image_filename |
+| :--  | :-- | :-- |
+| 161  | train | net (13004).jpg |
+| 293  | train | net (6405).jpg  |
+| 609  | train | net (665).jpg   |
+| 796  | train | net (8577).jpg  |
+| 1288 | train | net (4403).jpg  |
+| 1449 | train | net (2006).jpg  |
+| 1562 | train | net (12506).jpg |
+| 1902 | train | net (4007).jpg  |
+| 2278 | train | net (9182).jpg  |
+| 3438 | train | net (904).jpg   |
+| 3476 | train | net (4016).jpg  |
+| 4264 | train | net (2003).jpg  |
+| 4695 | train | net (11398).jpg |
+| 5116 | train | net (12548).jpg |
+| 5208 | train | net (3325).jpg  |
+| 5566 | train | net (3511).jpg  |
+| 6290 | train | net (11800).jpg |
+| 6436 | train | net (9181).jpg  |
+| 6587 | train | net (2218).jpg  |
+| 6698 | train | net (3555).jpg  |
+| 7102 | train | net (4012).jpg  |
+| 42   | val   | net (4019).jpg  |
+| 273  | val   | net (9125).jpg  |
+| 356  | val   | net (8060).jpg  |
+| 603  | val   | net (2001).jpg  |
+| 984  | val   | net (16065).jpg |
 
-image has error polygon
+# image has error polygon
 
-image_id: image_filename
-4858: net (2941).jpg
-5356: net (1909).jpg
+| image_id | split | image_filename |
+| :--  | :--   | :--            |
+| 4858 | train | net (2941).jpg |
+| 5356 | train | net (1909).jpg |
+
+image json has error height, width
+
+| image id | split | image_filename |
+| :--  | :--   | :--             |
+| 4361 | train | net (957).jpg   |
+| 4781 | train | net (2954).jpg  |
+| 5782 | train | net (4114).jpg  |
+| 7342 | train | net (11006).jpg |
+| 523  | val   | net (2445).jpg  |
+| 700  | val   | net(6766).jpg   |
 """
 
 import argparse
@@ -102,7 +120,16 @@ def convert_single_image(image_id, image_dict, instance_dict,
 
     image_filename = image_item['file_name']
     image_name = osp.splitext(image_filename)[0]
+    # read real image data from image_path to correct error image height &
+    # width
+    image_path = osp.join(src_image_folder, image_filename)
+    image = Image.open(image_path)
+    iheight, iwidth = image.height, image.width
     height, width = image_item['height'], image_item['width']
+
+    if iheight != height or iwidth != width:
+        height = iheight
+        width = iwidth
 
     instances_json = {
         'imgHeight': height,
@@ -164,6 +191,11 @@ def convert_single_image(image_id, image_dict, instance_dict,
 def parse_args():
     parser = argparse.ArgumentParser('SCD dataset conversion')
     parser.add_argument('dataset_root', help='The root path of dataset.')
+    parser.add_argument(
+        '-r',
+        '--re-generate',
+        action='store_true',
+        help='restart a dataset conversion.')
     parser.add_argument(
         '-a',
         '--ann-folder',
@@ -232,18 +264,23 @@ def main():
         )
 
         image_ids = image_dict.keys()
-        miss_ids = []
-        image_names = []
-        # check existed images
-        for image_id in image_ids:
-            image_item = image_dict[image_id]
-            image_filename = image_item['file_name']
-            image_name = osp.splitext(image_filename)[0]
-            image_path = osp.join(image_folder, image_filename)
-            if not osp.exists(image_path):
-                miss_ids.append(image_id)
-            else:
-                image_names.append(image_name)
+        # Whether re-generate whole dataset or not.
+        if args.re_generate:
+            miss_ids = image_ids
+            image_names = []
+        else:
+            miss_ids = []
+            image_names = []
+            # check existed images
+            for image_id in image_ids:
+                image_item = image_dict[image_id]
+                image_filename = image_item['file_name']
+                image_name = osp.splitext(image_filename)[0]
+                image_path = osp.join(image_folder, image_filename)
+                if not osp.exists(image_path):
+                    miss_ids.append(image_id)
+                else:
+                    image_names.append(image_name)
 
         # only build miss images & labels
         if args.nproc > 1:
