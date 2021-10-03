@@ -157,8 +157,8 @@ class LoadAnnotations(object):
                 flag='unchanged',
                 backend=self.imdecode_backend)
             results['gt_instance_map'] = gt_instance_map
+            results['seg_fields'].append('gt_instance_map')
         results['gt_semantic_map'] = gt_semantic_map
-        results['seg_fields'].append('gt_instance_map')
         results['seg_fields'].append('gt_semantic_map')
         return results
 
