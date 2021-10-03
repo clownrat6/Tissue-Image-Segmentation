@@ -1,15 +1,12 @@
 # dataset settings
-dataset_type = 'CPM17Dataset'
-data_root = 'data/cpm17'
+dataset_type = 'NucleiMoNuSegDataset'
+data_root = 'data/monuseg'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
-dataset_crop_size = (300, 300)
 crop_size = (256, 256)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='Resize', img_scale=(2048, 600), ratio_range=(0.5, 2.0)),
-    dict(type='RandomCrop', crop_size=dataset_crop_size, cat_max_ratio=0.75),
     dict(
         type='RandomFlip',
         prob=0.5,
@@ -54,21 +51,21 @@ data = dict(
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='train/',
-        ann_dir='train/',
-        split='official_train.txt',
+        img_dir='train_c300_s260/',
+        ann_dir='train_c300_s260/',
+        split='only-train_t16_train_c300_s260.txt',
         pipeline=train_pipeline),
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='test/',
-        ann_dir='test/',
-        split='official_test.txt',
+        img_dir='train/',
+        ann_dir='train/',
+        split='only-train_t16_test.txt',
         pipeline=test_pipeline),
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='test/',
-        ann_dir='test/',
-        split='official_test.txt',
+        img_dir='train/',
+        ann_dir='train/',
+        split='only-train_t16_test.txt',
         pipeline=test_pipeline))

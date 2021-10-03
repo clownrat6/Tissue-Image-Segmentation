@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/datasets/only-train_t16_monuseg_256x256_c300_s260.py',
+    '../_base_/datasets/only-train_t16_nuclei_monuseg_256x256_c300_s260.py',
     './_base_/nuclei_unet_runtime.py',
     './_base_/nuclei_unet_vgg16.py',
     './_base_/nuclei_unet_schedule_20k.py',

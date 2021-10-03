@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/datasets/official_cpm17_256x256.py',
+    '../_base_/datasets/official_nuclei_cpm17_256x256.py',
     './_base_/nuclei_cdnet_runtime.py',
     './_base_/nuclei_cdnet_vgg16.py',
     './_base_/nuclei_cdnet_schedule_20k.py',

@@ -3,8 +3,8 @@ from .nuclei_custom import NucleiCustomDataset
 
 
 @DATASETS.register_module()
-class CoNSePDataset(NucleiCustomDataset):
-    """CoNSeP segmentation dataset."""
+class NucleiCPM17Dataset(NucleiCustomDataset):
+    """CPM17 Nuclei segmentation dataset."""
 
     CLASSES = ('background', 'nuclei', 'edge')
 
@@ -12,4 +12,4 @@ class CoNSePDataset(NucleiCustomDataset):
 
     def __init__(self, **kwargs):
         super().__init__(
-            img_suffix='.png', ann_suffix='semantic_with_edge.png', **kwargs)
+            img_suffix='.png', ann_suffix='_semantic_with_edge.png', **kwargs)
