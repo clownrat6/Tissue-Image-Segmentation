@@ -292,7 +292,7 @@ class DefaultFormatBundle(object):
                                                        ...].astype(np.int64))
         direct_diff_map = generate_direction_differential_map(
             direction_map_tensor).numpy()[0]
-        img_raw = cv2.cvtColor(img_raw, cv2.COLOR_BGR2RGB)
+        img_raw = cv2.cvtColor(img_raw.astype(np.uint8), cv2.COLOR_BGR2RGB)
         plt.figure(dpi=300)
         plt.subplot(231)
         plt.imshow(img_raw)
