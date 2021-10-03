@@ -431,7 +431,7 @@ class NucleiCustomDataset(Dataset):
         for key, val in ret_metrics_items.items():
             items_table_data.add_column(key, val)
 
-        print_log('Per class:', logger)
+        print_log('Per samples:', logger)
         print_log('\n' + items_table_data.get_string(), logger=logger)
 
         # dump to txt

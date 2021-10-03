@@ -20,7 +20,7 @@ def pre_eval_all_semantic_metric(pred_label, target_label, num_classes):
     else:
         target_label = torch.from_numpy(target_label)
 
-    TP = pred_label[pred_label == target_label]
+    TP = target_label[pred_label == target_label]
     FP = pred_label[pred_label != target_label]
     FN = target_label[pred_label != target_label]
 
@@ -35,10 +35,48 @@ def pre_eval_all_semantic_metric(pred_label, target_label, num_classes):
     GT_per_class = torch.histc(
         target_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
 
-    ret_package = (TP_per_class, FP_per_class, FN_per_class, Pred_per_class,
-                   GT_per_class)
+    TN_per_class = Pred_per_class.sum() - (
+        TP_per_class + FP_per_class + FN_per_class)
+
+    ret_package = (TP_per_class, TN_per_class, FP_per_class, FN_per_class,
+                   Pred_per_class, GT_per_class)
 
     return ret_package
+
+
+# TODO: Add doc string & comments
+def accuracy(pred_label, target_label, num_classes, nan_to_num=None):
+    """multi-class accuracy calculation."""
+    if isinstance(pred_label, str):
+        pred_label = torch.from_numpy(np.load(pred_label))
+    else:
+        pred_label = torch.from_numpy((pred_label))
+
+    if isinstance(target_label, str):
+        target_label = torch.from_numpy(
+            mmcv.imread(target_label, flag='unchanged', backend='pillow'))
+    else:
+        target_label = torch.from_numpy(target_label)
+
+    TP = target_label[pred_label == target_label]
+    FP = pred_label[pred_label != target_label]
+    FN = target_label[pred_label != target_label]
+
+    TP_per_class = torch.histc(
+        TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    FP_per_class = torch.histc(
+        FP.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    FN_per_class = torch.histc(
+        FN.float(), bins=(num_classes), min=0, max=num_classes - 1)
+
+    TN_per_class = pred_label.numel() - (
+        TP_per_class + FP_per_class + FN_per_class)
+
+    accuracy = (TP_per_class + TN_per_class) / pred_label.numel()
+
+    accuracy = np.nan_to_num(accuracy.numpy(), nan_to_num)
+
+    return accuracy
 
 
 # TODO: Add doc string & comments
@@ -251,22 +289,25 @@ def pre_eval_to_metrics(pre_eval_results,
     # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
     # ([A_1, ..., A_n], ..., [D_1, ..., D_n])
     pre_eval_results = tuple(zip(*pre_eval_results))
-    assert len(pre_eval_results) == 5
+    assert len(pre_eval_results) == 6
 
     total_area_TP = sum(pre_eval_results[0])
-    total_area_FP = sum(pre_eval_results[1])
-    total_area_FN = sum(pre_eval_results[2])
-    total_area_pred_label = sum(pre_eval_results[3])
-    total_area_label = sum(pre_eval_results[4])
+    total_area_TN = sum(pre_eval_results[1])
+    total_area_FP = sum(pre_eval_results[2])
+    total_area_FN = sum(pre_eval_results[3])
+    total_area_pred_label = sum(pre_eval_results[4])
+    total_area_label = sum(pre_eval_results[5])
 
-    ret_metrics = total_area_to_metrics(total_area_TP, total_area_FP,
-                                        total_area_FN, total_area_pred_label,
+    ret_metrics = total_area_to_metrics(total_area_TP, total_area_TN,
+                                        total_area_FP, total_area_FN,
+                                        total_area_pred_label,
                                         total_area_label, metrics, nan_to_num)
 
     return ret_metrics
 
 
 def total_area_to_metrics(total_area_TP,
+                          total_area_TN,
                           total_area_FP,
                           total_area_FN,
                           total_area_pred_label,
@@ -292,15 +333,15 @@ def total_area_to_metrics(total_area_TP,
     """
     if isinstance(metrics, str):
         metrics = [metrics]
-    allowed_metrics = ['Acc', 'IoU', 'Dice', 'Recall', 'Precision']
+    allowed_metrics = ['Accuracy', 'IoU', 'Dice', 'Recall', 'Precision']
     if not set(metrics).issubset(set(allowed_metrics)):
         raise KeyError('metrics {} is not supported'.format(metrics))
 
     ret_metrics = {}
     for metric in metrics:
-        if metric == 'Acc':
-            acc = total_area_TP / total_area_label
-            ret_metrics['Acc'] = acc
+        if metric == 'Accuracy':
+            acc = (total_area_TP + total_area_TN) / total_area_label.sum()
+            ret_metrics['Accuracy'] = acc
         elif metric == 'IoU':
             iou = total_area_TP / (
                 total_area_pred_label + total_area_label - total_area_TP)
