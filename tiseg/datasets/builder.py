@@ -23,14 +23,7 @@ PIPELINES = Registry('pipeline')
 
 def build_dataset(cfg, default_args=None):
     """Build datasets."""
-    from .dataset_wrappers import ConcatDataset, RepeatDataset
-    if isinstance(cfg, (list, tuple)):
-        dataset = ConcatDataset([build_dataset(c, default_args) for c in cfg])
-    elif cfg['type'] == 'RepeatDataset':
-        dataset = RepeatDataset(
-            build_dataset(cfg['dataset'], default_args), cfg['times'])
-    else:
-        dataset = build_from_cfg(cfg, DATASETS, default_args)
+    dataset = build_from_cfg(cfg, DATASETS, default_args)
 
     return dataset
 

@@ -234,13 +234,6 @@ class CityscapesLabelMake(object):
             semantic_map_inside[semantic_map_inside == self.edge_label_id] = 0
             semantic_map_with_edge = raw_semantic_map
 
-        # import matplotlib.pyplot as plt
-        # plt.subplot(121)
-        # plt.imshow(semantic_map_inside)
-        # plt.subplot(122)
-        # plt.imshow(semantic_map_with_edge)
-        # plt.savefig('4.png')
-        # exit(0)
         results['gt_semantic_map_inside'] = semantic_map_inside
         results['gt_semantic_map_with_edge'] = semantic_map_with_edge
 
