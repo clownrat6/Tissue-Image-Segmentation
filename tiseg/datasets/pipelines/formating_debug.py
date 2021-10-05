@@ -281,9 +281,9 @@ class DefaultFormatBundle(object):
                                                       ...].astype(np.int64)),
                 stack=True)
 
-        PALETTE = [(0, 0, 0), (220, 20, 60), (255, 0, 0), (0, 0, 142),
-                   (0, 0, 70), (0, 60, 100), (0, 80, 100), (0, 0, 230),
-                   (119, 11, 32), (255, 255, 2)]
+        # PALETTE = [(0, 0, 0), (220, 20, 60), (255, 0, 0), (0, 0, 142),
+        #            (0, 0, 70), (0, 60, 100), (0, 80, 100), (0, 0, 230),
+        #            (119, 11, 32), (255, 255, 2)]
 
         import cv2
         import matplotlib.pyplot as plt
@@ -298,17 +298,18 @@ class DefaultFormatBundle(object):
         plt.imshow(img_raw)
         plt.axis('off')
         plt.subplot(232)
-        canvas = np.zeros((*semantic_map_with_edge.shape, 3), dtype=np.uint8)
-        for id, color in enumerate(PALETTE):
-            print(id, color)
-            canvas[semantic_map_with_edge == id, :] = color
-        plt.imshow(canvas)
+        # canvas = np.zeros((*semantic_map_with_edge.shape, 3), dtype=np.uint8)
+        # for id, color in enumerate(PALETTE):
+        #     print(id, color)
+        #     canvas[semantic_map_with_edge == id, :] = color
+        plt.imshow(semantic_map_with_edge)
+        print(np.unique(semantic_map_with_edge))
         plt.axis('off')
         plt.subplot(233)
-        blend = np.zeros_like(img_raw, dtype=np.uint8)
-        for i in range(3):
-            blend[:, :, i] = canvas[:, :, i] * 0.5 + img_raw[:, :, i] * 0.5
-        plt.imshow(blend)
+        # blend = np.zeros_like(img_raw, dtype=np.uint8)
+        # for i in range(3):
+        #     blend[:, :, i] = canvas[:, :, i] * 0.5 + img_raw[:, :, i] * 0.5
+        # plt.imshow(blend)
         plt.axis('off')
         plt.subplot(234)
         plt.imshow(point_map)
