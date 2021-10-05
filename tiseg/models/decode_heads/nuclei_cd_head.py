@@ -395,17 +395,17 @@ class NucleiCDHead(NucleiBaseDecodeHead):
             # default.
             mask_logit = resize(
                 input=mask_logit,
-                size=test_cfg['crop_size'],
+                size=test_cfg['plane_size'],
                 mode='bilinear',
                 align_corners=self.align_corners)
             direction_logit = resize(
                 input=direction_logit,
-                size=test_cfg['crop_size'],
+                size=test_cfg['plane_size'],
                 mode='bilinear',
                 align_corners=self.align_corners)
             point_logit = resize(
                 input=point_logit,
-                size=test_cfg['crop_size'],
+                size=test_cfg['plane_size'],
                 mode='bilinear',
                 align_corners=self.align_corners)
 
@@ -424,8 +424,8 @@ class NucleiCDHead(NucleiBaseDecodeHead):
 
             # using direction differential map to enhance edge
             mask_logit = F.softmax(mask_logit, dim=1)
-            mask_logit[:, 2, :, :] = (mask_logit[:, 2, :, :] +
-                                      direction_differential_map) * (
-                                          1 + 2 * direction_differential_map)
+            mask_logit[:, -1, :, :] = (mask_logit[:, -1, :, :] +
+                                       direction_differential_map) * (
+                                           1 + 2 * direction_differential_map)
 
         return mask_logit
