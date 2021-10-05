@@ -77,8 +77,7 @@ def draw_semantic(save_folder, data_id, image, pred, label,
                 f'{precision:<10}')
     plt.suptitle(temp_str, fontsize=15, color='black')
     plt.tight_layout()
-    plt.savefig(
-        f'{save_folder}/{data_id}_monuseg_semantic_compare.png', dpi=300)
+    plt.savefig(f'{save_folder}/{data_id}_semantic_compare.png', dpi=300)
 
 
 def draw_instance(save_folder, data_id, pred_instance, label_instance):
@@ -95,5 +94,4 @@ def draw_instance(save_folder, data_id, pred_instance, label_instance):
     plt.axis('off')
 
     plt.tight_layout()
-    plt.savefig(
-        f'{save_folder}/{data_id}_monuseg_instance_compare.png', dpi=300)
+    plt.savefig(f'{save_folder}/{data_id}_instance_compare.png', dpi=300)
