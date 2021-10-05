@@ -7,7 +7,7 @@ from mmcv.cnn import ConvModule, build_activation_layer
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..builder import HEADS
-from ..losses import MultiClassDiceLoss, mdice, miou
+from ..losses import GeneralizedDiceLoss, mdice, miou
 from ..utils import UNetDecoderLayer, generate_direction_differential_map
 from .nuclei_decode_head import NucleiBaseDecodeHead
 
@@ -313,7 +313,7 @@ class NucleiCDHead(NucleiBaseDecodeHead):
     def _mask_loss(self, mask_logit, mask_label):
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = MultiClassDiceLoss(
+        mask_dice_loss_calculator = GeneralizedDiceLoss(
             num_classes=self.num_classes)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
@@ -341,7 +341,7 @@ class NucleiCDHead(NucleiBaseDecodeHead):
     def _direction_loss(self, direction_logit, direction_label):
         direction_loss = {}
         direction_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        direction_dice_loss_calculator = MultiClassDiceLoss(
+        direction_dice_loss_calculator = GeneralizedDiceLoss(
             num_classes=self.num_angles + 1)
         direction_ce_loss = torch.mean(
             direction_ce_loss_calculator(direction_logit, direction_label))

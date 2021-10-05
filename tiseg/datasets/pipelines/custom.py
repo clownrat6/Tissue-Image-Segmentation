@@ -15,6 +15,7 @@ class CDNetLabelMake(object):
     def __init__(self,
                  input_level='semantic_with_edge',
                  re_edge=True,
+                 edge_id=2,
                  num_angle_types=8):
         # If input with edge, re_edge can be set to False.
         # However, in order to generate better boundary, we will re-generate
@@ -22,11 +23,12 @@ class CDNetLabelMake(object):
         if re_edge:
             assert input_level == 'semantic_with_edge'
         self.re_edge = re_edge
+        self.edge_id = edge_id
         self.input_level = input_level
         self.num_angle_types = num_angle_types
 
     def __call__(self, results):
-        assert self.input_level in ['instance', 'semantic_with_edge']
+        assert self.input_level in ['semantic_with_edge']
         if self.input_level == 'semantic_with_edge':
             raw_semantic_map = results['gt_semantic_map']
 
@@ -34,24 +36,31 @@ class CDNetLabelMake(object):
             # "semantic_with_edge" means the semantic map has three classes
             # (background, nuclei_inside, nuclei_edge)
             if self.re_edge:
-                semantic_map_inside = (raw_semantic_map == 1).astype(np.uint8)
-                bound = morphology.dilation(
-                    semantic_map_inside,
-                    selem=morphology.selem.disk(1)) & (~morphology.erosion(
-                        semantic_map_inside, selem=morphology.selem.disk(1)))
-                # fuse boundary & inside
                 semantic_map_with_edge = np.zeros_like(raw_semantic_map)
-                semantic_map_with_edge[semantic_map_inside > 0] = 1
-                semantic_map_with_edge[bound > 0] = 2
+                id_list = list(np.unique(raw_semantic_map))
+                for id in id_list:
+                    if id == self.edge_id or id == 0:
+                        continue
+                    id_mask = raw_semantic_map == id
+                    bound = morphology.dilation(
+                        id_mask,
+                        selem=morphology.selem.disk(1)) & (~morphology.erosion(
+                            id_mask, selem=morphology.selem.disk(1)))
+                    semantic_map_with_edge[id_mask > 0] = id
+                    semantic_map_with_edge[bound > 0] = self.edge_id
+                # fuse boundary & inside
+                semantic_map_inside = semantic_map_with_edge.copy()
+                semantic_map_inside[semantic_map_inside == self.edge_id] = 0
             else:
-                semantic_map_inside = (raw_semantic_map == 1).astype(np.uint8)
                 semantic_map_with_edge = raw_semantic_map
+                semantic_map_inside = semantic_map_with_edge.copy()
+                semantic_map_inside[semantic_map_inside == self.edge_id] = 0
 
             results['gt_semantic_map_inside'] = semantic_map_inside
             results['gt_semantic_map_with_edge'] = semantic_map_with_edge
 
             instance_map = measure.label(
-                semantic_map_inside == 1, connectivity=1)
+                semantic_map_inside > 0, connectivity=1)
 
             # XXX: If re_edge, we need to dilate two pixels during
             # model-agnostic postprocess.
@@ -65,29 +74,6 @@ class CDNetLabelMake(object):
                 instance_map = morphology.dilation(
                     instance_map, selem=morphology.selem.disk(1))
 
-            results['gt_instance_map'] = instance_map
-            results['gt_semantic_map'] = (instance_map > 0).astype(np.uint8)
-        elif self.input_level == 'instance':
-            # build semantic map from instance map
-            instance_map = results['gt_semantic_map']
-            semantic_map_with_edge = np.zeros_like(
-                instance_map, dtype=np.uint8)
-            instance_id_list = list(np.unique(instance_map))
-            # remove background id
-            instance_id_list.remove(0)
-            for instance_id in instance_id_list:
-                single_instance_map = (instance_map == instance_id).astype(
-                    np.uint8)
-
-                bound = morphology.dilation(single_instance_map) & (
-                    ~morphology.erosion(single_instance_map))
-
-                semantic_map_with_edge[single_instance_map > 0] = 1
-                semantic_map_with_edge[bound > 0] = 2
-
-            results['gt_semantic_map_inside'] = (
-                semantic_map_with_edge == 1).astype(np.uint8)
-            results['gt_semantic_map_with_edge'] = semantic_map_with_edge
             results['gt_instance_map'] = instance_map
             results['gt_semantic_map'] = (instance_map > 0).astype(np.uint8)
         else:
