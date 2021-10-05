@@ -143,12 +143,7 @@ class LoadAnnotations(object):
             gt_semantic_map = mmcv.imfrombytes(
                 img_bytes, flag='unchanged',
                 backend=self.imdecode_backend).squeeze().astype(np.uint8)
-        # modify if custom classes
-        # For referring expression segmentation, label map may be unnecessary
-        # That's because map always has two classes - background and object.
-        if results['ann_info'].get('label_map', None) is not None:
-            for old_id, new_id in results['ann_info']['label_map'].items():
-                gt_semantic_map[gt_semantic_map == old_id] = new_id
+
         if self.instance_suffix is not None:
             extra_filename = filename.replace(
                 results['ann_info']['ann_suffix'], self.instance_suffix)
