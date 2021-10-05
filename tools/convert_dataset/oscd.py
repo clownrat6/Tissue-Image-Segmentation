@@ -109,14 +109,8 @@ def pillow_save(image, path=None, palette=None):
     return image
 
 
-def convert_single_image(image_id, image_dict, instance_dict,
-                         image_to_instances_dict, src_image_folder,
-                         image_folder, ann_folder):
-    image_item = image_dict[image_id]
-    if image_id in image_to_instances_dict:
-        instance_ids = image_to_instances_dict[image_id]
-    else:
-        instance_ids = []
+def convert_single_image(task, src_image_folder, image_folder, ann_folder):
+    image_item, instance_items = task
 
     image_filename = image_item['file_name']
     image_name = osp.splitext(image_filename)[0]
@@ -140,8 +134,7 @@ def convert_single_image(image_id, image_dict, instance_dict,
 
     instance_canvas = np.zeros((height, width), dtype=np.int64)
     semantic_canvas = np.zeros((height, width), dtype=np.uint8)
-    for idx, instance_id in enumerate(instance_ids):
-        instance_item = instance_dict[instance_id]
+    for idx, instance_item in enumerate(instance_items):
         # extract polygons & bounding boxes
         object_json = {}
         object_json['label'] = CLASSES[instance_item['category_id']]
@@ -255,9 +248,6 @@ def main():
         # define single loop job
         loop_job = partial(
             convert_single_image,
-            image_dict=image_dict,
-            instance_dict=instance_dict,
-            image_to_instances_dict=image_to_instances_dict,
             src_image_folder=src_image_folder,
             image_folder=image_folder,
             ann_folder=ann_folder,
@@ -282,12 +272,25 @@ def main():
                 else:
                     image_names.append(image_name)
 
+        # make multi-threads loop tasks
+        images = [image_dict[image_id] for image_id in miss_ids]
+        image_related_instances = []
+        for image_id in miss_ids:
+            if image_id in image_to_instances_dict:
+                image_related_instances.append([
+                    instance_dict[instance_id]
+                    for instance_id in image_to_instances_dict[image_id]
+                ])
+            else:
+                image_related_instances.append([])
+
+        tasks = list(zip(images, image_related_instances))
+
         # only build miss images & labels
         if args.nproc > 1:
-            records = mmcv.track_parallel_progress(loop_job, miss_ids,
-                                                   args.nproc)
+            records = mmcv.track_parallel_progress(loop_job, tasks, args.nproc)
         else:
-            records = mmcv.track_progress(loop_job, miss_ids)
+            records = mmcv.track_progress(loop_job, tasks)
 
         image_names.extend(records)
 
