@@ -36,12 +36,9 @@ test_pipeline = [
         img_ratios=[1.0],
         flip=False,
         flip_direction=['horizontal', 'vertical', 'diagonal'],
-        rotate=False,
-        rotate_degree=[90],
         transforms=[
             dict(type='Resize', keep_ratio=True),
             dict(type='RandomFlip'),
-            dict(type='RandomSparseRotate'),
             dict(type='Normalize', max_min=False),
             dict(type='ImageToTensor', keys=['img']),
             dict(type='Collect', data_keys=['img'], label_keys=[]),

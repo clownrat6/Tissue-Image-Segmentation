@@ -219,8 +219,8 @@ class CartonOSCDDataset(Dataset):
             warnings.warn(
                 'show_semantic or show_instance is set to True, but the '
                 'show_folder is None. We will use default show_folder: '
-                './nuclei_show')
-            show_folder = './nuclei_show'
+                '.oscd_show')
+            show_folder = '.oscd_show'
             if not osp.exists(show_folder):
                 os.makedirs(show_folder, 0o775)
 

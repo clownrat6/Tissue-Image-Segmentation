@@ -97,7 +97,7 @@ class MultiScaleFlipAug(object):
         flag = any([t['type'] == 'RandomSparseRotate' for t in transforms])
         if (self.rotate and not flag):
             warnings.warn(
-                'flip has no effect when RandomSparseRotate is not in '
+                'rotate has no effect when RandomSparseRotate is not in '
                 'transforms')
 
     def __call__(self, results):

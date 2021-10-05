@@ -77,6 +77,7 @@ def main():
             'horizontal', 'vertical', 'diagonal'
         ]
         cfg.data.test.pipeline[1].rotate = True
+        cfg.data.test.pipeline[1].rotate_degree = [90]
     cfg.model.pretrained = None
 
     # init distributed env first, since logger depends on the dist info.
