@@ -16,4 +16,4 @@ class NucleiMoNuSegDataset(NucleiCustomDataset):
 
     def __init__(self, **kwargs):
         super().__init__(
-            img_suffix='.tif', ann_suffix='semantic_with_edge.png', **kwargs)
+            img_suffix='.tif', ann_suffix='_semantic_with_edge.png', **kwargs)

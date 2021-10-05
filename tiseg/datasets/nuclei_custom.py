@@ -277,11 +277,17 @@ class NucleiCustomDataset(Dataset):
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
             precision_metric, recall_metric = precision_recall(
-                pred_inside, seg_map_inside, 2)[1]
+                pred_inside, seg_map_inside, 2)
+            precision_metric = precision_metric[1]
+            recall_metric = recall_metric[1]
             dice_metric = dice_similarity_coefficient(pred_inside,
                                                       seg_map_inside, 2)[1]
+
             edge_precision_metric, edge_recall_metric = \
-                precision_recall(pred_edge, seg_map_edge, 2)[1]
+                precision_recall(pred_edge, seg_map_edge, 2)
+            edge_precision_metric = edge_precision_metric[1]
+            edge_recall_metric = edge_recall_metric[1]
+
             edge_dice_metric = dice_similarity_coefficient(
                 pred_edge, seg_map_edge, 2)[1]
             pre_eval_semantic_inside = pre_eval_all_semantic_metric(
