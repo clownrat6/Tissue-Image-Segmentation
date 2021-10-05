@@ -202,19 +202,19 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     pred_id_list = list(np.unique(pred_label))
 
     # Remove background class
-    pred_masks = [
-        None,
-    ]
+    pred_masks = {
+        0: None,
+    }
     for p in pred_id_list[1:]:
         p_mask = (pred_label == p).astype(np.uint8)
-        pred_masks.append(p_mask)
+        pred_masks[p] = p_mask
 
-    target_masks = [
-        None,
-    ]
+    target_masks = {
+        0: None,
+    }
     for t in target_id_list[1:]:
         t_mask = (target_label == t).astype(np.uint8)
-        target_masks.append(t_mask)
+        target_masks[t] = t_mask
 
     # prefill with value
     pairwise_intersection = np.zeros(
