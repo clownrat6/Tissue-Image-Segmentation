@@ -8,6 +8,40 @@ from ..builder import PIPELINES
 
 
 @PIPELINES.register_module()
+class SimpleResize(object):
+    """A more class for image & segmentation map resize."""
+
+    def __init__(self, img_scale):
+        self.img_scale = img_scale
+
+    def __call__(self, results):
+        results['img_info']['img_scale'] = self.img_scale
+        results = self._resize_img(results)
+        results = self._resize_seg(results)
+
+        return results
+
+    def _resize_img(self, results):
+        img = mmcv.imresize(results['img'], results['img_info']['scale'])
+
+        results['img'] = img
+        results['img_info']['img_shape'] = img.shape
+        results['img_info'][
+            'pad_shape'] = img.shape  # in case that there is no padding
+
+        return results
+
+    def _resize_seg(self, results):
+        for key in results.get('seg_fields', []):
+            results[key] = mmcv.imresize(
+                results[key],
+                results['img_info']['scale'],
+                interpolation='nearest')
+
+        return results
+
+
+@PIPELINES.register_module()
 class Resize(object):
     """Resize images & seg.
 
