@@ -157,7 +157,7 @@ def convert_single_image(image_id, image_dict, instance_dict,
             polygon_to_mask(instance_item['segmentation'], height, width))
 
         instance_canvas[instance_mask > 0] = idx + 1
-        semantic_canvas[instance_mask > 0] += 1
+        semantic_canvas[instance_mask > 0] = 1
         bound = morphology.dilation(
             instance_mask, morphology.selem.disk(1)) & (
                 ~morphology.erosion(instance_mask, morphology.selem.disk(1)))
