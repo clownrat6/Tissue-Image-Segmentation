@@ -92,6 +92,12 @@ def generate_direction_differential_map(direction_map, direction_classes=9):
     cos_sim_map = (1 - torch.round(cos_sim_map))
     cos_sim_map_max = torch.max(cos_sim_map)
     cos_sim_map_min = torch.min(cos_sim_map)
+
+    # when direction_map is zero map, the direction differential map is also
+    # zero map.
+    if cos_sim_map_max == 0:
+        return cos_sim_map
+
     cos_sim_map_normal = (cos_sim_map - cos_sim_map_min) / (
         cos_sim_map_max - cos_sim_map_min)
 
