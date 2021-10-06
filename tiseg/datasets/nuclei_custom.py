@@ -14,8 +14,6 @@ from torch.utils.data import Dataset
 
 from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
                                             dice_similarity_coefficient,
-                                            pre_eval_all_semantic_metric,
-                                            pre_eval_to_metrics,
                                             precision_recall)
 from .builder import DATASETS
 from .pipelines import Compose
@@ -32,7 +30,8 @@ class NucleiCustomDataset(Dataset):
 
     related suffix:
         "_semantic_with_edge.png": three class semantic map with edge.
-        "_semantic_map.png": two class semantic map without edge.
+        "_semantic_map.png": raw semantic map (two class semantic map without
+            edge).
         "_instance.npy": instance level map.
     """
 
@@ -287,13 +286,8 @@ class NucleiCustomDataset(Dataset):
                 precision_recall(pred_edge, seg_map_edge, 2)
             edge_precision_metric = edge_precision_metric[1]
             edge_recall_metric = edge_recall_metric[1]
-
             edge_dice_metric = dice_similarity_coefficient(
                 pred_edge, seg_map_edge, 2)[1]
-            pre_eval_semantic_inside = pre_eval_all_semantic_metric(
-                pred_inside, seg_map_inside, 2)
-            pre_eval_semantic_edge = pre_eval_all_semantic_metric(
-                pred_edge, seg_map_edge, 2)
 
             # instance metric calculation
             aji_metric = aggregated_jaccard_index(
@@ -307,9 +301,7 @@ class NucleiCustomDataset(Dataset):
                 Precision=precision_metric,
                 edge_Dice=edge_dice_metric,
                 edge_Recall=edge_recall_metric,
-                edge_Precision=edge_precision_metric,
-                pre_eval_semantic_inside=pre_eval_semantic_inside,
-                pre_eval_semantic_edge=pre_eval_semantic_edge)
+                edge_Precision=edge_precision_metric)
             pre_eval_results.append(single_loop_results)
 
             # illustrating semantic level results
@@ -382,15 +374,6 @@ class NucleiCustomDataset(Dataset):
                 else:
                     ret_metrics[key].append(value)
 
-        # TODO: Try to find a method to solve these codes.
-        # pop semantic results to calculate semantic metric by confused matrix
-        pre_eval_semantic_inside_results = ret_metrics.pop(
-            'pre_eval_semantic_inside')
-        pre_eval_semantic_edge_results = ret_metrics.pop(
-            'pre_eval_semantic_edge')
-        _ = pre_eval_to_metrics(pre_eval_semantic_inside_results, metric)
-        _ = pre_eval_to_metrics(pre_eval_semantic_edge_results, metric)
-
         # calculate average metric
         assert 'name' in ret_metrics
         name_list = ret_metrics.pop('name')
@@ -408,23 +391,6 @@ class NucleiCustomDataset(Dataset):
 
             ret_metrics[key].append(average_value)
             ret_metrics[key] = np.array(ret_metrics[key])
-
-        # TODO: Refactor for more general metric
-        # if dump_path is not None:
-        #     fp = open(f'{dump_path}', 'w')
-        #     head_info = f'{"item_name":<30} | '
-        #     key_list = ret_metrics.keys()
-        #     # make metric record head info
-        #     for key in key_list:
-        #         head_info += f'{key:<30} | '
-        #     fp.write(head_info + '\n')
-        #     for idx, name in enumerate(name_list):
-        #         # make single line info
-        #         single_line_info = f'{name:<30} | '
-        #         for key in key_list:
-        #             format_value = f'{ret_metrics[key][idx] * 100:.2f}'
-        #             single_line_info += f'{format_value:<30} | '
-        #         fp.write(single_line_info + '\n')
 
         # for logger
         ret_metrics_items = OrderedDict({
