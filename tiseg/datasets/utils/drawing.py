@@ -17,8 +17,13 @@ def colorize_instance_map(instance_map):
     return colorful_instance_map
 
 
-def draw_semantic(save_folder, data_id, image, pred, label,
-                  single_loop_results):
+def draw_semantic(save_folder,
+                  data_id,
+                  image,
+                  pred,
+                  label,
+                  single_loop_results,
+                  edge_id=2):
     """draw semantic level picture with FP & FN."""
 
     plt.figure(figsize=(5 * 2, 5 * 2 + 3))
@@ -45,9 +50,10 @@ def draw_semantic(save_folder, data_id, image, pred, label,
     plt.title('Image', fontsize=15, color='black')
 
     canvas = np.zeros((*pred.shape, 3), dtype=np.uint8)
-    canvas[label == 1, :] = (255, 255, 2)
-    canvas[(pred == 0) * (label == 1), :] = (2, 255, 255)
-    canvas[(pred == 1) * (label == 0), :] = (255, 2, 255)
+    canvas[label > 0, :] = (255, 255, 2)
+    canvas[canvas == edge_id] = 0
+    canvas[(pred == 0) * (label > 0), :] = (2, 255, 255)
+    canvas[(pred > 0) * (label == 0), :] = (255, 2, 255)
     plt.subplot(224)
     plt.imshow(canvas)
     plt.axis('off')
@@ -69,9 +75,9 @@ def draw_semantic(save_folder, data_id, image, pred, label,
 
     # results visulization
     aji = f'{single_loop_results["Aji"] * 100:.2f}'
-    dice = f'{single_loop_results["Dice"] * 100:.2f}'
-    recall = f'{single_loop_results["Recall"] * 100:.2f}'
-    precision = f'{single_loop_results["Precision"] * 100:.2f}'
+    dice = f'{np.mean(single_loop_results["Dice"]) * 100:.2f}'
+    recall = f'{np.mean(single_loop_results["Recall"]) * 100:.2f}'
+    precision = f'{np.mean(single_loop_results["Precision"]) * 100:.2f}'
     temp_str = (f'Aji: {aji:<10}\nDice: '
                 f'{dice:<10}\nRecall: {recall:<10}\nPrecision: '
                 f'{precision:<10}')
