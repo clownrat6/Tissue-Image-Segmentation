@@ -7,7 +7,7 @@ from mmcv.cnn import ConvModule, build_activation_layer
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..builder import HEADS
-from ..losses import GeneralizedDiceLoss, mdice, miou
+from ..losses import GeneralizedDiceLoss, dice, iou, mdice, miou
 from ..utils import UNetDecoderLayer, generate_direction_differential_map
 from .nuclei_decode_head import NucleiBaseDecodeHead
 
@@ -363,17 +363,29 @@ class NucleiCDHead(NucleiBaseDecodeHead):
         clean_mask_label = mask_label.clone().detach()
         clean_direction_logit = direction_logit.clone().detach()
         clean_direction_label = direction_label.clone().detach()
-        wrap_dict['mask_dice'] = mdice(clean_mask_logit, clean_mask_label, 3)
-        wrap_dict['mask_iou'] = miou(clean_mask_logit, clean_mask_label, 3)
+
+        mask_dice = dice(clean_mask_logit, clean_mask_label, self.num_classes)
+        mask_iou = iou(clean_mask_logit, clean_mask_label, self.num_classes)
+
+        wrap_dict['mask_dice'] = torch.mean(mask_dice)
+        wrap_dict['mask_iou'] = torch.mean(mask_iou)
+
+        wrap_dict['max_mask_dice'] = torch.max(mask_dice)
+        wrap_dict['max_mask_iou'] = torch.max(mask_iou)
+
         wrap_dict['direction_dice'] = mdice(clean_direction_logit,
-                                            clean_direction_label, 9)
+                                            clean_direction_label,
+                                            self.num_angles + 1)
         wrap_dict['direction_iou'] = miou(clean_direction_logit,
-                                          clean_direction_label, 9)
+                                          clean_direction_label,
+                                          self.num_angles + 1)
 
         # metric calculate
-        mask_pred = (torch.argmax(mask_logit,
-                                  dim=1) == 1).cpu().numpy().astype(np.uint8)
-        mask_target = (mask_label == 1).cpu().numpy().astype(np.uint8)
+        mask_pred = torch.argmax(
+            mask_logit, dim=1).cpu().numpy().astype(np.uint8)
+        mask_pred[mask_pred == (self.num_classes - 1)] = 0
+        mask_target = mask_label.cpu().numpy().astype(np.uint8)
+        mask_target[mask_target == (self.num_classes - 1)] = 0
 
         N = mask_pred.shape[0]
         wrap_dict['aji'] = 0.
