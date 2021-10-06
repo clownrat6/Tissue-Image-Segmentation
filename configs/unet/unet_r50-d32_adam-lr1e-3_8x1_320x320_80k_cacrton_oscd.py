@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/datasets/instance_coco.py',
+    '../_base_/datasets/carton_oscd.py',
     './_base_/unet_runtime.py',
     './_base_/unet_r50-d32.py',
     './_base_/unet_schedule_80k.py',
@@ -18,7 +18,7 @@ lr_config = dict(
     by_epoch=False)
 
 model = dict(
-    decode_head=dict(num_classes=82),
+    decode_head=dict(num_classes=3),
     train_cfg=dict(),
     test_cfg=dict(mode='whole'),
 )
