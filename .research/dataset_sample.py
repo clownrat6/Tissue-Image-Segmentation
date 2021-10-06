@@ -5,15 +5,16 @@ import random
 
 def parse_args():
     parser = argparse.ArgumentParser('sample dataset')
-    parser.add_argument('split', 'The split text path of dataset.')
-    parser.add_argument('rate', 'The rate of dataset sampling')
+    parser.add_argument('split', help='The split text path of dataset.')
+    parser.add_argument(
+        'rate', type=float, help='The rate of dataset sampling')
 
     args = parser.parse_args()
     return args
 
 
 def main():
-    args = parse_args
+    args = parse_args()
     split = args.split
     rate = args.rate
     preffix, suffix = osp.splitext(split)
@@ -27,3 +28,7 @@ def main():
         for record in selected_records:
             record = record.strip()
             fp.write(record + '\n')
+
+
+if __name__ == '__main__':
+    main()
