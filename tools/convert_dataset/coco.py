@@ -183,6 +183,8 @@ LABEL_MAP = {
     255: 81,
 }
 
+EDGE_ID = 255
+
 
 def polygon_to_mask(polygon, height, width, path=None):
     # XXX: When len(polygon[0]) == 4, the polygon annotation is recognized as
@@ -259,11 +261,11 @@ def convert_single_image(task, ann_folder):
 
         instance_canvas[instance_mask > 0] = new_id * 1000 + idx + 1
         semantic_canvas[instance_mask > 0] = new_id
-        semantic_edge_canvas = semantic_canvas.copy()
+        semantic_edge_canvas[instance_mask > 0] = new_id
         bound = morphology.dilation(
             instance_mask, morphology.selem.disk(1)) & (
                 ~morphology.erosion(instance_mask, morphology.selem.disk(1)))
-        semantic_edge_canvas[bound > 0] = LABEL_MAP[255]
+        semantic_edge_canvas[bound > 0] = LABEL_MAP[EDGE_ID]
 
     # save instance label & semantic label & polygon
     instance_ann_filename = img_name + '_instance.npy'

@@ -269,7 +269,7 @@ class InstanceCOCODataset(Dataset):
                     seg_map, flag='unchanged', backend='pillow')
                 seg_map_edge = (seg_map_semantic_edge == self.CLASSES.index(
                     'edge')).astype(np.uint8)
-                # ground truth of seg_map
+                # ground truth of semantic level
                 seg_map_semantic = seg_map.replace('_semantic_with_edge.png',
                                                    '_semantic.png')
                 seg_map_semantic = mmcv.imread(
@@ -332,8 +332,14 @@ class InstanceCOCODataset(Dataset):
             if show_semantic:
                 data_info = self.data_infos[index]
                 image_path = osp.join(self.img_dir, data_info['img_name'])
-                draw_semantic(show_folder, data_id, image_path, pred_semantic,
-                              seg_map_semantic, single_loop_results)
+                draw_semantic(
+                    show_folder,
+                    data_id,
+                    image_path,
+                    pred_semantic,
+                    seg_map_semantic,
+                    single_loop_results,
+                    edge_id=self.CLASSES.index('edge'))
 
             # illustrating instance level results
             if show_instance:
@@ -345,7 +351,7 @@ class InstanceCOCODataset(Dataset):
     def model_agnostic_postprocess(self, pred):
         """model free post-process for both instance-level & semantic-level."""
         id_list = list(np.unique(pred))
-        id_list.remove(0)
+        id_list.remove(0) if 0 in id_list else None
         pred_canvas = np.zeros_like(pred).astype(np.uint8)
         for id in id_list:
             id_mask = pred == id
@@ -360,7 +366,6 @@ class InstanceCOCODataset(Dataset):
             pred_semantic, selem=morphology.disk(2))
 
         # instance process & dilation
-        pred = pred.copy()
         pred_instance = measure.label(pred_canvas > 0)
         # if re_edge=True, dilation pixel length should be 2
         pred_instance = morphology.dilation(
