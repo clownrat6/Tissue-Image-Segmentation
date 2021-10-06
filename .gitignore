@@ -51,3 +51,6 @@ collect*/
 # compressed files
 *.zip
 *.rar
+
+# visualization files
+.*_show
