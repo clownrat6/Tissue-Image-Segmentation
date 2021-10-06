@@ -20,12 +20,7 @@ lr_config = dict(
 model = dict(
     decode_head=dict(num_classes=3),
     train_cfg=dict(),
-    test_cfg=dict(
-        mode='slide',
-        plane_size=(256, 256),
-        crop_size=(256, 256),
-        stride=(216, 216),
-        use_ddm=True),
+    test_cfg=dict(mode='whole', plane_size=(256, 256), use_ddm=True),
 )
 
-data = dict(samples_per_gpu=4, workers_per_gpu=4)
+data = dict(samples_per_gpu=8, workers_per_gpu=8)

@@ -14,8 +14,6 @@ from torch.utils.data import Dataset
 
 from tiseg.utils.evaluation.metrics import (accuracy, aggregated_jaccard_index,
                                             dice_similarity_coefficient,
-                                            pre_eval_all_semantic_metric,
-                                            pre_eval_to_metrics,
                                             precision_recall)
 from .builder import DATASETS
 from .pipelines import Compose
@@ -229,58 +227,50 @@ class CartonOSCDDataset(Dataset):
         for pred, index in zip(preds, indices):
             seg_map = osp.join(self.ann_dir,
                                self.data_infos[index]['ann_name'])
+            # (after pre_eval input process) requires 4 type seg_map:
+            # 1. seg_map_semantic_edge (semantic map ground truth with edge)
+            # 2. seg_map_segamtic (raw semantic map ground truth)
+            # 3. seg_map_edge (semantic level edge ground truth)
+            # 4. seg_map_instance (instance level ground truth)
             if self.input_level == 'semantic_with_edge':
-                # semantic level label make
-                seg_map_semantic = mmcv.imread(
+                # semantic edge level label make
+                seg_map_semantic_edge = mmcv.imread(
                     seg_map, flag='unchanged', backend='pillow')
-                seg_map_inside = (seg_map_semantic == 1).astype(np.uint8)
-                seg_map_edge = (seg_map_semantic == 2).astype(np.uint8)
+                seg_map_edge = (seg_map_semantic_edge == self.CLASSES.index(
+                    'edge')).astype(np.uint8)
+                # ground truth of semantic level
+                seg_map_semantic = seg_map.replace('_semantic_with_edge.png',
+                                                   '_semantic.png')
+                seg_map_semantic = mmcv.imread(
+                    seg_map_semantic, flag='unchanged', backend='pillow')
                 # instance level label make
                 seg_map_instance = seg_map.replace('_semantic_with_edge.png',
                                                    '_instance.npy')
                 seg_map_instance = np.load(seg_map_instance)
                 seg_map_instance = re_instance(seg_map_instance)
-            elif self.input_level == 'instance':
-                # instance level label make
-                seg_map_instance = np.load(seg_map)
-                seg_map_instance = re_instance(seg_map_instance)
-                # semantic level label make
-                seg_map_semantic = seg_map.replace('_instance.npy',
-                                                   '_semantic_with_edge.png')
-                seg_map_semantic = mmcv.imread(
-                    seg_map_semantic, flag='unchanged', backend='pillow')
-                seg_map_edge = (seg_map_semantic == 2).astype(np.uint8)
-                seg_map_inside = (seg_map_semantic == 1).astype(np.uint8)
-
-            data_id = self.data_infos[index]['ann_name'].replace(
-                self.ann_suffix, '')
 
             # metric calculation post process codes:
-            # extract inside
-            pred_semantic = pred
-            pred_edge = (pred == 2).astype(np.uint8)
-            pred_inside = (pred == 1).astype(np.uint8)
+            pred_semantic_edge = pred
+            # edge id is 2
+            pred_edge = (
+                pred_semantic_edge == self.CLASSES.index('edge')).astype(
+                    np.uint8)
+            pred_semantic = pred.copy()
+            pred_semantic[pred_edge > 0] = 0
 
             # model-agnostic post process operations
-            pred_inside, pred_instance = self.model_agnostic_postprocess(
-                pred_inside)
-
-            # TODO: (Important issue about post process)
-            # This may be the dice metric calculation trick (Need be
-            # considering carefully)
-            # convert instance map (after postprocess) to semantic level
-            pred_inside = (pred_instance > 0).astype(np.uint8)
-            seg_map_inside = (seg_map_instance > 0).astype(np.uint8)
+            pred_semantic, pred_instance = self.model_agnostic_postprocess(
+                pred_semantic)
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
             precision_metric, recall_metric = precision_recall(
-                pred_inside, seg_map_inside, 2)
+                pred_semantic, seg_map_semantic, 2)
             precision_metric = precision_metric[1]
             recall_metric = recall_metric[1]
-            dice_metric = dice_similarity_coefficient(pred_inside,
-                                                      seg_map_inside, 2)[1]
-            acc_metric = accuracy(pred_inside, seg_map_inside, 2)[1]
+            dice_metric = dice_similarity_coefficient(pred_semantic,
+                                                      seg_map_semantic, 2)[1]
+            acc_metric = accuracy(pred_semantic, seg_map_semantic, 2)[1]
 
             edge_precision_metric, edge_recall_metric = \
                 precision_recall(pred_edge, seg_map_edge, 2)
@@ -288,11 +278,6 @@ class CartonOSCDDataset(Dataset):
             edge_recall_metric = edge_recall_metric[1]
             edge_dice_metric = dice_similarity_coefficient(
                 pred_edge, seg_map_edge, 2)[1]
-
-            pre_eval_semantic_inside = pre_eval_all_semantic_metric(
-                pred_inside, seg_map_inside, 2)
-            pre_eval_semantic_edge = pre_eval_all_semantic_metric(
-                pred_edge, seg_map_edge, 2)
 
             # instance metric calculation
             aji_metric = aggregated_jaccard_index(
@@ -306,11 +291,11 @@ class CartonOSCDDataset(Dataset):
                 Precision=precision_metric,
                 edge_Dice=edge_dice_metric,
                 edge_Recall=edge_recall_metric,
-                edge_Precision=edge_precision_metric,
-                pre_eval_semantic_inside=pre_eval_semantic_inside,
-                pre_eval_semantic_edge=pre_eval_semantic_edge)
+                edge_Precision=edge_precision_metric)
             pre_eval_results.append(single_loop_results)
 
+            data_id = self.data_infos[index]['ann_name'].replace(
+                self.ann_suffix, '')
             # illustrating semantic level results
             if show_semantic:
                 data_info = self.data_infos[index]
@@ -327,16 +312,23 @@ class CartonOSCDDataset(Dataset):
 
     def model_agnostic_postprocess(self, pred):
         """model free post-process for both instance-level & semantic-level."""
-        # fill instance holes
-        pred = binary_fill_holes(pred)
-        # remove small instance
-        pred = remove_small_objects(pred, 20)
-        pred = pred.astype(np.uint8)
-        pred_semantic = pred.copy()
+        id_list = list(np.unique(pred))
+        id_list.remove(0) if 0 in id_list else None
+        pred_canvas = np.zeros_like(pred).astype(np.uint8)
+        for id in id_list:
+            id_mask = pred == id
+            # fill instance holes
+            id_mask = binary_fill_holes(id_mask)
+            # remove small instance
+            id_mask = remove_small_objects(id_mask, 20)
+            id_mask = id_mask.astype(np.uint8)
+            pred_canvas[id_mask > 0] = id
+        pred_semantic = pred_canvas.copy()
+        pred_semantic = morphology.dilation(
+            pred_semantic, selem=morphology.disk(2))
 
         # instance process & dilation
-        pred = pred.copy()
-        pred_instance = measure.label(pred)
+        pred_instance = measure.label(pred_canvas)
         # if re_edge=True, dilation pixel length should be 2
         pred_instance = morphology.dilation(
             pred_instance, selem=morphology.disk(2))
@@ -381,40 +373,24 @@ class CartonOSCDDataset(Dataset):
                 else:
                     ret_metrics[key].append(value)
 
-        # TODO: Try to find a method to solve these codes.
-        # pop semantic results to calculate semantic metric by confused matrix
-        pre_eval_semantic_inside_results = ret_metrics.pop(
-            'pre_eval_semantic_inside')
-        pre_eval_semantic_edge_results = ret_metrics.pop(
-            'pre_eval_semantic_edge')
-        _ = pre_eval_to_metrics(pre_eval_semantic_inside_results, metric)
-        _ = pre_eval_to_metrics(pre_eval_semantic_edge_results, metric)
-
         # calculate average metric
         for key in ret_metrics.keys():
             # XXX: Using average value may have lower metric value than using
             # confused matrix.
-            # average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-            if 'edge' in key:
-                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-            elif key in metric:
-                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-            elif key == 'Aji':
-                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+            average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
 
-            ret_metrics[key] = [average_value]
-            ret_metrics[key] = np.array(ret_metrics[key])
+            ret_metrics[key] = average_value
 
         # for logger
         ret_metrics_items = OrderedDict({
             ret_metric: np.round(ret_metric_value * 100, 2)
             for ret_metric, ret_metric_value in ret_metrics.items()
         })
-        ret_metrics_items.update({'name': ['Average']})
+        ret_metrics_items.update({'name': 'Average'})
         ret_metrics_items.move_to_end('name', last=False)
         items_table_data = PrettyTable()
         for key, val in ret_metrics_items.items():
-            items_table_data.add_column(key, val)
+            items_table_data.add_column(key, [val])
 
         print_log('Total:', logger)
         print_log('\n' + items_table_data.get_string(), logger=logger)
@@ -426,22 +402,8 @@ class CartonOSCDDataset(Dataset):
 
         eval_results = {}
         # average results
-        if 'Aji' in ret_metrics:
-            eval_results['Aji'] = ret_metrics['Aji'][-1]
-        if 'Dice' in ret_metrics:
-            eval_results['Dice'] = ret_metrics['Dice'][-1]
-        if 'Recall' in ret_metrics:
-            eval_results['Recall'] = ret_metrics['Recall'][-1]
-        if 'Precision' in ret_metrics:
-            eval_results['Precision'] = ret_metrics['Precision'][-1]
-        if 'Accuracy' in ret_metrics:
-            eval_results['Accuracy'] = ret_metrics['Accuracy'][-1]
-        if 'edge_Dice' in ret_metrics:
-            eval_results['edge_Dice'] = ret_metrics['edge_Dice'][-1]
-        if 'edge_Recall' in ret_metrics:
-            eval_results['edge_Recall'] = ret_metrics['edge_Recall'][-1]
-        if 'edge_Precision' in ret_metrics:
-            eval_results['edge_Precision'] = ret_metrics['edge_Precision'][-1]
+        for key, val in ret_metrics.items():
+            eval_results.update({key: val})
 
         # This ret value is used for eval hook. Eval hook will add these
         # evaluation info to runner.log_buffer.output. Then when the

@@ -71,7 +71,9 @@ cyan_color_list = [
     (50, 18, 122),
 ]
 
-CLASSES = {0: 'Background', 1: 'Carton'}
+CLASSES = {0: 'background', 1: 'carton', 2: 'edge'}
+
+EDGE_ID = 2
 
 
 def polygon_to_mask(polygon, height, width, path=None):
@@ -83,17 +85,16 @@ def polygon_to_mask(polygon, height, width, path=None):
     # several parts.
     ann_mask = np.max(ann_mask, axis=2)
 
-    ann_mask_img = Image.fromarray(ann_mask.astype(np.uint8)).convert('P')
-
-    # set palette
-    color = cyan_color_list[random.randint(1, len(cyan_color_list) - 1)]
-    palette = np.array([(0, 0, 0), color], dtype=np.uint8)
-    ann_mask_img.putpalette(palette)
-
     if path is not None:
+        ann_mask_img = Image.fromarray(ann_mask.astype(np.uint8)).convert('P')
+
+        # set palette
+        color = cyan_color_list[random.randint(1, len(cyan_color_list) - 1)]
+        palette = np.array([(0, 0, 0), color], dtype=np.uint8)
+        ann_mask_img.putpalette(palette)
         ann_mask_img.save(path)
 
-    return ann_mask_img
+    return ann_mask
 
 
 def pillow_save(image, path=None, palette=None):
@@ -134,7 +135,9 @@ def convert_single_image(task, src_image_folder, image_folder, ann_folder):
 
     instance_canvas = np.zeros((height, width), dtype=np.int64)
     semantic_canvas = np.zeros((height, width), dtype=np.uint8)
+    semantic_edge_canvas = np.zeros((height, width), dtype=np.uint8)
     for idx, instance_item in enumerate(instance_items):
+        cat_id = instance_item['category_id']
         # extract polygons & bounding boxes
         object_json = {}
         object_json['label'] = CLASSES[instance_item['category_id']]
@@ -149,25 +152,33 @@ def convert_single_image(task, src_image_folder, image_folder, ann_folder):
         instance_mask = np.array(
             polygon_to_mask(instance_item['segmentation'], height, width))
 
-        instance_canvas[instance_mask > 0] = idx + 1
-        semantic_canvas[instance_mask > 0] = 1
+        instance_canvas[instance_mask > 0] = cat_id * 1000 + idx + 1
+        semantic_canvas[instance_mask > 0] = cat_id
+        semantic_edge_canvas[instance_mask > 0] = cat_id
         bound = morphology.dilation(
             instance_mask, morphology.selem.disk(1)) & (
                 ~morphology.erosion(instance_mask, morphology.selem.disk(1)))
-        semantic_canvas[bound > 0] = 2
+        semantic_edge_canvas[bound > 0] = EDGE_ID
 
     # save instance label & semantic label & polygon
     instance_ann_filename = image_name + '_instance.npy'
-    semantic_ann_filename = image_name + '_semantic_with_edge.png'
+    semantic_ann_filename = image_name + '_semantic.png'
+    semantic_edge_ann_filename = image_name + '_semantic_with_edge.png'
+    polygon_ann_filename = image_name + '_polygon.json'
     semantic_palette = np.array([(0, 0, 0), (255, 2, 255), (2, 255, 255)],
                                 dtype=np.uint8)
-    polygon_ann_filename = image_name + '_polygon.json'
 
+    # instance label storage
     np.save(osp.join(ann_folder, instance_ann_filename), instance_canvas)
 
+    # semantic label storage
     pillow_save(
         semantic_canvas,
         path=osp.join(ann_folder, semantic_ann_filename),
+        palette=semantic_palette)
+    pillow_save(
+        semantic_edge_canvas,
+        path=osp.join(ann_folder, semantic_edge_ann_filename),
         palette=semantic_palette)
 
     with open(osp.join(ann_folder, polygon_ann_filename), 'w') as fp:
