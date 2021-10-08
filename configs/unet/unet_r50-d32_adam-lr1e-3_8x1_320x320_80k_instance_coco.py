@@ -5,7 +5,7 @@ _base_ = [
     './_base_/unet_schedule_80k.py',
 ]
 
-optimizer = dict(_delete_=True, type='SGD', lr=0.01, weight_decay=0.0005)
+optimizer = dict(_delete_=True, type='Adam', lr=0.001, weight_decay=0.0005)
 
 lr_config = dict(
     _delete_=True,

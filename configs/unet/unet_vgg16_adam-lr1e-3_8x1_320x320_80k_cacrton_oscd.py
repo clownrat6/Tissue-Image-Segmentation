@@ -1,11 +1,11 @@
 _base_ = [
-    '../_base_/datasets/instance_coco_0.01.py',
+    '../_base_/datasets/carton_oscd.py',
     './_base_/unet_runtime.py',
     './_base_/unet_r50-d32.py',
     './_base_/unet_schedule_80k.py',
 ]
 
-optimizer = dict(_delete_=True, type='SGD', lr=0.01, weight_decay=0.0005)
+optimizer = dict(_delete_=True, type='Adam', lr=0.001, weight_decay=0.0005)
 
 lr_config = dict(
     _delete_=True,
@@ -18,7 +18,7 @@ lr_config = dict(
     by_epoch=False)
 
 model = dict(
-    decode_head=dict(num_classes=82),
+    decode_head=dict(num_classes=3),
     train_cfg=dict(),
     test_cfg=dict(mode='whole'),
 )
