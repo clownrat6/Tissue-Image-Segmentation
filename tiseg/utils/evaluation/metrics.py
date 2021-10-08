@@ -198,15 +198,16 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
         pred_label = measure.label(pred_label)
         target_label = measure.label(target_label)
 
-    target_id_list = list(np.unique(target_label))
     pred_id_list = list(np.unique(pred_label))
+    target_id_list = list(np.unique(target_label))
 
     # move zero element to the first place
-    pred_id_list.remove(0) if 0 in pred_id_list else None
-    target_id_list.remove(0) if 0 in target_id_list else None
-
-    pred_id_list.insert(0, 0)
-    target_id_list.insert(0, 0)
+    if 0 in pred_id_list:
+        pred_id_list.remove(0)
+        pred_id_list.insert(0, 0)
+    if 0 in target_id_list:
+        target_id_list.remove(0)
+        target_id_list.insert(0, 0)
 
     # Remove background class
     pred_masks = {
