@@ -2,7 +2,7 @@ _base_ = [
     '../_base_/datasets/instance_coco.py',
     './_base_/unet_runtime.py',
     './_base_/unet_r50-d32.py',
-    './_base_/unet_schedule_80k.py',
+    './_base_/unet_schedule_160k.py',
 ]
 
 optimizer = dict(_delete_=True, type='Adam', lr=0.001, weight_decay=0.0005)
@@ -20,7 +20,7 @@ lr_config = dict(
 model = dict(
     decode_head=dict(num_classes=82),
     train_cfg=dict(),
-    test_cfg=dict(mode='whole'),
+    test_cfg=dict(mode='slide', crop_size=(320, 320), stride=(255, 255)),
 )
 
 data = dict(samples_per_gpu=8, workers_per_gpu=8)

@@ -5,7 +5,7 @@ import torch.nn as nn
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..builder import HEADS
-from ..losses import GeneralizedDiceLoss, dice, iou
+from ..losses import GeneralizedDiceLoss, mdice, miou, tdice, tiou
 
 
 # TODO: Add doc string & Add comments.
@@ -155,14 +155,15 @@ class NucleiBaseDecodeHead(nn.Module):
         clean_mask_logit = mask_logit.clone().detach()
         clean_mask_label = mask_label.clone().detach()
 
-        mask_dice = dice(clean_mask_logit, clean_mask_label, self.num_classes)
-        mask_iou = iou(clean_mask_logit, clean_mask_label, self.num_classes)
+        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_label,
+                                        self.num_classes)
+        wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label,
+                                      self.num_classes)
 
-        wrap_dict['mask_dice'] = torch.mean(mask_dice)
-        wrap_dict['mask_iou'] = torch.mean(mask_iou)
-
-        wrap_dict['max_mask_dice'] = torch.max(mask_dice)
-        wrap_dict['max_mask_iou'] = torch.max(mask_iou)
+        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_label,
+                                        self.num_classes)
+        wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label,
+                                      self.num_classes)
 
         # metric calculate
         mask_pred = torch.argmax(
