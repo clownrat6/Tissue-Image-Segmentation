@@ -7,7 +7,7 @@ from mmcv.cnn import ConvModule, build_activation_layer
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..builder import HEADS
-from ..losses import GeneralizedDiceLoss, dice, iou, mdice, miou
+from ..losses import GeneralizedDiceLoss, mdice, miou, tdice, tiou
 from ..utils import UNetDecoderLayer, generate_direction_differential_map
 from .nuclei_decode_head import NucleiBaseDecodeHead
 
@@ -358,27 +358,56 @@ class NucleiCDHead(NucleiBaseDecodeHead):
     def _training_metric(self, mask_logit, direction_logit, point_logit,
                          mask_label, direction_label, point_label):
         wrap_dict = {}
-        # loss
+        # detach these training variable to avoid gradient noise.
         clean_mask_logit = mask_logit.clone().detach()
         clean_mask_label = mask_label.clone().detach()
         clean_direction_logit = direction_logit.clone().detach()
         clean_direction_label = direction_label.clone().detach()
 
-        mask_dice = dice(clean_mask_logit, clean_mask_label, self.num_classes)
-        mask_iou = iou(clean_mask_logit, clean_mask_label, self.num_classes)
+        # XXX: check pixel prediction
+        # mask_pred = torch.argmax(mask_logit, dim=1)
+        # area_pred = torch.histc(
+        #     mask_pred.float(),
+        #     bins=self.num_classes,
+        #     min=0,
+        #     max=self.num_classes - 1).long()
+        # area_label = torch.histc(
+        #     mask_label.float(),
+        #     bins=self.num_classes,
+        #     min=0,
+        #     max=self.num_classes - 1).long()
 
-        wrap_dict['mask_dice'] = torch.mean(mask_dice)
-        wrap_dict['mask_iou'] = torch.mean(mask_iou)
+        # pixel_count = [
+        #     f'{i}: {area_pred[i]}/{area_label[i]} '
+        #     for i in range(self.num_classes)
+        # ]
+        # pixel_count = ';'.join(pixel_count)
 
-        wrap_dict['max_mask_dice'] = torch.max(mask_dice)
-        wrap_dict['max_mask_iou'] = torch.max(mask_iou)
+        # print(pixel_count)
 
-        wrap_dict['direction_dice'] = mdice(clean_direction_logit,
-                                            clean_direction_label,
-                                            self.num_angles + 1)
-        wrap_dict['direction_iou'] = miou(clean_direction_logit,
-                                          clean_direction_label,
-                                          self.num_angles + 1)
+        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_label,
+                                        self.num_classes)
+        wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label,
+                                      self.num_classes)
+
+        wrap_dict['direction_mdice'] = mdice(clean_direction_logit,
+                                             clean_direction_label,
+                                             self.num_angles + 1)
+        wrap_dict['direction_miou'] = miou(clean_direction_logit,
+                                           clean_direction_label,
+                                           self.num_angles + 1)
+
+        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_label,
+                                        self.num_classes)
+        wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label,
+                                      self.num_classes)
+
+        wrap_dict['direction_tdice'] = tdice(clean_direction_logit,
+                                             clean_direction_label,
+                                             self.num_angles + 1)
+        wrap_dict['direction_tiou'] = tiou(clean_direction_logit,
+                                           clean_direction_label,
+                                           self.num_angles + 1)
 
         # metric calculate
         mask_pred = torch.argmax(
