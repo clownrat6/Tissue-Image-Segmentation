@@ -8,8 +8,8 @@ custom_hooks = [
             'loss',
             'decode.mask_ce_loss',
             'decode.mask_dice_loss',
-            'decode.mask_dice',
-            'decode.mask_iou',
+            'decode.mask_mdice',
+            'decode.mask_miou',
             'decode.aji',
         ],
         plot_groups=[
@@ -21,8 +21,8 @@ custom_hooks = [
                 'decode.mask_dice_loss',
             ],
             [
-                'decode.mask_dice',
-                'decode.mask_iou',
+                'decode.mask_mdice',
+                'decode.mask_miou',
             ],
             [
                 'decode.aji',
