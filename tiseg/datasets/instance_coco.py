@@ -13,8 +13,8 @@ from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
 from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
-                                            dice_similarity_coefficient,
-                                            precision_recall)
+                                            pre_eval_all_semantic_metric,
+                                            pre_eval_to_metrics)
 from .builder import DATASETS
 from .pipelines import Compose
 from .utils import draw_instance, draw_semantic, re_instance
@@ -296,21 +296,11 @@ class InstanceCOCODataset(Dataset):
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
-            precision_metric, recall_metric = precision_recall(
+            semantic_pre_eval_results = pre_eval_all_semantic_metric(
                 pred_semantic, seg_map_semantic,
                 len(self.CLASSES) - 1)
-            precision_metric = precision_metric[1:]
-            recall_metric = recall_metric[1:]
-            dice_metric = dice_similarity_coefficient(
-                pred_semantic, seg_map_semantic,
-                len(self.CLASSES) - 1)[1:]
-
-            edge_precision_metric, edge_recall_metric = \
-                precision_recall(pred_edge, seg_map_edge, 2)
-            edge_precision_metric = edge_precision_metric[1]
-            edge_recall_metric = edge_recall_metric[1]
-            edge_dice_metric = dice_similarity_coefficient(
-                pred_edge, seg_map_edge, 2)[1]
+            edge_pre_eval_results = pre_eval_all_semantic_metric(
+                pred_edge, seg_map_edge, 2)
 
             # instance metric calculation
             aji_metric = aggregated_jaccard_index(
@@ -318,12 +308,8 @@ class InstanceCOCODataset(Dataset):
 
             single_loop_results = dict(
                 Aji=aji_metric,
-                Dice=dice_metric,
-                Recall=recall_metric,
-                Precision=precision_metric,
-                edge_Dice=edge_dice_metric,
-                edge_Recall=edge_recall_metric,
-                edge_Precision=edge_precision_metric)
+                semantic_pre_eval_results=semantic_pre_eval_results,
+                edge_pre_eval_results=edge_pre_eval_results)
             pre_eval_results.append(single_loop_results)
 
             data_id = self.data_infos[index]['ann_name'].replace(
@@ -404,6 +390,19 @@ class InstanceCOCODataset(Dataset):
                 else:
                     ret_metrics[key].append(value)
 
+        # convert pre_eval results to metric value
+        semantic_pre_eval_results = ret_metrics.pop(
+            'semantic_pre_eval_results')
+        edge_pre_eval_results = ret_metrics.pop('edge_pre_eval_results')
+
+        semantic_ret_metrics = pre_eval_to_metrics(semantic_pre_eval_results,
+                                                   metric)
+        edge_ret_metrics = pre_eval_to_metrics(edge_pre_eval_results, metric)
+        for key, val in semantic_ret_metrics.items():
+            ret_metrics[key] = val[1:]
+        for key, val in edge_ret_metrics.items():
+            ret_metrics['edge_' + key] = val[1]
+
         ret_metrics_per_class = {}
         ret_metrics_total = {}
         # calculate average metric
@@ -411,13 +410,14 @@ class InstanceCOCODataset(Dataset):
             # XXX: Using average value may have lower metric value than using
             # confused matrix.
             # average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-            average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-            if 'edge' in key or 'Aji' in key:
+            if 'Aji' in key:
+                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
                 ret_metrics_total[key] = np.round(average_value * 100, 2)
-            else:
+            elif key in metric:
                 ret_metrics_total['m' + key] = np.round(
-                    np.nanmean(average_value), 2)
-                ret_metrics_per_class[key] = np.round(average_value * 100, 2)
+                    np.nanmean(ret_metrics[key]) * 100, 2)
+                ret_metrics_per_class[key] = np.round(ret_metrics[key] * 100,
+                                                      2)
 
         # convert to orderdict
         ret_metrics_per_class = OrderedDict(ret_metrics_per_class)
