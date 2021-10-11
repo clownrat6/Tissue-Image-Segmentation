@@ -6,7 +6,7 @@ def re_instance(instance_map):
     """convert sparse instance ids to continual instance ids for instance
     map."""
     instance_ids = list(np.unique(instance_map))
-    instance_ids.remove(0)
+    instance_ids.remove(0) if 0 in instance_ids else None
     new_instance_map = np.zeros_like(instance_map, dtype=np.int32)
     for id, instance_id in enumerate(instance_ids):
         new_instance_map[instance_map == instance_id] = id + 1

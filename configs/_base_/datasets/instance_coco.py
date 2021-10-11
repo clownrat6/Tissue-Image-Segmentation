@@ -21,7 +21,7 @@ train_pipeline = [
         re_edge=True,
         edge_id=81),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
-    # dict(type='Normalize', max_min=False),
+    dict(type='Standardization', **img_norm_cfg),
     dict(type='Pad', size=crop_size, pad_val=0, seg_pad_val=0),
     dict(type='DefaultFormatBundle'),
     dict(
@@ -42,7 +42,7 @@ test_pipeline = [
         transforms=[
             dict(type='Resize', keep_ratio=True),
             dict(type='RandomFlip'),
-            dict(type='Normalize', max_min=False),
+            dict(type='Standardization', **img_norm_cfg),
             dict(type='ImageToTensor', keys=['img']),
             dict(type='Collect', data_keys=['img'], label_keys=[]),
         ])
