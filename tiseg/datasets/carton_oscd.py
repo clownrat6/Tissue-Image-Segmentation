@@ -300,8 +300,9 @@ class CartonOSCDDataset(Dataset):
             if show_semantic:
                 data_info = self.data_infos[index]
                 image_path = osp.join(self.img_dir, data_info['img_name'])
-                draw_semantic(show_folder, data_id, image_path, pred_semantic,
-                              seg_map_semantic, single_loop_results)
+                draw_semantic(show_folder, data_id, image_path,
+                              pred_semantic_edge, seg_map_semantic_edge,
+                              single_loop_results)
 
             # illustrating instance level results
             if show_instance:
