@@ -63,7 +63,7 @@ class SemanticCOCODataset(Dataset):
                (244, 188, 151), (177, 239, 76), (96, 224, 76), (151, 67, 174),
                (250, 210, 237), (220, 221, 179), (251, 147, 133),
                (131, 185, 120), (153, 99, 11), (169, 197, 249), (197, 62, 20),
-               (4, 7, 184), (255, 2, 255)]
+               (4, 7, 184), (255, 255, 255)]
 
     def __init__(self,
                  pipeline,
@@ -233,8 +233,6 @@ class SemanticCOCODataset(Dataset):
             seg_map_semantic = mmcv.imread(
                 seg_map, flag='unchanged', backend='pillow')
 
-            # metric calculation post process codes:
-            # extract semantic results w/ edge
             pred_semantic = pred
 
             # semantic metric calculation (remove background class)

@@ -70,7 +70,7 @@ class InstanceCOCODataset(Dataset):
                (244, 188, 151), (177, 239, 76), (96, 224, 76), (151, 67, 174),
                (250, 210, 237), (220, 221, 179), (251, 147, 133),
                (131, 185, 120), (153, 99, 11), (169, 197, 249), (197, 62, 20),
-               (4, 7, 184), (255, 2, 255)]
+               (4, 7, 184), (255, 255, 255)]
 
     def __init__(self,
                  pipeline,
@@ -81,13 +81,6 @@ class InstanceCOCODataset(Dataset):
                  ann_suffix='_semantic_with_edge.png',
                  test_mode=False,
                  split=None):
-
-        # semantic level input or instance level input
-        assert ann_suffix in ['_semantic_with_edge.png', '_instance.npy']
-        if ann_suffix == '_semantic_with_edge.png':
-            self.input_level = 'semantic_with_edge'
-        elif ann_suffix == '_instance.npy':
-            self.input_level = 'instance'
 
         self.pipeline = Compose(pipeline)
 
@@ -263,22 +256,22 @@ class InstanceCOCODataset(Dataset):
         for pred, index in zip(preds, indices):
             seg_map = osp.join(self.ann_dir,
                                self.data_infos[index]['ann_name'])
-            if self.input_level == 'semantic_with_edge':
-                # semantic level label make (with edge)
-                seg_map_semantic_edge = mmcv.imread(
-                    seg_map, flag='unchanged', backend='pillow')
-                seg_map_edge = (seg_map_semantic_edge == self.CLASSES.index(
-                    'edge')).astype(np.uint8)
-                # ground truth of semantic level
-                seg_map_semantic = seg_map.replace('_semantic_with_edge.png',
-                                                   '_semantic.png')
-                seg_map_semantic = mmcv.imread(
-                    seg_map_semantic, flag='unchanged', backend='pillow')
-                # instance level label make
-                seg_map_instance = seg_map.replace('_semantic_with_edge.png',
-                                                   '_instance.npy')
-                seg_map_instance = np.load(seg_map_instance)
-                seg_map_instance = re_instance(seg_map_instance)
+            # semantic level label make (with edge)
+            seg_map_semantic_edge = mmcv.imread(
+                seg_map, flag='unchanged', backend='pillow')
+            seg_map_edge = (
+                seg_map_semantic_edge == self.CLASSES.index('edge')).astype(
+                    np.uint8)
+            # ground truth of semantic level
+            seg_map_semantic = seg_map.replace('_semantic_with_edge.png',
+                                               '_semantic.png')
+            seg_map_semantic = mmcv.imread(
+                seg_map_semantic, flag='unchanged', backend='pillow')
+            # instance level label make
+            seg_map_instance = seg_map.replace('_semantic_with_edge.png',
+                                               '_instance.npy')
+            seg_map_instance = np.load(seg_map_instance)
+            seg_map_instance = re_instance(seg_map_instance)
 
             # metric calculation post process codes:
             # extract semantic results w/ edge
@@ -418,6 +411,8 @@ class InstanceCOCODataset(Dataset):
                     np.nanmean(ret_metrics[key]) * 100, 2)
                 ret_metrics_per_class[key] = np.round(ret_metrics[key] * 100,
                                                       2)
+            elif 'edge' in key:
+                ret_metrics_total[key] = np.round(ret_metrics[key] * 100, 2)
 
         # convert to orderdict
         ret_metrics_per_class = OrderedDict(ret_metrics_per_class)

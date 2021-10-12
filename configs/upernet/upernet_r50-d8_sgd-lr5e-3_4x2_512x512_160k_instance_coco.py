@@ -1,8 +1,8 @@
 _base_ = [
-    '../_base_/datasets/semantic_coco.py',
+    '../_base_/datasets/instance_coco.py',
     '../_base_/default_runtime.py',
     './_base_/upernet_r50-d8.py',
-    './_base_/unet_schedule_160k.py',
+    './_base_/upernet_schedule_160k.py',
 ]
 
 optimizer = dict(
