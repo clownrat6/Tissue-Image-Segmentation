@@ -311,7 +311,7 @@ def main():
     args = parse_args()
     dataset_root = args.dataset_root
 
-    split_list = ['val']
+    split_list = ['train', 'val']
 
     for split in split_list:
         # image source & annotation source
