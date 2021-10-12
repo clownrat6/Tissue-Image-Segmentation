@@ -193,7 +193,6 @@ def convert_cohort(raw_image_folder,
 def parse_args():
     parser = argparse.ArgumentParser('Convert cpm17 dataset.')
     parser.add_argument('root_path', help='dataset root path.')
-    parser.add_argument('split', help='split mode selection.')
     parser.add_argument(
         '-c',
         '--crop-size',
@@ -211,11 +210,8 @@ def parse_args():
 def main():
     args = parse_args()
     root_path = args.root_path
-    split = args.split
     crop_size = args.crop_size
     crop_stride = args.crop_stride
-
-    assert split in ['official']
 
     flag1 = (crop_size is not None) and (crop_stride is not None)
     flag2 = (crop_size is None) and (crop_stride is None)
@@ -261,16 +257,13 @@ def main():
     _ = convert_cohort(test_image_folder, test_label_folder, test_new_path,
                        full_test_item_list, None, None)
 
-    if split == 'official':
-        train_item_list = [
-            x.rstrip('.png') for x in os.listdir(train_image_folder)
-            if '.png' in x
-        ]
-        val_item_list = None
-        test_item_list = [
-            x.rstrip('.png') for x in os.listdir(test_image_folder)
-            if '.png' in x
-        ]
+    train_item_list = [
+        x.rstrip('.png') for x in os.listdir(train_image_folder) if '.png' in x
+    ]
+    val_item_list = None
+    test_item_list = [
+        x.rstrip('.png') for x in os.listdir(test_image_folder) if '.png' in x
+    ]
 
     real_train_item_list = []
     [
@@ -280,15 +273,13 @@ def main():
     real_val_item_list = val_item_list
     real_test_item_list = test_item_list
 
-    with open(osp.join(root_path, f'{split}_{train_part_name}.txt'),
-              'w') as fp:
+    with open(osp.join(root_path, f'{train_part_name}.txt'), 'w') as fp:
         [fp.write(item + '\n') for item in real_train_item_list]
-    with open(osp.join(root_path, f'{split}_{test_part_name}.txt'), 'w') as fp:
+    with open(osp.join(root_path, f'{test_part_name}.txt'), 'w') as fp:
         [fp.write(item + '\n') for item in real_test_item_list]
 
     if real_val_item_list is not None:
-        with open(osp.join(root_path, f'{split}_{val_part_name}.txt'),
-                  'w') as fp:
+        with open(osp.join(root_path, f'{val_part_name}.txt'), 'w') as fp:
             [fp.write(item + '\n') for item in real_val_item_list]
 
 

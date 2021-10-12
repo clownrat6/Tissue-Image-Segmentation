@@ -4,6 +4,15 @@ It is recommended to symlink the dataset root to `$ROOT/data`. If your folder st
 
 ```None
 data
+├── coco
+│   ├── coco
+│   │    ├── images
+│   │    │   ├── train2017
+│   │    │   └── val2017
+│   ├── annotations
+│   ├── train.txt
+│   └── val.txt
+|
 ├── consep
 │   ├── CoNSeP
 │   │    ├── Test
@@ -22,12 +31,8 @@ data
 │   │            └── xxx.png
 │   ├── train
 │   ├── test
-│   ├── train_c256_s256
-│   ├── test_c256_s256 # crop_size = 256 & crop_stride = 256
-│   ├── only-train_train.txt
-│   ├── only-train_test.txt
-│   ├── official_train.txt
-│   └── official_test.txt
+│   ├── train.txt
+│   └── test.txt
 │
 │
 ├── cpm17
@@ -63,9 +68,15 @@ data
     │           ├── xxx.tif
     │           └── xxx.xml
     ├── train
-    ├── text
-    ├── train.txt
-    └── test.txt
+    ├── test
+    ├── train_c256_s256
+    ├── test_c256_s256 # crop_size = 256 & crop_stride = 256
+    ├── only-train_train.txt
+    ├── only-train_test.txt
+    ├── only-train_train_c256_s256.txt
+    ├── only-train_test_c256_s256.txt
+    ├── official_train.txt
+    └── official_test.txt
 
 ```
 
@@ -79,16 +90,18 @@ data
 6. If you want to use fix-crop dataset, run convertion script:
 
 ```python
-# only-train split
-python tools/convert_dataset/monuseg.py data/monuseg official --crop-size 256 --crop-stride 256
-# official split
+# only-train split (crop_size=256x256, stride=256)
 python tools/convert_dataset/monuseg.py data/monuseg only-train --crop-size 256 --crop-stride 256
+# official split (crop_size=256x256, stride=256)
+python tools/convert_dataset/monuseg.py data/monuseg official --crop-size 256 --crop-stride 256
+# official split (whole)
+python tools/convert_dataset/monuseg.py data/monuseg official
 ```
 
 ## CPM17 Nuclei Segmentation Dataset
 
 1. Download cpm17 whole folder from [goole drive](https://drive.google.com/drive/folders/1l55cv3DuY-f7-JotDN7N5nbNnjbLWchK);
-2. Put it into `data/cpm17`;
+2. Put it into `data/cpm17/CPM17`;
 3. Run convertion script: `python tools/convert_dataset/cpm17.py data/cpm17`;
 
 ## CoNSeP Nuclei Segmentation Dataset
@@ -97,4 +110,11 @@ python tools/convert_dataset/monuseg.py data/monuseg only-train --crop-size 256 
 2. Uncompress them into `data/consep`;
 3. Run convertion script: `python tools/convert_dataset/consep.py data/consep`;
 
-## Cityscapes Instance Segmentation Dataset
+## COCO Instance Segmentation Dataset
+
+1. Download COCO dataset from [homepage](https://cocodataset.org/#download);
+2. Download [2017 train images](http://images.cocodataset.org/zips/train2017.zip) & [2017 val images](http://images.cocodataset.org/zips/val2017.zip);
+3. Uncompressed them into `data/coco/coco/images`;
+4. Download [2017 train/val annotations](http://images.cocodataset.org/annotations/annotations_trainval2017.zip);
+5. Uncompressed it into `data/coco/coco/annotations`;
+6. Run conversion script: `python tools/convert_dataset/coco.py data/coco --nproc 8`;
