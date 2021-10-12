@@ -1,7 +1,7 @@
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
-    type='Nuclei',
+    type='EncoderDecoder',
     backbone=dict(
         type='TorchResNet50',
         in_channels=3,
