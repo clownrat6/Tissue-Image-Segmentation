@@ -1,7 +1,7 @@
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
-    type='Nuclei',
+    type='EncoderDecoder',
     backbone=dict(
         type='TorchVGG16BN',
         in_channels=3,
@@ -11,7 +11,7 @@ model = dict(
         act_cfg=dict(type='ReLU'),
     ),
     decode_head=dict(
-        type='NucleiCDHead',
+        type='CDHead',
         num_classes=3,
         num_angles=8,
         in_channels=(64, 128, 256, 512, 512),

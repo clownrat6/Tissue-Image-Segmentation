@@ -11,7 +11,7 @@ model = dict(
         act_cfg=dict(type='ReLU'),
     ),
     decode_head=dict(
-        type='NucleiUNetHead',
+        type='UNetHead',
         num_classes=3,
         in_channels=(64, 128, 256, 512, 512),
         in_index=[0, 1, 2, 3, 4],
