@@ -205,8 +205,13 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     if 0 in pred_id_list:
         pred_id_list.remove(0)
         pred_id_list.insert(0, 0)
+    else:
+        pred_id_list.insert(0, 0)
+
     if 0 in target_id_list:
         target_id_list.remove(0)
+        target_id_list.insert(0, 0)
+    else:
         target_id_list.insert(0, 0)
 
     # Remove background class

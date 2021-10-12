@@ -147,10 +147,14 @@ class LoadAnnotations(object):
         if self.instance_suffix is not None:
             extra_filename = filename.replace(
                 results['ann_info']['ann_suffix'], self.instance_suffix)
-            gt_instance_map = mmcv.imread(
-                extra_filename,
-                flag='unchanged',
-                backend=self.imdecode_backend)
+            extra_suffix = osp.splitext(extra_filename)[1]
+            if extra_suffix == '.npy':
+                gt_instance_map = np.load(extra_filename)
+            else:
+                gt_instance_map = mmcv.imread(
+                    extra_filename,
+                    flag='unchanged',
+                    backend=self.imdecode_backend)
             results['gt_instance_map'] = gt_instance_map
             results['seg_fields'].append('gt_instance_map')
         results['gt_semantic_map'] = gt_semantic_map

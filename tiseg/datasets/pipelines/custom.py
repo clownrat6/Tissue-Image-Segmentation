@@ -176,19 +176,15 @@ class CDNetLabelMake(object):
 
 
 @PIPELINES.register_module()
-class CityscapesLabelMake(object):
-    """Label construction for every network on cityscapes dataset."""
+class GeneralLabelMake(object):
+    """build direction label & point label for any dataset."""
 
-    def __init__(self,
-                 num_classes,
-                 edge_label_id,
-                 re_edge=True,
-                 num_angle_types=8):
+    def __init__(self, num_classes, edge_id, re_edge=True, num_angle_types=8):
         # If input with edge, re_edge can be set to False.
         # However, in order to generate better boundary, we will re-generate
         # edge.
         self.num_classes = num_classes
-        self.edge_label_id = edge_label_id
+        self.edge_id = edge_id
         self.re_edge = re_edge
         self.num_angle_types = num_angle_types
 
@@ -201,45 +197,30 @@ class CityscapesLabelMake(object):
 
         if self.re_edge:
             semantic_map_with_edge = np.zeros_like(raw_semantic_map)
-            for label_id in range(1, self.num_classes):
-                if label_id == self.edge_label_id:
+            id_list = list(np.unique(raw_semantic_map))
+            for id in id_list:
+                if id == self.edge_id or id == 0:
                     continue
-                single_class_inside = (raw_semantic_map == label_id).astype(
-                    np.uint8)
+                id_mask = raw_semantic_map == id
                 bound = morphology.dilation(
-                    single_class_inside,
+                    id_mask,
                     selem=morphology.selem.disk(1)) & (~morphology.erosion(
-                        single_class_inside, selem=morphology.selem.disk(1)))
-                semantic_map_with_edge[single_class_inside > 0] = label_id
-                semantic_map_with_edge[bound > 0] = self.edge_label_id
+                        id_mask, selem=morphology.selem.disk(1)))
+                semantic_map_with_edge[id_mask > 0] = id
+                semantic_map_with_edge[bound > 0] = self.edge_id
 
             semantic_map_inside = semantic_map_with_edge.copy()
-            semantic_map_inside[semantic_map_inside == self.edge_label_id] = 0
+            semantic_map_inside[semantic_map_inside == self.edge_id] = 0
+            results['gt_semantic_map'] = semantic_map_with_edge
         else:
             semantic_map_inside = raw_semantic_map.copy()
-            semantic_map_inside[semantic_map_inside == self.edge_label_id] = 0
+            semantic_map_inside[semantic_map_inside == self.edge_id] = 0
             semantic_map_with_edge = raw_semantic_map
 
         results['gt_semantic_map_inside'] = semantic_map_inside
         results['gt_semantic_map_with_edge'] = semantic_map_with_edge
 
         instance_map = raw_instance_map
-        # instance_map = measure.label(semantic_map_inside > 0, connectivity=1)
-
-        # # XXX: If re_edge, we need to dilate two pixels during
-        # # model-agnostic postprocess.
-        # if self.re_edge:
-        #     # re_edge will remove a pixel length of nuclei inside and raw
-        #     # semantic map has already remove a pixel length of nuclei
-        #     # inside, so we need to dilate 2 pixel length.
-        #     instance_map = morphology.dilation(
-        #         instance_map, selem=morphology.selem.disk(2))
-        # else:
-        #     instance_map = morphology.dilation(
-        #         instance_map, selem=morphology.selem.disk(1))
-
-        results['gt_instance_map'] = instance_map
-        results['gt_semantic_map'] = (instance_map > 0).astype(np.uint8)
 
         # point map calculation & gradient map calculation
         point_map, gradient_map = self.calculate_point_map(instance_map)
@@ -252,8 +233,8 @@ class CityscapesLabelMake(object):
         results['gt_direction_map'] = direction_map
 
         additional_key_list = [
-            'gt_semantic_map', 'gt_semantic_map_with_edge', 'gt_direction_map',
-            'gt_point_map'
+            'gt_semantic_map', 'gt_semantic_map_inside',
+            'gt_semantic_map_with_edge', 'gt_direction_map', 'gt_point_map'
         ]
         for additional_key in additional_key_list:
             if additional_key not in results['seg_fields']:
@@ -285,7 +266,7 @@ class CityscapesLabelMake(object):
 
         # remove background
         markers_unique = list(np.unique(instance_map))
-        markers_unique.remove(0)
+        markers_unique.remove(0) if 0 in markers_unique else None
         markers_len = len(markers_unique)
 
         # Calculate for each instance
