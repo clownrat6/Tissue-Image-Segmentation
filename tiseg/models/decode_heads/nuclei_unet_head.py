@@ -8,7 +8,14 @@ from .nuclei_decode_head import NucleiBaseDecodeHead
 # TODO: Add doc string & Add comments
 @HEADS.register_module()
 class NucleiUNetHead(NucleiBaseDecodeHead):
-    """"""
+    """UNet for nulcie segmentation task.
+
+    Args:
+        stage_convs (list[int]): The conv number of each stage.
+            Default: [3, 3, 3, 3]
+        stage_channels (list[int]): The feedforward channel number of each
+            stage. Default: [16, 32, 64, 128]
+    """
 
     def __init__(self,
                  stage_convs=[3, 3, 3, 3],

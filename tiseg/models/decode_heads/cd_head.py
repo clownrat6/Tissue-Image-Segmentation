@@ -169,14 +169,13 @@ class DGM(nn.Module):
 
 
 @HEADS.register_module()
-class NucleiCDHead(BaseDecodeHead):
+class CDHead(BaseDecodeHead):
     """CDNet: Centripetal Direction Network for Nuclear Instance Segmentation
 
     This head is the implementation of `CDNet <->`_.
 
-    Only support nuclei segmentation now.
-
     Args:
+        num_angles (int): The angle number of direction map. Default: 8
         stage_convs (list[int]): The number of convolutions of each stage.
             Default: [3, 3, 3, 3]
         stage_channels (list[int]): The feedforward channels of each stage.

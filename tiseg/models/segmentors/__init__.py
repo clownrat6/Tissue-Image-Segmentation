@@ -1,4 +1,4 @@
 from .base import BaseSegmentor
-from .nuclei import Nuclei
+from .encoder_decoder import EncoderDecoder
 
-__all__ = ['BaseSegmentor', 'Nuclei']
+__all__ = ['BaseSegmentor', 'EncoderDecoder']

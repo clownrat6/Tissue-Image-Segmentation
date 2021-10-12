@@ -6,7 +6,7 @@ _base_ = [
 ]
 
 optimizer = dict(
-    _delete_=True, type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005)
+    _delete_=True, type='SGD', lr=0.005, momentum=0.9, weight_decay=0.0005)
 
 lr_config = dict(
     _delete_=True,

@@ -9,8 +9,12 @@ from .base import BaseSegmentor
 
 
 @SEGMENTORS.register_module()
-class Nuclei(BaseSegmentor):
-    """Segmentor for Nuclei Segmentation.
+class EncoderDecoder(BaseSegmentor):
+    """Segmentor supports multiplt data & multiple labels.
+
+    For example (CDNet):
+        Data: image;
+        Label: semantic_map, semantic_map_with_edge, direction_map, point_map;
 
     EncoderDecoder typically consists of backbone, decode_head, auxiliary_head.
     Note that auxiliary_head is only used for deep supervision during training,
@@ -24,9 +28,8 @@ class Nuclei(BaseSegmentor):
                  auxiliary_head=None,
                  train_cfg=None,
                  test_cfg=None,
-                 pretrained=None,
-                 init_cfg=None):
-        super(Nuclei, self).__init__(init_cfg)
+                 pretrained=None):
+        super(EncoderDecoder, self).__init__()
         if pretrained is not None:
             assert backbone.get('pretrained') is None, \
                 'both backbone and segmentor set pretrained weight'
