@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/datasets/semantic_coco.py',
+    '../_base_/datasets/instance_coco_pure.py',
     '../_base_/default_runtime.py',
     './_base_/unet_r50-d8.py',
     './_base_/unet_schedule_80k.py',
