@@ -1,26 +1,24 @@
-from abc import ABCMeta, abstractmethod
-
 import torch
 import torch.nn as nn
-from mmcv.runner import BaseModule
 
 from tiseg.utils import resize
-from ..builder import build_loss
-from ..losses import accuracy, dice, iou
+from ..builder import HEADS
+from ..losses import accuracy, miou, tiou
 
 
-class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
+# TODO: Add doc string & Add comments.
+@HEADS.register_module()
+class BaseDecodeHead(nn.Module):
     """Base class for BaseDecodeHead.
 
     Args:
         in_channels (int|Sequence[int]): Input channels.
-        channels (int): Channels after modules, before conv_seg.
         num_classes (int): Number of classes.
+        in_index (int|Sequence[int]): Input feature index. Default: -1
         dropout_ratio (float): Ratio of dropout layer. Default: 0.1.
         norm_cfg (dict|None): Config of norm layers. Default: None.
         act_cfg (dict): Config of activation layers.
             Default: dict(type='ReLU')
-        in_index (int|Sequence[int]): Input feature index. Default: -1
         input_transform (str|None): Transformation type of input features.
             Options: 'resize_concat', 'multiple_select', None.
             'resize_concat': Multiple feature maps will be resize to the
@@ -30,44 +28,29 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
                 a list and passed into decode head.
             None: Only one select feature map is allowed.
             Default: None.
-        loss_decode (dict): Config of decode loss.
-            Default: dict(type='CrossEntropyLoss').
         align_corners (bool): align_corners argument of F.interpolate.
             Default: False.
-        init_cfg (dict or list[dict], optional): Initialization config dict.
     """
 
     def __init__(self,
                  in_channels,
-                 channels,
                  num_classes,
-                 dropout_ratio=0.,
-                 norm_cfg=None,
-                 act_cfg=dict(type='ReLU'),
                  in_index=-1,
-                 input_transform=None,
-                 loss_decode=dict(
-                     type='CrossEntropyLoss',
-                     use_sigmoid=False,
-                     loss_weight=1.0),
-                 align_corners=False,
-                 init_cfg=None):
-        super(BaseDecodeHead, self).__init__(init_cfg)
+                 dropout_rate=0.1,
+                 norm_cfg=dict(type='BN'),
+                 act_cfg=dict(type='ReLU'),
+                 input_transform='multiple_select',
+                 align_corners=False):
+        super().__init__()
         self._init_inputs(in_channels, in_index, input_transform)
-        self.channels = channels
+        self.in_channels = in_channels
         self.num_classes = num_classes
-        self.dropout_ratio = dropout_ratio
+        self.in_index = in_index
+        self.dropout_rate = dropout_rate
         self.norm_cfg = norm_cfg
         self.act_cfg = act_cfg
-        self.in_index = in_index
-        self.loss_decode = build_loss(loss_decode)
+        self.input_transform
         self.align_corners = align_corners
-
-        self.conv_seg = nn.Conv2d(channels, num_classes, kernel_size=1)
-        if dropout_ratio > 0:
-            self.dropout = nn.Dropout2d(dropout_ratio)
-        else:
-            self.dropout = None
 
     def _init_inputs(self, in_channels, in_index, input_transform):
         """Check and initialize input transforms.
@@ -134,30 +117,66 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
 
         return inputs
 
-    @abstractmethod
-    def forward(self, inputs):
-        """Placeholder of forward function."""
-        pass
+    def forward_train(self, inputs, metas, label, train_cfg):
+        """Forward function when training phase.
 
-    def forward_train(self, inputs, metas, gt_semantic_map, train_cfg):
-        """Forward function for training.
         Args:
-            inputs (list[Tensor]): List of multi-level img features.
-            metas (list[dict]): List of image info dict where each dict
-                has: 'img_shape', 'scale_factor', 'flip', and may also contain
-                'filename', 'ori_shape', 'pad_shape', and 'img_norm_cfg'.
-                For details on the values of these keys see
-                `mmseg/datasets/pipelines/formatting.py:Collect`.
-            gt_semantic_map (Tensor): Semantic segmentation masks
-                used if the architecture supports semantic segmentation task.
-            train_cfg (dict): The training config.
-
-        Returns:
-            dict[str, Tensor]: a dictionary of loss components
+            inputs (list[torch.tensor]): Feature maps from backbone.
+            metas (list[dict]): Meta information.
+            label (dict[torch.tensor]): Ground Truth wrap dict.
+                (label usaually contains `gt_semantic_map_with_edge`,
+                `gt_point_map`, `gt_direction_map`)
+            train_cfg (dict): The cfg of training progress.
         """
-        seg_logits = self.forward(inputs)
-        losses = self.losses(seg_logits, gt_semantic_map)
-        return losses
+        mask_logit = self.forward(inputs)
+        mask_label = label['gt_semantic_map']
+
+        loss = dict()
+        mask_logit = resize(
+            input=mask_logit,
+            size=mask_label.shape[2:],
+            mode='bilinear',
+            align_corners=self.align_corners)
+        mask_label = mask_label.squeeze(1)
+        mask_loss = self._mask_loss(mask_logit, mask_label)
+        loss.update(mask_loss)
+
+        # calculate training metric
+        training_metric_dict = self._training_metric(mask_logit, mask_label)
+        loss.update(training_metric_dict)
+
+        return loss
+
+    def _mask_loss(self, mask_logit, mask_label):
+        """calculate mask branch loss."""
+        mask_loss = {}
+        mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        # Assign weight map for each pixel position
+        # mask_loss *= weight_map
+        mask_ce_loss = torch.mean(
+            mask_ce_loss_calculator(mask_logit, mask_label))
+        # loss weight
+        alpha = 1
+        mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
+
+        return mask_loss
+
+    def _training_metric(self, mask_logit, mask_label):
+        """metric calculation when training."""
+        wrap_dict = {}
+
+        # loss
+        clean_mask_logit = mask_logit.clone().detach()
+        clean_mask_label = mask_label.clone().detach()
+
+        wrap_dict['mask_accuracy'] = accuracy(clean_mask_logit,
+                                              clean_mask_label)
+        wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label,
+                                      self.num_classes)
+        wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label,
+                                      self.num_classes)
+
+        return wrap_dict
 
     def forward_test(self, inputs, metas, test_cfg):
         """Forward function for testing.
@@ -175,31 +194,3 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
             Tensor: Output segmentation map.
         """
         return self.forward(inputs)
-
-    def cls_seg(self, feat):
-        """Classify each pixel."""
-        if self.dropout is not None:
-            feat = self.dropout(feat)
-        output = self.conv_seg(feat)
-        return output
-
-    def losses(self, seg_logit, seg_label):
-        """Compute segmentation loss."""
-        loss = dict()
-        seg_logit = resize(
-            input=seg_logit,
-            size=seg_label.shape[2:],
-            mode='bilinear',
-            align_corners=self.align_corners)
-
-        seg_label = seg_label.squeeze(1)
-        loss['loss_seg'] = self.loss_decode(seg_logit, seg_label, weight=None)
-        # strip from compute graph
-        clean_seg_logit = seg_logit.clone().detach()
-        clean_seg_label = seg_label.clone().detach()
-        loss['acc_foreground'] = accuracy(clean_seg_logit, clean_seg_label)
-        loss['iou_foreground'] = iou(clean_seg_logit, clean_seg_label,
-                                     self.num_classes)
-        loss['dice_foreground'] = dice(clean_seg_logit, clean_seg_label,
-                                       self.num_classes)
-        return loss

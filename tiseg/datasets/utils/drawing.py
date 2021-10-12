@@ -9,7 +9,7 @@ def colorize_instance_map(instance_map):
     """using random rgb color to colorize instance map."""
     colorful_instance_map = np.zeros((*instance_map.shape, 3), dtype=np.uint8)
     instance_id_list = list(np.unique(instance_map))
-    instance_id_list.remove(0)
+    instance_id_list.remove(0) if 0 in instance_id_list else None
     for instance_id in instance_id_list:
         r, g, b = [random.random() * 255 for i in range(3)]
         colorful_instance_map[instance_map == instance_id, :] = (r, g, b)
@@ -17,13 +17,7 @@ def colorize_instance_map(instance_map):
     return colorful_instance_map
 
 
-def draw_semantic(save_folder,
-                  data_id,
-                  image,
-                  pred,
-                  label,
-                  single_loop_results,
-                  edge_id=2):
+def draw_semantic(save_folder, data_id, image, pred, label, edge_id=2):
     """draw semantic level picture with FP & FN."""
 
     plt.figure(figsize=(5 * 2, 5 * 2 + 3))
@@ -74,14 +68,6 @@ def draw_semantic(save_folder,
     plt.legend(loc='upper center', fontsize=9, bbox_to_anchor=(0.5, 0), ncol=3)
 
     # results visulization
-    aji = f'{single_loop_results["Aji"] * 100:.2f}'
-    dice = f'{np.mean(single_loop_results["Dice"]) * 100:.2f}'
-    recall = f'{np.mean(single_loop_results["Recall"]) * 100:.2f}'
-    precision = f'{np.mean(single_loop_results["Precision"]) * 100:.2f}'
-    temp_str = (f'Aji: {aji:<10}\nDice: '
-                f'{dice:<10}\nRecall: {recall:<10}\nPrecision: '
-                f'{precision:<10}')
-    plt.suptitle(temp_str, fontsize=15, color='black')
     plt.tight_layout()
     plt.savefig(f'{save_folder}/{data_id}_semantic_compare.png', dpi=300)
 
