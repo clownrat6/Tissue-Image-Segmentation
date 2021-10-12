@@ -5,16 +5,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def colorize_instance_map(instance_map):
-    """using random rgb color to colorize instance map."""
-    colorful_instance_map = np.zeros((*instance_map.shape, 3), dtype=np.uint8)
-    instance_id_list = list(np.unique(instance_map))
-    instance_id_list.remove(0) if 0 in instance_id_list else None
-    for instance_id in instance_id_list:
-        r, g, b = [random.random() * 255 for i in range(3)]
-        colorful_instance_map[instance_map == instance_id, :] = (r, g, b)
+def colorize_seg_map(seg_map, palette=None):
+    """using random rgb color to colorize segmentation map."""
+    colorful_seg_map = np.zeros((*seg_map.shape, 3), dtype=np.uint8)
+    id_list = list(np.unique(seg_map))
+    id_list.remove(0) if 0 in id_list else None
 
-    return colorful_instance_map
+    if palette is None:
+        palette = {}
+        for id in id_list:
+            color = [random.random() * 255 for i in range(3)]
+            palette[id] = color
+
+    for id in id_list:
+        colorful_seg_map[seg_map == id, :] = palette[id]
+
+    return colorful_seg_map
 
 
 def draw_semantic(save_folder, data_id, image, pred, label, edge_id=2):
@@ -78,11 +84,11 @@ def draw_instance(save_folder, data_id, pred_instance, label_instance):
     plt.figure(figsize=(5 * 2, 5))
 
     plt.subplot(121)
-    plt.imshow(colorize_instance_map(pred_instance))
+    plt.imshow(colorize_seg_map(pred_instance))
     plt.axis('off')
 
     plt.subplot(122)
-    plt.imshow(colorize_instance_map(label_instance))
+    plt.imshow(colorize_seg_map(label_instance))
     plt.axis('off')
 
     plt.tight_layout()

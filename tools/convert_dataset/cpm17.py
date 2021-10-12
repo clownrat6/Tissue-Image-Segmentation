@@ -9,7 +9,7 @@ from PIL import Image
 from scipy.io import loadmat
 from skimage import morphology
 
-from tiseg.datasets.utils import colorize_instance_map
+from tiseg.datasets.utils import colorize_seg_map
 
 
 def convert_mat_to_array(mat, array_key='inst_map', save_path=None):
@@ -146,7 +146,7 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
         np.save(osp.join(new_path, sub_item + '_instance.npy'), patch[1])
         pillow_save(
             osp.join(new_path, sub_item + '_instance_colorized.png'),
-            colorize_instance_map(patch[1]))
+            colorize_seg_map(patch[1]))
         # save semantic level label
         palette = np.zeros((2, 3), dtype=np.uint8)
         palette[0, :] = (0, 0, 0)
