@@ -4,12 +4,10 @@ data_root = 'data/oscd'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 crop_size = (256, 256)
-# dataset_crop_size = (300, 300)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
     dict(type='Resize', img_scale=(2048, 256), ratio_range=(0.5, 2.0)),
-    # dict(type='RandomCrop', crop_size=dataset_crop_size, cat_max_ratio=0.75),
     dict(
         type='RandomFlip',
         prob=0.5,
