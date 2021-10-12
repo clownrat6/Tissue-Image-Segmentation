@@ -5,13 +5,17 @@ import torch.nn as nn
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..builder import HEADS
-from ..losses import GeneralizedDiceLoss, mdice, miou, tdice, tiou
+from ..losses import GeneralizedDiceLoss, miou, tiou
 
 
 # TODO: Add doc string & Add comments.
 @HEADS.register_module()
 class NucleiBaseDecodeHead(nn.Module):
-    """"""
+    """Nuclei Segmentation Task Basic Decode Head Class.
+
+    Default Training Loss: CE + Dice loss; Default Training Metric: Aji, tIoU,
+    mIoU;
+    """
 
     def __init__(self,
                  in_channels,
@@ -155,17 +159,13 @@ class NucleiBaseDecodeHead(nn.Module):
         clean_mask_logit = mask_logit.clone().detach()
         clean_mask_label = mask_label.clone().detach()
 
-        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_label,
-                                        self.num_classes)
         wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label,
                                       self.num_classes)
-
-        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_label,
-                                        self.num_classes)
         wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label,
                                       self.num_classes)
 
-        # metric calculate
+        # metric calculate (the edge id is set `self.num_classes - 1` in
+        # default)
         mask_pred = torch.argmax(
             mask_logit, dim=1).cpu().numpy().astype(np.uint8)
         mask_pred[mask_pred == (self.num_classes - 1)] = 0

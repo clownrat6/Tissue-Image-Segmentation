@@ -7,7 +7,7 @@ from mmcv.cnn import ConvModule, build_activation_layer
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..builder import HEADS
-from ..losses import GeneralizedDiceLoss, mdice, miou, tdice, tiou
+from ..losses import GeneralizedDiceLoss, miou, tiou
 from ..utils import UNetDecoderLayer, generate_direction_differential_map
 from .nuclei_decode_head import NucleiBaseDecodeHead
 
@@ -364,47 +364,14 @@ class NucleiCDHead(NucleiBaseDecodeHead):
         clean_direction_logit = direction_logit.clone().detach()
         clean_direction_label = direction_label.clone().detach()
 
-        # XXX: check pixel prediction
-        # mask_pred = torch.argmax(mask_logit, dim=1)
-        # area_pred = torch.histc(
-        #     mask_pred.float(),
-        #     bins=self.num_classes,
-        #     min=0,
-        #     max=self.num_classes - 1).long()
-        # area_label = torch.histc(
-        #     mask_label.float(),
-        #     bins=self.num_classes,
-        #     min=0,
-        #     max=self.num_classes - 1).long()
-
-        # pixel_count = [
-        #     f'{i}: {area_pred[i]}/{area_label[i]} '
-        #     for i in range(self.num_classes)
-        # ]
-        # pixel_count = ';'.join(pixel_count)
-
-        # print(pixel_count)
-
-        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_label,
-                                        self.num_classes)
         wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label,
                                       self.num_classes)
-
-        wrap_dict['direction_mdice'] = mdice(clean_direction_logit,
-                                             clean_direction_label,
-                                             self.num_angles + 1)
         wrap_dict['direction_miou'] = miou(clean_direction_logit,
                                            clean_direction_label,
                                            self.num_angles + 1)
-
-        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_label,
-                                        self.num_classes)
         wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label,
                                       self.num_classes)
 
-        wrap_dict['direction_tdice'] = tdice(clean_direction_logit,
-                                             clean_direction_label,
-                                             self.num_angles + 1)
         wrap_dict['direction_tiou'] = tiou(clean_direction_logit,
                                            clean_direction_label,
                                            self.num_angles + 1)
