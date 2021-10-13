@@ -180,10 +180,32 @@ LABEL_MAP = {
     88: 78,
     89: 79,
     90: 80,
-    255: 81,
+    256: 81,
 }
 
-EDGE_ID = 255
+PALETTE = [(0, 0, 0), (147, 128, 82), (17, 164, 238), (65, 110, 148),
+           (141, 242, 140), (115, 200, 43), (93, 36, 213), (152, 77, 133),
+           (178, 97, 232), (162, 124, 200), (185, 124, 96), (45, 76, 240),
+           (120, 11, 205), (86, 6, 120), (137, 45, 205), (35, 228, 99),
+           (159, 117, 153), (144, 103, 53), (28, 195, 246), (159, 189, 231),
+           (190, 141, 44), (37, 216, 79), (40, 41, 5), (0, 31, 26),
+           (218, 175, 206), (92, 2, 171), (87, 23, 131), (28, 77, 83),
+           (139, 202, 212), (146, 106, 124), (179, 50, 185), (146, 168, 113),
+           (11, 144, 219), (52, 150, 114), (71, 129, 242), (216, 92, 253),
+           (5, 51, 78), (169, 173, 144), (130, 198, 171), (62, 191, 243),
+           (191, 115, 71), (218, 221, 139), (96, 30, 43), (167, 122, 157),
+           (109, 159, 85), (52, 141, 239), (130, 228, 169), (12, 96, 36),
+           (245, 163, 163), (79, 42, 211), (132, 40, 96), (162, 180, 236),
+           (92, 155, 191), (110, 48, 115), (64, 218, 144), (77, 230, 229),
+           (184, 24, 51), (166, 54, 133), (48, 73, 227), (146, 112, 208),
+           (35, 105, 187), (167, 181, 141), (77, 185, 60), (48, 45, 237),
+           (196, 90, 229), (231, 87, 212), (75, 139, 72), (119, 194, 95),
+           (185, 188, 169), (244, 188, 151), (177, 239, 76), (96, 224, 76),
+           (151, 67, 174), (250, 210, 237), (220, 221, 179), (251, 147, 133),
+           (131, 185, 120), (153, 99, 11), (169, 197, 249), (197, 62, 20),
+           (4, 7, 184), (255, 255, 255)]
+
+EDGE_ID = 256
 
 
 def polygon_to_mask(polygon, height, width, path=None):
@@ -213,6 +235,8 @@ def pillow_save(image, path=None, palette=None):
 
     if palette is not None:
         image = image.convert('P')
+        if not isinstance(palette, np.ndarray):
+            palette = np.array(palette, dtype=np.uint8)
         image.putpalette(palette)
 
     if path is not None:
@@ -239,6 +263,9 @@ def convert_single_image(task, ann_folder):
     semantic_edge_canvas = np.zeros((height, width), dtype=np.uint8)
     for idx, ann in enumerate(anns):
         instance_item = ann
+        # iscrowd is not considered in coco stuff segmentation dataset.
+        if instance_item['iscrowd'] == 1:
+            continue
         cat_id = instance_item['category_id']
         # the raw category ids aren't continuous, so we use label_map to let
         # them continous.
@@ -276,11 +303,14 @@ def convert_single_image(task, ann_folder):
     np.save(osp.join(ann_folder, instance_ann_filename), instance_canvas)
 
     pillow_save(
-        semantic_canvas, path=osp.join(ann_folder, semantic_ann_filename))
+        semantic_canvas,
+        path=osp.join(ann_folder, semantic_ann_filename),
+        palette=PALETTE)
 
     pillow_save(
         semantic_edge_canvas,
-        path=osp.join(ann_folder, semantic_edge_ann_filename))
+        path=osp.join(ann_folder, semantic_edge_ann_filename),
+        palette=PALETTE)
 
     with open(osp.join(ann_folder, polygon_ann_filename), 'w') as fp:
         fp.write(json.dumps(instances_json, indent=4))
