@@ -246,7 +246,7 @@ def pillow_save(image, path=None, palette=None):
     return image
 
 
-def convert_single_image(task, ann_folder, palette=None):
+def convert_single_image(task, ann_folder, put_palette=False):
     img_item, anns = task
 
     img_name = osp.splitext(img_item['file_name'])[0]
@@ -303,6 +303,11 @@ def convert_single_image(task, ann_folder, palette=None):
 
     np.save(osp.join(ann_folder, instance_ann_filename), instance_canvas)
 
+    if put_palette:
+        palette = PALETTE
+    else:
+        palette = None
+
     pillow_save(
         semantic_canvas,
         path=osp.join(ann_folder, semantic_ann_filename),
@@ -343,12 +348,6 @@ def parse_args():
 def main():
     args = parse_args()
     dataset_root = args.dataset_root
-    put_palette = args.put_palette
-
-    if put_palette:
-        palette = PALETTE
-    else:
-        palette = None
 
     split_list = ['train', 'val']
 
@@ -399,7 +398,7 @@ def main():
         loop_job = partial(
             convert_single_image,
             ann_folder=ann_folder,
-            palette=palette,
+            put_palette=args.put_palette,
         )
 
         if args.nproc > 1:
