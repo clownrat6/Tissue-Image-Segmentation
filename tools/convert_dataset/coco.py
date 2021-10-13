@@ -246,7 +246,7 @@ def pillow_save(image, path=None, palette=None):
     return image
 
 
-def convert_single_image(task, ann_folder):
+def convert_single_image(task, ann_folder, palette=None):
     img_item, anns = task
 
     img_name = osp.splitext(img_item['file_name'])[0]
@@ -306,12 +306,12 @@ def convert_single_image(task, ann_folder):
     pillow_save(
         semantic_canvas,
         path=osp.join(ann_folder, semantic_ann_filename),
-        palette=PALETTE)
+        palette=palette)
 
     pillow_save(
         semantic_edge_canvas,
         path=osp.join(ann_folder, semantic_edge_ann_filename),
-        palette=PALETTE)
+        palette=palette)
 
     with open(osp.join(ann_folder, polygon_ann_filename), 'w') as fp:
         fp.write(json.dumps(instances_json, indent=4))
@@ -333,6 +333,8 @@ def parse_args():
         default=None,
         help='The annotation save folder path')
     parser.add_argument(
+        '-p', '--put-palette', help='Whether to put palette for sementic map.')
+    parser.add_argument(
         '-n', '--nproc', default=1, type=int, help='The number of process.')
 
     return parser.parse_args()
@@ -341,6 +343,12 @@ def parse_args():
 def main():
     args = parse_args()
     dataset_root = args.dataset_root
+    put_palette = args.put_palette
+
+    if put_palette:
+        palette = PALETTE
+    else:
+        palette = None
 
     split_list = ['train', 'val']
 
@@ -391,6 +399,7 @@ def main():
         loop_job = partial(
             convert_single_image,
             ann_folder=ann_folder,
+            palette=palette,
         )
 
         if args.nproc > 1:
