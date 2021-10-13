@@ -341,8 +341,11 @@ class InstanceCOCODataset(Dataset):
             id_mask = id_mask.astype(np.uint8)
             pred_canvas[id_mask > 0] = id
         pred_semantic = pred_canvas.copy()
-        pred_semantic = morphology.dilation(
-            pred_semantic, selem=morphology.disk(2))
+
+        # TODO: Consider the dilation in postprocess (may be unnecessary in
+        # natural instance segmentation)
+        # pred_semantic = morphology.dilation(
+        #     pred_semantic, selem=morphology.disk(2))
 
         # instance process & dilation
         pred_instance = measure.label(pred_canvas > 0)
