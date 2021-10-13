@@ -55,7 +55,15 @@ data
 │   ├── test
 │   ├── train.txt
 │   └── test.txt
-│
+|
+├── oscd
+│   ├── OSCD
+|   │   ├── coco_carton
+|   │   └── labelme
+│   ├── annotations
+│   ├── images
+│   ├── train.txt
+│   └── test.txt
 │
 └── monuseg
     ├── MoNuSeg
@@ -118,3 +126,10 @@ python tools/convert_dataset/monuseg.py data/monuseg official
 4. Download [2017 train/val annotations](http://images.cocodataset.org/annotations/annotations_trainval2017.zip);
 5. Uncompressed it into `data/coco/coco/annotations`;
 6. Run conversion script: `python tools/convert_dataset/coco.py data/coco --nproc 8`;
+
+## OCSD Carton Segmentation Dataset
+
+1. Download OCSD from [homepage](https://github.com/yancie-yjr/scd.github.io);
+2. Get `OSCD.zip` from [BaiduNetDisk](https://pan.baidu.com/s/1p2KOYFhLWFfbmMBLpxbVMA);
+3. Uncompressed `OSCD.zip` into `data/oscd`
+4. Run conversion script: `python tools/convert_dataset/oscd.py data/oscd --nproc 8`;

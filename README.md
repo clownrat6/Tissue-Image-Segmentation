@@ -1,36 +1,37 @@
 # torch-image-segmentation
 
-## Models and Datasets collection
-
-We collect models and datasets about semantic segmentation and instance segmentation.
-
-Please check [this doc](docs/record.md)
-
 ## Dataset Prepare
-
-We can use scripts in `tools/convert_dataset` to complete dataset preparation.
 
 Please check [this doc](docs/dataset_prepare.md)
 
-## Tools
+Supported Dataset:
 
-- [ ] Train & Evaluation;
-- [ ] Benchmark (inference time, parameters, flops);
-- [ ] Dataset (preparation, sample);
+- [x] MoNuSeg;
+- [x] CoNSeP;
+- [x] CPM17;
+- [x] OSCD;
+- [x] COCO;
 
-Because we use some network ops from mmcv, so the raw version of thop may ignore some ops wrapped by mmcv. We modify the thop to adapt mmcv. mmcv-adapt version thop install command:
+## Usage
 
-```bash
-pip install --upgrade git+https://github.com/sennnnn/pytorch-OpCounter.git
+```Bash
+# single gpu training
+python tools/train.py [config_path]
+# multi gpu training
+./tools/dist_train.sh [config_path] [gpu_num]
+# demo (cdnet for oscd dataset on 1 gpu)
+python tools/train.py configs/cdnet/cdnet_vgg16_adam-lr1e-3_8x1_256x256_80k_carton_oscd.py
+# demo (upernet for coco dataset on 4 gpu)
+./tools/dist_train.py configs/upernet/upernet_r50-d8_sgd-lr5e-3_4x2_512x512_160k_instance_coco.py 4
 ```
 
 ## Main Board
 
 Support Model:
 
-- [x]
-- [x]
-- [x]
+- [x] UNet
+- [x] UPerNet
+- [x] CDNet
 
 ## Thanks
 
