@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import os.path as osp
+import shutil
 from functools import partial
 
 import mmcv
@@ -350,6 +351,9 @@ def main():
         ann_folder = args.ann_folder or osp.join(dataset_root, 'annotations')
 
         src_ann_json = coco.COCO(src_ann_json)
+
+        if args.re_generate:
+            shutil.rmtree(ann_folder)
 
         if not osp.exists(ann_folder):
             os.makedirs(ann_folder, 0o775)
