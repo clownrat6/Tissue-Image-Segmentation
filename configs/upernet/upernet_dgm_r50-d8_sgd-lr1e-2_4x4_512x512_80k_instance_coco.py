@@ -1,11 +1,12 @@
 _base_ = [
     '../_base_/datasets/instance_coco.py',
     '../_base_/default_runtime.py',
-    './_base_/cdnet_r50-d8.py',
-    './_base_/cdnet_schedule_160k.py',
+    './_base_/upernet_dgm_r50-d8.py',
+    './_base_/upernet_schedule_80k.py',
 ]
 
-optimizer = dict(_delete_=True, type='SGD', lr=0.001, weight_decay=0.0005)
+optimizer = dict(
+    _delete_=True, type='SGD', lr=0.005, momentum=0.9, weight_decay=0.0005)
 
 lr_config = dict(
     _delete_=True,
@@ -20,7 +21,7 @@ lr_config = dict(
 model = dict(
     decode_head=dict(num_classes=82),
     train_cfg=dict(),
-    test_cfg=dict(mode='whole', plane_size=(256, 256), use_ddm=True),
+    test_cfg=dict(mode='whole'),
 )
 
 data = dict(samples_per_gpu=4, workers_per_gpu=4)

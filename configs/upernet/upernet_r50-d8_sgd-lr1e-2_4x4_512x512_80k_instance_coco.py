@@ -1,12 +1,12 @@
 _base_ = [
     '../_base_/datasets/instance_coco_pure.py',
     '../_base_/default_runtime.py',
-    './_base_/unet_r50-d8.py',
-    './_base_/unet_schedule_80k.py',
+    './_base_/upernet_r50-d8.py',
+    './_base_/upernet_schedule_80k.py',
 ]
 
 optimizer = dict(
-    _delete_=True, type='SGD', lr=0.001, momentum=0.9, weight_decay=0.0005)
+    _delete_=True, type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005)
 
 lr_config = dict(
     _delete_=True,
