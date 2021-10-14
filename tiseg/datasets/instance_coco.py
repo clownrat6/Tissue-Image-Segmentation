@@ -315,8 +315,8 @@ class InstanceCOCODataset(Dataset):
                     show_folder,
                     data_id,
                     image_path,
-                    pred_semantic,
-                    seg_map_semantic,
+                    pred_semantic_edge,
+                    seg_map_semantic_edge,
                     single_loop_results,
                     edge_id=self.CLASSES.index('edge'))
 
@@ -330,9 +330,10 @@ class InstanceCOCODataset(Dataset):
     def model_agnostic_postprocess(self, pred):
         """model free post-process for both instance-level & semantic-level."""
         id_list = list(np.unique(pred))
-        id_list.remove(0) if 0 in id_list else None
         pred_canvas = np.zeros_like(pred).astype(np.uint8)
         for id in id_list:
+            if id == 0:
+                continue
             id_mask = pred == id
             # fill instance holes
             id_mask = binary_fill_holes(id_mask)

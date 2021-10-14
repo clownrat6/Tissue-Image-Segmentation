@@ -117,8 +117,9 @@ def convert_instance_to_semantic(instances, with_edge=True):
     mask = np.zeros([height, width], dtype=np.uint8)
     instance_id_list = list(np.unique(instances))
     # remove background
-    instance_id_list.remove(0)
     for instance_id in instance_id_list:
+        if instance_id == 0:
+            continue
         single_instance_map = (instances == instance_id).astype(np.uint8)
         local_id = convert_official_to_local(int(instance_id / 1000))
         mask[single_instance_map > 0] = local_id

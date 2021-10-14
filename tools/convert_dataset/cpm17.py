@@ -40,8 +40,9 @@ def convert_instance_to_semantic(instance_map, with_edge=True):
     H, W = instance_map.shape
     semantic_map = np.zeros([H, W], dtype=np.uint8)
     instance_id_list = list(np.unique(instance_map))
-    instance_id_list.remove(0)
     for id in instance_id_list:
+        if id == 0:
+            continue
         single_instance_map = instance_map == id
         if with_edge:
             boundary = morphology.dilation(single_instance_map) & (

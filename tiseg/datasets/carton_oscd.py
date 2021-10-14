@@ -314,9 +314,10 @@ class CartonOSCDDataset(Dataset):
     def model_agnostic_postprocess(self, pred):
         """model free post-process for both instance-level & semantic-level."""
         id_list = list(np.unique(pred))
-        id_list.remove(0) if 0 in id_list else None
         pred_canvas = np.zeros_like(pred).astype(np.uint8)
         for id in id_list:
+            if id == 0:
+                continue
             id_mask = pred == id
             # fill instance holes
             id_mask = binary_fill_holes(id_mask)

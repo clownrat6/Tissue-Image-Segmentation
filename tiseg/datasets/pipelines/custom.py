@@ -266,11 +266,12 @@ class GeneralLabelMake(object):
 
         # remove background
         markers_unique = list(np.unique(instance_map))
-        markers_unique.remove(0) if 0 in markers_unique else None
         markers_len = len(markers_unique)
 
         # Calculate for each instance
         for k in markers_unique:
+            if k == 0:
+                continue
             single_instance_map = (instance_map == k).astype(np.uint8)
 
             center = calculate_centerpoint(single_instance_map, H, W)

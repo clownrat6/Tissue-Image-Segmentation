@@ -9,7 +9,6 @@ def colorize_seg_map(seg_map, palette=None):
     """using random rgb color to colorize segmentation map."""
     colorful_seg_map = np.zeros((*seg_map.shape, 3), dtype=np.uint8)
     id_list = list(np.unique(seg_map))
-    id_list.remove(0) if 0 in id_list else None
 
     if palette is None:
         palette = {}
@@ -18,6 +17,9 @@ def colorize_seg_map(seg_map, palette=None):
             palette[id] = color
 
     for id in id_list:
+        # ignore background
+        if id == 0:
+            continue
         colorful_seg_map[seg_map == id, :] = palette[id]
 
     return colorful_seg_map

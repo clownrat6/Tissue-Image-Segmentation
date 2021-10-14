@@ -182,7 +182,7 @@ def intersect_and_union(pred_label,
 def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     """Aggregated Jaccard Index Calculation.
 
-    It's only support binary mask now.
+    0 is set as background pixels and we will ignored.
 
     Args:
         pred_label (numpy.ndarray): Prediction segmentation map.
@@ -201,31 +201,22 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     pred_id_list = list(np.unique(pred_label))
     target_id_list = list(np.unique(target_label))
 
-    # move zero element to the first place
-    if 0 in pred_id_list:
-        pred_id_list.remove(0)
-        pred_id_list.insert(0, 0)
-    else:
-        pred_id_list.insert(0, 0)
-
-    if 0 in target_id_list:
-        target_id_list.remove(0)
-        target_id_list.insert(0, 0)
-    else:
-        target_id_list.insert(0, 0)
-
     # Remove background class
     pred_masks = {
         0: None,
     }
-    for p in pred_id_list[1:]:
+    for p in pred_id_list:
+        if p == 0:
+            continue
         p_mask = (pred_label == p).astype(np.uint8)
         pred_masks[p] = p_mask
 
     target_masks = {
         0: None,
     }
-    for t in target_id_list[1:]:
+    for t in target_id_list:
+        if t == 0:
+            continue
         t_mask = (target_label == t).astype(np.uint8)
         target_masks[t] = t_mask
 
@@ -238,7 +229,9 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
                               dtype=np.float64)
 
     # caching pairwise
-    for target_id in target_id_list[1:]:  # 0-th is background
+    for target_id in target_id_list:  # 0-th is background
+        if target_id == 0:
+            continue
         t_mask = target_masks[target_id]
         pred_target_overlap = pred_label[t_mask > 0]
         pred_target_overlap_id = list(np.unique(pred_target_overlap))
@@ -267,12 +260,15 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     paired_target = list(paired_target + 1)  # index to instance ID
     paired_pred = list(paired_pred + 1)
     # It seems that only unpaired Predictions need to be added into union.
-    unpaired_target = np.array(
-        [idx for idx in target_id_list[1:] if idx not in paired_target])
+    unpaired_target = np.array([
+        idx for idx in target_id_list
+        if (idx not in paired_target) and (idx != 0)
+    ])
     for target_id in unpaired_target:
         overall_union += target_masks[target_id].sum()
-    unpaired_pred = np.array(
-        [idx for idx in pred_id_list[1:] if idx not in paired_pred])
+    unpaired_pred = np.array([
+        idx for idx in pred_id_list if (idx not in paired_pred) and (idx != 0)
+    ])
     for pred_id in unpaired_pred:
         overall_union += pred_masks[pred_id].sum()
 
