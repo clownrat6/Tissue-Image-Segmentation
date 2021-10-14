@@ -47,7 +47,9 @@ class InstanceCOCODataset(Dataset):
                'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard',
                'cell phone', 'microwave', 'oven', 'toaster', 'sink',
                'refrigerator', 'book', 'clock', 'vase', 'scissors',
-               'teddy bear', 'hair drier', 'toothbrush', 'edge')
+               'teddy bear', 'hair drier', 'toothbrush')
+
+    EDGE_ID = 81
 
     PALETTE = [(0, 0, 0), (147, 128, 82), (17, 164, 238), (65, 110, 148),
                (141, 242, 140), (115, 200, 43), (93, 36, 213), (152, 77, 133),
@@ -70,7 +72,7 @@ class InstanceCOCODataset(Dataset):
                (244, 188, 151), (177, 239, 76), (96, 224, 76), (151, 67, 174),
                (250, 210, 237), (220, 221, 179), (251, 147, 133),
                (131, 185, 120), (153, 99, 11), (169, 197, 249), (197, 62, 20),
-               (4, 7, 184), (255, 255, 255)]
+               (4, 7, 184)]
 
     def __init__(self,
                  pipeline,
@@ -259,9 +261,8 @@ class InstanceCOCODataset(Dataset):
             # semantic level label make (with edge)
             seg_map_semantic_edge = mmcv.imread(
                 seg_map, flag='unchanged', backend='pillow')
-            seg_map_edge = (
-                seg_map_semantic_edge == self.CLASSES.index('edge')).astype(
-                    np.uint8)
+            seg_map_edge = (seg_map_semantic_edge == self.EDGE_ID).astype(
+                np.uint8)
             # ground truth of semantic level
             seg_map_semantic = seg_map.replace('_semantic_with_edge.png',
                                                '_semantic.png')
@@ -277,9 +278,7 @@ class InstanceCOCODataset(Dataset):
             # extract semantic results w/ edge
             pred_semantic_edge = pred
             # edge id is 81 (len(self.CLASSES) - 1)
-            pred_edge = (
-                pred_semantic_edge == self.CLASSES.index('edge')).astype(
-                    np.uint8)
+            pred_edge = (pred_semantic_edge == self.EDGE_ID).astype(np.uint8)
             pred_semantic = pred.copy()
             pred_semantic[pred_edge > 0] = 0
 
@@ -290,8 +289,7 @@ class InstanceCOCODataset(Dataset):
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
             semantic_pre_eval_results = pre_eval_all_semantic_metric(
-                pred_semantic, seg_map_semantic,
-                len(self.CLASSES) - 1)
+                pred_semantic, seg_map_semantic, len(self.CLASSES))
             edge_pre_eval_results = pre_eval_all_semantic_metric(
                 pred_edge, seg_map_edge, 2)
 
@@ -318,7 +316,7 @@ class InstanceCOCODataset(Dataset):
                     pred_semantic_edge,
                     seg_map_semantic_edge,
                     single_loop_results,
-                    edge_id=self.CLASSES.index('edge'))
+                    edge_id=self.EDGE_ID)
 
             # illustrating instance level results
             if show_instance:
