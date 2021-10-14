@@ -14,7 +14,7 @@ from skimage import morphology
 
 # coco official id & label name
 CLASSES = {
-    0: 'Background',
+    0: 'background',
     1: 'person',
     2: 'bicycle',
     3: 'car',
@@ -95,7 +95,7 @@ CLASSES = {
     88: 'teddy bear',
     89: 'hair drier',
     90: 'toothbrush',
-    255: 'edge'
+    256: 'edge'
 }
 
 # convert coco official id to new id
