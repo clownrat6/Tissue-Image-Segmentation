@@ -68,6 +68,8 @@ class NucleiBaseDecodeHead(BaseDecodeHead):
             aji_single_image = aggregated_jaccard_index(
                 mask_pred[i], mask_target[i])
             wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
+        # distributed environment requires cuda tensor
         wrap_dict['aji'] /= N
+        wrap_dict['aji'] = wrap_dict['aji'].cuda()
 
         return wrap_dict
