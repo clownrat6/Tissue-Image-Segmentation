@@ -405,6 +405,8 @@ class CartonOSCDDataset(Dataset):
         eval_results = {}
         # average results
         for key, val in ret_metrics.items():
+            if key != 'Aji' and 'edge' not in key:
+                key = 'm' + key
             eval_results.update({key: val})
 
         # This ret value is used for eval hook. Eval hook will add these
