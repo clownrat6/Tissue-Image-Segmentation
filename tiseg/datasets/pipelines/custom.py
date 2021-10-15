@@ -75,7 +75,6 @@ class CDNetLabelMake(object):
                     instance_map, selem=morphology.selem.disk(1))
 
             results['gt_instance_map'] = instance_map
-            results['gt_semantic_map'] = (instance_map > 0).astype(np.uint8)
         else:
             raise NotImplementedError
 

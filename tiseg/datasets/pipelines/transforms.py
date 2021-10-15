@@ -599,10 +599,11 @@ class RandomCrop(object):
             occupy.
     """
 
-    def __init__(self, crop_size, cat_max_ratio=1.):
+    def __init__(self, crop_size, cat_max_ratio=1., ignore_index=255):
         assert crop_size[0] > 0 and crop_size[1] > 0
         self.crop_size = crop_size
         self.cat_max_ratio = cat_max_ratio
+        self.ignore_index = ignore_index
 
     def get_crop_bbox(self, img):
         """Randomly get a crop bounding box."""
@@ -639,6 +640,7 @@ class RandomCrop(object):
             for _ in range(10):
                 seg_temp = self.crop(results['gt_semantic_map'], crop_bbox)
                 labels, cnt = np.unique(seg_temp, return_counts=True)
+                cnt = cnt[labels != self.ignore_index]
                 if len(cnt) > 1 and np.max(cnt) / np.sum(
                         cnt) < self.cat_max_ratio:
                     break

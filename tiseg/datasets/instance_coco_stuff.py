@@ -12,52 +12,84 @@ from skimage import measure, morphology
 from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
-from tiseg.utils.evaluation.metrics import (accuracy, aggregated_jaccard_index,
-                                            dice_similarity_coefficient,
-                                            precision_recall)
+from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
+                                            pre_eval_all_semantic_metric,
+                                            pre_eval_to_metrics)
 from .builder import DATASETS
 from .pipelines import Compose
 from .utils import draw_instance, draw_semantic, re_instance
 
 
 @DATASETS.register_module()
-class CartonOSCDDataset(Dataset):
-    """Carton Custom Foundation Segmentation Dataset.
+class InstanceCOCOStuffDataset(Dataset):
+    """Semantic-to-Instance Segmentation Dataset (with stuff).
 
     Although, this dataset is a instance segmentation task, this dataset also
-    support a three class semantic segmentation task (Background, Carton,
-    Edge).
+    support a multiple class semantic segmentation task (Background, xxx, yyy,
+    zzz, ...,Edge).
+
+    When evaluation, we will remove stuff prediction.
 
     related suffix:
-        "_semantic_with_edge.png": three class semantic map with edge.
-        "_polygon.json": overlapping instance polygons.
+        "_semantic.png": multi class semantic map.
+        "_semantic_with_edge.png": multi class semantic map with edge.
         "_instance.npy": instance level map.
     """
 
-    CLASSES = ('background', 'carton', 'edge')
+    CLASSES = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
+               'train', 'truck', 'boat', 'traffic light', 'fire hydrant',
+               'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog',
+               'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe',
+               'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
+               'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat',
+               'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
+               'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
+               'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot',
+               'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
+               'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop',
+               'mouse', 'remote', 'keyboard', 'cell phone', 'microwave',
+               'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock',
+               'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush')
 
-    EDGE_ID = 2
+    EDGE_ID = 171
 
-    PALETTE = [[0, 0, 0], [255, 2, 255], [2, 255, 255]]
+    PALETTE = [(147, 128, 82), (17, 164, 238), (65, 110, 148), (141, 242, 140),
+               (115, 200, 43), (93, 36, 213), (152, 77, 133), (178, 97, 232),
+               (162, 124, 200), (185, 124, 96), (45, 76, 240), (120, 11, 205),
+               (86, 6, 120), (137, 45, 205), (35, 228, 99), (159, 117, 153),
+               (144, 103, 53), (28, 195, 246), (159, 189, 231), (190, 141, 44),
+               (37, 216, 79), (40, 41, 5), (0, 31, 26), (218, 175, 206),
+               (92, 2, 171), (87, 23, 131), (28, 77, 83), (139, 202, 212),
+               (146, 106, 124), (179, 50, 185), (146, 168, 113),
+               (11, 144, 219), (52, 150, 114), (71, 129, 242), (216, 92, 253),
+               (5, 51, 78), (169, 173, 144), (130, 198, 171), (62, 191, 243),
+               (191, 115, 71), (218, 221, 139), (96, 30, 43), (167, 122, 157),
+               (109, 159, 85), (52, 141, 239), (130, 228, 169), (12, 96, 36),
+               (245, 163, 163), (79, 42, 211), (132, 40, 96), (162, 180, 236),
+               (92, 155, 191), (110, 48, 115), (64, 218, 144), (77, 230, 229),
+               (184, 24, 51), (166, 54, 133), (48, 73, 227), (146, 112, 208),
+               (35, 105, 187), (167, 181, 141), (77, 185, 60), (48, 45, 237),
+               (196, 90, 229), (231, 87, 212), (75, 139, 72), (119, 194, 95),
+               (185, 188, 169), (244, 188, 151), (177, 239, 76), (96, 224, 76),
+               (151, 67, 174),
+               (250, 210, 237), (220, 221, 179), (251, 147, 133),
+               (131, 185, 120), (153, 99, 11), (169, 197, 249), (197, 62, 20),
+               (4, 7, 184)]
 
     def __init__(self,
                  pipeline,
                  img_dir,
                  ann_dir,
+                 ignore_index=255,
                  data_root=None,
                  img_suffix='.jpg',
                  ann_suffix='_semantic_with_edge.png',
                  test_mode=False,
                  split=None):
 
-        # semantic level input or instance level input
-        assert ann_suffix in ['_semantic_with_edge.png', '_instance.npy']
-        if ann_suffix == '_semantic_with_edge.png':
-            self.input_level = 'semantic_with_edge'
-        elif ann_suffix == '_instance.npy':
-            self.input_level = 'instance'
-
         self.pipeline = Compose(pipeline)
+
+        self.ignore_index = ignore_index
 
         self.img_dir = img_dir
         self.ann_dir = ann_dir
@@ -137,8 +169,10 @@ class CartonOSCDDataset(Dataset):
         # path retrieval
         results['img_info']['img_name'] = data_info['img_name']
         results['img_info']['img_dir'] = self.img_dir
+        results['img_info']['img_suffix'] = self.img_suffix
         results['ann_info']['ann_name'] = data_info['ann_name']
         results['ann_info']['ann_dir'] = self.ann_dir
+        results['ann_info']['ann_suffix'] = self.ann_suffix
 
         # build seg fileds
         results['seg_fields'] = []
@@ -219,8 +253,8 @@ class CartonOSCDDataset(Dataset):
             warnings.warn(
                 'show_semantic or show_instance is set to True, but the '
                 'show_folder is None. We will use default show_folder: '
-                '.oscd_show')
-            show_folder = '.oscd_show'
+                '.coco_stuff_show')
+            show_folder = '.coco_stuff_show'
             if not osp.exists(show_folder):
                 os.makedirs(show_folder, 0o775)
 
@@ -229,31 +263,26 @@ class CartonOSCDDataset(Dataset):
         for pred, index in zip(preds, indices):
             seg_map = osp.join(self.ann_dir,
                                self.data_infos[index]['ann_name'])
-            # (after pre_eval input process) requires 4 type seg_map:
-            # 1. seg_map_semantic_edge (semantic map ground truth with edge)
-            # 2. seg_map_segamtic (raw semantic map ground truth)
-            # 3. seg_map_edge (semantic level edge ground truth)
-            # 4. seg_map_instance (instance level ground truth)
-            if self.input_level == 'semantic_with_edge':
-                # semantic edge level label make
-                seg_map_semantic_edge = mmcv.imread(
-                    seg_map, flag='unchanged', backend='pillow')
-                seg_map_edge = (seg_map_semantic_edge == self.EDGE_ID).astype(
-                    np.uint8)
-                # ground truth of semantic level
-                seg_map_semantic = seg_map.replace('_semantic_with_edge.png',
-                                                   '_semantic.png')
-                seg_map_semantic = mmcv.imread(
-                    seg_map_semantic, flag='unchanged', backend='pillow')
-                # instance level label make
-                seg_map_instance = seg_map.replace('_semantic_with_edge.png',
-                                                   '_instance.npy')
-                seg_map_instance = np.load(seg_map_instance)
-                seg_map_instance = re_instance(seg_map_instance)
+            # semantic level label make (with edge)
+            seg_map_semantic_edge = mmcv.imread(
+                seg_map, flag='unchanged', backend='pillow')
+            seg_map_edge = (seg_map_semantic_edge == self.EDGE_ID).astype(
+                np.uint8)
+            # ground truth of semantic level
+            seg_map_semantic = seg_map.replace('_semantic_with_edge.png',
+                                               '_semantic.png')
+            seg_map_semantic = mmcv.imread(
+                seg_map_semantic, flag='unchanged', backend='pillow')
+            # instance level label make
+            seg_map_instance = seg_map.replace('_semantic_with_edge.png',
+                                               '_instance.npy')
+            seg_map_instance = np.load(seg_map_instance)
+            seg_map_instance = re_instance(seg_map_instance)
 
             # metric calculation post process codes:
+            # extract semantic results w/ edge
             pred_semantic_edge = pred
-            # edge id is 2
+            # edge id is 171 (len(self.CLASSES) - 1)
             pred_edge = (pred_semantic_edge == self.EDGE_ID).astype(np.uint8)
             pred_semantic = pred.copy()
             pred_semantic[pred_edge > 0] = 0
@@ -264,20 +293,10 @@ class CartonOSCDDataset(Dataset):
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
-            precision_metric, recall_metric = precision_recall(
-                pred_semantic, seg_map_semantic, 2)
-            precision_metric = precision_metric[1]
-            recall_metric = recall_metric[1]
-            dice_metric = dice_similarity_coefficient(pred_semantic,
-                                                      seg_map_semantic, 2)[1]
-            acc_metric = accuracy(pred_semantic, seg_map_semantic, 2)[1]
-
-            edge_precision_metric, edge_recall_metric = \
-                precision_recall(pred_edge, seg_map_edge, 2)
-            edge_precision_metric = edge_precision_metric[1]
-            edge_recall_metric = edge_recall_metric[1]
-            edge_dice_metric = dice_similarity_coefficient(
-                pred_edge, seg_map_edge, 2)[1]
+            semantic_pre_eval_results = pre_eval_all_semantic_metric(
+                pred_semantic, seg_map_semantic, len(self.CLASSES))
+            edge_pre_eval_results = pre_eval_all_semantic_metric(
+                pred_edge, seg_map_edge, 2)
 
             # instance metric calculation
             aji_metric = aggregated_jaccard_index(
@@ -285,13 +304,8 @@ class CartonOSCDDataset(Dataset):
 
             single_loop_results = dict(
                 Aji=aji_metric,
-                Dice=dice_metric,
-                Accuracy=acc_metric,
-                Recall=recall_metric,
-                Precision=precision_metric,
-                edge_Dice=edge_dice_metric,
-                edge_Recall=edge_recall_metric,
-                edge_Precision=edge_precision_metric)
+                semantic_pre_eval_results=semantic_pre_eval_results,
+                edge_pre_eval_results=edge_pre_eval_results)
             pre_eval_results.append(single_loop_results)
 
             data_id = self.data_infos[index]['ann_name'].replace(
@@ -300,9 +314,14 @@ class CartonOSCDDataset(Dataset):
             if show_semantic:
                 data_info = self.data_infos[index]
                 image_path = osp.join(self.img_dir, data_info['img_name'])
-                draw_semantic(show_folder, data_id, image_path,
-                              pred_semantic_edge, seg_map_semantic_edge,
-                              single_loop_results)
+                draw_semantic(
+                    show_folder,
+                    data_id,
+                    image_path,
+                    pred_semantic_edge,
+                    seg_map_semantic_edge,
+                    single_loop_results,
+                    edge_id=self.EDGE_ID)
 
             # illustrating instance level results
             if show_instance:
@@ -314,9 +333,12 @@ class CartonOSCDDataset(Dataset):
     def model_agnostic_postprocess(self, pred):
         """model free post-process for both instance-level & semantic-level."""
         id_list = list(np.unique(pred))
+        # XXX: remove stuff prediction (we want to use stuff prediction to
+        # enhance things prediction.)
+        pred[pred > 79] = 0
         pred_canvas = np.zeros_like(pred).astype(np.uint8)
         for id in id_list:
-            if id == 0:
+            if id == self.ignore_index:
                 continue
             id_mask = pred == id
             # fill instance holes
@@ -326,23 +348,21 @@ class CartonOSCDDataset(Dataset):
             id_mask = id_mask.astype(np.uint8)
             pred_canvas[id_mask > 0] = id
         pred_semantic = pred_canvas.copy()
-        pred_semantic = morphology.dilation(
-            pred_semantic, selem=morphology.disk(2))
+
+        # TODO: Consider the dilation in postprocess (may be unnecessary in
+        # natural instance segmentation)
+        # pred_semantic = morphology.dilation(
+        #     pred_semantic, selem=morphology.disk(2))
 
         # instance process & dilation
-        pred_instance = measure.label(pred_canvas > 0)
+        pred_instance = measure.label(pred_canvas != self.ignore_index)
         # if re_edge=True, dilation pixel length should be 2
         pred_instance = morphology.dilation(
             pred_instance, selem=morphology.disk(2))
 
         return pred_semantic, pred_instance
 
-    def evaluate(self,
-                 results,
-                 metric='all',
-                 logger=None,
-                 dump_path=None,
-                 **kwargs):
+    def evaluate(self, results, metric='all', logger=None, **kwargs):
         """Evaluate the dataset.
 
         Args:
@@ -351,8 +371,6 @@ class CartonOSCDDataset(Dataset):
                 'Dice' are supported.
             logger (logging.Logger | None | str): Logger used for printing
                 related information during evaluation. Default: None.
-            dump_path (str | None, optional): The dump path of each item
-                evaluation results. Default: None
 
         Returns:
             dict[str, float]: Default metrics.
@@ -361,8 +379,8 @@ class CartonOSCDDataset(Dataset):
         if isinstance(metric, str):
             metric = [metric]
         if 'all' in metric:
-            metric = ['IoU', 'Dice', 'Precision', 'Recall', 'Accuracy']
-        allowed_metrics = ['IoU', 'Dice', 'Precision', 'Recall', 'Accuracy']
+            metric = ['IoU', 'Dice', 'Precision', 'Recall']
+        allowed_metrics = ['IoU', 'Dice', 'Precision', 'Recall']
         if not set(metric).issubset(set(allowed_metrics)):
             raise KeyError('metric {} is not supported'.format(metric))
 
@@ -375,37 +393,74 @@ class CartonOSCDDataset(Dataset):
                 else:
                     ret_metrics[key].append(value)
 
+        # convert pre_eval results to metric value
+        semantic_pre_eval_results = ret_metrics.pop(
+            'semantic_pre_eval_results')
+        edge_pre_eval_results = ret_metrics.pop('edge_pre_eval_results')
+
+        semantic_ret_metrics = pre_eval_to_metrics(semantic_pre_eval_results,
+                                                   metric)
+        edge_ret_metrics = pre_eval_to_metrics(edge_pre_eval_results, metric)
+        for key, val in semantic_ret_metrics.items():
+            ret_metrics[key] = val[1:]
+        for key, val in edge_ret_metrics.items():
+            ret_metrics['edge_' + key] = val[1]
+
+        ret_metrics_per_class = {}
+        ret_metrics_total = {}
         # calculate average metric
         for key in ret_metrics.keys():
             # XXX: Using average value may have lower metric value than using
             # confused matrix.
-            average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+            # average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+            if 'Aji' in key:
+                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+                ret_metrics_total[key] = np.round(average_value * 100, 2)
+            elif key in metric:
+                ret_metrics_total['m' + key] = np.round(
+                    np.nanmean(ret_metrics[key]) * 100, 2)
+                ret_metrics_per_class[key] = np.round(ret_metrics[key] * 100,
+                                                      2)
+            elif 'edge' in key:
+                ret_metrics_total[key] = np.round(ret_metrics[key] * 100, 2)
 
-            ret_metrics[key] = average_value
+        # convert to orderdict
+        ret_metrics_per_class = OrderedDict(ret_metrics_per_class)
+        ret_metrics_total = OrderedDict(ret_metrics_total)
 
-        # for logger
-        ret_metrics_items = OrderedDict({
-            ret_metric: np.round(ret_metric_value * 100, 2)
-            for ret_metric, ret_metric_value in ret_metrics.items()
-        })
-        ret_metrics_items.update({'name': 'Average'})
-        ret_metrics_items.move_to_end('name', last=False)
-        items_table_data = PrettyTable()
-        for key, val in ret_metrics_items.items():
-            items_table_data.add_column(key, [val])
+        # per class metric show (remove background & edge)
+        class_names = list(self.CLASSES)
+        class_names.remove('background')
+        class_names.remove('edge')
+        ret_metrics_per_class.update({'classes': class_names})
+        ret_metrics_per_class.move_to_end('classes', last=False)
+
+        classes_table_data = PrettyTable()
+        for key, val in ret_metrics_per_class.items():
+            classes_table_data.add_column(key, val)
+
+        print_log('Per class:', logger)
+        print_log('\n' + classes_table_data.get_string(), logger=logger)
+
+        # total metric show
+        total_table_data = PrettyTable()
+        for key, val in ret_metrics_total.items():
+            total_table_data.add_column(key, [val])
 
         print_log('Total:', logger)
-        print_log('\n' + items_table_data.get_string(), logger=logger)
-
-        # dump to txt
-        if dump_path is not None:
-            fp = open(f'{dump_path}', 'w')
-            fp.write(items_table_data.get_string())
+        print_log('\n' + total_table_data.get_string(), logger=logger)
 
         eval_results = {}
         # average results
-        for key, val in ret_metrics.items():
-            eval_results.update({key: val})
+        for key, value in ret_metrics_total.items():
+            eval_results.update({key: value})
+
+        ret_metrics_per_class.pop('classes', None)
+        for key, value in ret_metrics_per_class.items():
+            eval_results.update({
+                key + '.' + str(name): f'{value[idx]:.3f}'
+                for idx, name in enumerate(class_names)
+            })
 
         # This ret value is used for eval hook. Eval hook will add these
         # evaluation info to runner.log_buffer.output. Then when the
