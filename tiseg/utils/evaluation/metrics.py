@@ -7,7 +7,10 @@ from skimage import measure
 
 
 # TODO: Add doc string & comments
-def pre_eval_all_semantic_metric(pred_label, target_label, num_classes):
+def pre_eval_all_semantic_metric(pred_label,
+                                 target_label,
+                                 num_classes,
+                                 ignore_index=255):
     """Generate pre eval results for all semantic metrics."""
     if isinstance(pred_label, str):
         pred_label = torch.from_numpy(np.load(pred_label))
@@ -19,6 +22,10 @@ def pre_eval_all_semantic_metric(pred_label, target_label, num_classes):
             mmcv.imread(target_label, flag='unchanged', backend='pillow'))
     else:
         target_label = torch.from_numpy(target_label)
+
+    mask = target_label != ignore_index
+    pred_label = pred_label[mask]
+    target_label = target_label[mask]
 
     TP = target_label[pred_label == target_label]
     FP = pred_label[pred_label != target_label]
@@ -44,7 +51,6 @@ def pre_eval_all_semantic_metric(pred_label, target_label, num_classes):
     return ret_package
 
 
-# TODO: Add doc string & comments
 def accuracy(pred_label, target_label, num_classes, nan_to_num=None):
     """multi-class accuracy calculation."""
     if isinstance(pred_label, str):
@@ -79,7 +85,6 @@ def accuracy(pred_label, target_label, num_classes, nan_to_num=None):
     return accuracy
 
 
-# TODO: Add doc string & comments
 def precision_recall(pred_label, target_label, num_classes, nan_to_num=None):
     """multi-class precision-recall calculation."""
     if isinstance(pred_label, str):
@@ -113,7 +118,6 @@ def precision_recall(pred_label, target_label, num_classes, nan_to_num=None):
     return precision, recall
 
 
-# TODO: Add comments & doc string
 def dice_similarity_coefficient(pred_label,
                                 target_label,
                                 num_classes,
@@ -146,7 +150,6 @@ def dice_similarity_coefficient(pred_label,
     return dice
 
 
-# TODO: Add comments & doc string
 def intersect_and_union(pred_label,
                         target_label,
                         num_classes,
@@ -200,6 +203,17 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
 
     pred_id_list = list(np.unique(pred_label))
     target_id_list = list(np.unique(target_label))
+    if 0 in pred_id_list:
+        pred_id_list.remove(0)
+        pred_id_list.insert(0, 0)
+    else:
+        pred_id_list.insert(0, 0)
+
+    if 0 in target_id_list:
+        target_id_list.remove(0)
+        target_id_list.insert(0, 0)
+    else:
+        target_id_list.insert(0, 0)
 
     # Remove background class
     pred_masks = {
