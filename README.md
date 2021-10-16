@@ -12,6 +12,12 @@ Supported Dataset:
 - [x] OSCD;
 - [x] COCO;
 
+## Installation
+
+1. Install MMCV-full (Linux recommend): `pip install MMCV-full==1.3.13`;
+2. Install requirements package: `pip install -r requirements.txt`;
+3. Install tiseg: `pip install -e .`;
+
 ## Usage
 
 ```Bash
