@@ -24,3 +24,5 @@ model = dict(
 )
 
 data = dict(samples_per_gpu=8, workers_per_gpu=8)
+
+evaluation = dict(save_best='mDice')
