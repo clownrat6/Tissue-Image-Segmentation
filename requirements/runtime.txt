@@ -5,7 +5,7 @@ matplotlib
 numba
 numpy
 prettytable
-pycocotools==2.0.0
+pycocotools==2.0.2
 rich
 scikit-image
 scipy
