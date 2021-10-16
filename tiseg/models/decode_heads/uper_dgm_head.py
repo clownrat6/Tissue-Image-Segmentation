@@ -9,54 +9,7 @@ from ..losses import miou, tiou
 from ..utils import generate_direction_differential_map
 from .cd_head import DGM
 from .decode_head import BaseDecodeHead
-
-
-class PPM(nn.ModuleList):
-    """Pooling Pyramid Module used in PSPNet.
-
-    Args:
-        pool_scales (tuple[int]): Pooling scales used in Pooling Pyramid
-            Module.
-        in_channels (int): Input channels.
-        channels (int): Channels after modules, before conv_seg.
-        norm_cfg (dict|None): Config of norm layers.
-        act_cfg (dict): Config of activation layers.
-        align_corners (bool): align_corners argument of F.interpolate.
-    """
-
-    def __init__(self, pool_scales, in_channels, channels, norm_cfg, act_cfg,
-                 align_corners, **kwargs):
-        super(PPM, self).__init__()
-        self.pool_scales = pool_scales
-        self.align_corners = align_corners
-        self.in_channels = in_channels
-        self.channels = channels
-        self.norm_cfg = norm_cfg
-        self.act_cfg = act_cfg
-        for pool_scale in pool_scales:
-            self.append(
-                nn.Sequential(
-                    nn.AdaptiveAvgPool2d(pool_scale),
-                    ConvModule(
-                        self.in_channels,
-                        self.channels,
-                        1,
-                        norm_cfg=self.norm_cfg,
-                        act_cfg=self.act_cfg,
-                        **kwargs)))
-
-    def forward(self, x):
-        """Forward function."""
-        ppm_outs = []
-        for ppm in self:
-            ppm_out = ppm(x)
-            upsampled_ppm_out = resize(
-                ppm_out,
-                size=x.size()[2:],
-                mode='bilinear',
-                align_corners=self.align_corners)
-            ppm_outs.append(upsampled_ppm_out)
-        return ppm_outs
+from .psp_head import PPM
 
 
 @HEADS.register_module()
@@ -246,9 +199,10 @@ class UPerDGMHead(BaseDecodeHead):
 
     def _mask_loss(self, mask_logit, mask_label):
         mask_loss = {}
-        mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        mask_ce_loss_calculator = nn.CrossEntropyLoss(
+            reduction='none', ignore_index=self.ignore_index)
         # Assign weight map for each pixel position
-        # mask_loss *= weight_map
+        # mask_ce_loss *= weight_map
         mask_ce_loss = torch.mean(
             mask_ce_loss_calculator(mask_logit, mask_label))
         # loss weight
@@ -270,8 +224,10 @@ class UPerDGMHead(BaseDecodeHead):
     def _direction_loss(self, direction_logit, direction_label):
         direction_loss = {}
         direction_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        direction_ce_loss = torch.mean(
-            direction_ce_loss_calculator(direction_logit, direction_label))
+        # Assign weight map for each pixel position
+        # direction_ce_loss *= weight_map
+        direction_ce_loss = direction_ce_loss_calculator(
+            direction_logit, direction_label)
         # loss weight
         alpha = 1
         direction_loss['direction_ce_loss'] = alpha * direction_ce_loss
@@ -289,15 +245,19 @@ class UPerDGMHead(BaseDecodeHead):
 
         wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label,
                                       self.num_classes)
-        wrap_dict['direction_miou'] = miou(clean_direction_logit,
-                                           clean_direction_label,
-                                           self.num_angles + 1)
+        wrap_dict['direction_miou'] = miou(
+            clean_direction_logit,
+            clean_direction_label,
+            self.num_angles + 1,
+            reduce_zero_label=True)
 
         wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label,
                                       self.num_classes)
-        wrap_dict['direction_tiou'] = tiou(clean_direction_logit,
-                                           clean_direction_label,
-                                           self.num_angles + 1)
+        wrap_dict['direction_tiou'] = tiou(
+            clean_direction_logit,
+            clean_direction_label,
+            self.num_angles + 1,
+            reduce_zero_label=True)
 
         return wrap_dict
 

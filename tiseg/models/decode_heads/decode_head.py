@@ -37,6 +37,7 @@ class BaseDecodeHead(nn.Module):
                  num_classes,
                  in_index=-1,
                  dropout_rate=0.1,
+                 ignore_index=255,
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU'),
                  input_transform='multiple_select',
@@ -47,6 +48,7 @@ class BaseDecodeHead(nn.Module):
         self.num_classes = num_classes
         self.in_index = in_index
         self.dropout_rate = dropout_rate
+        self.ignore_index = ignore_index
         self.norm_cfg = norm_cfg
         self.act_cfg = act_cfg
         self.input_transform
@@ -150,7 +152,8 @@ class BaseDecodeHead(nn.Module):
     def _mask_loss(self, mask_logit, mask_label):
         """calculate mask branch loss."""
         mask_loss = {}
-        mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        mask_ce_loss_calculator = nn.CrossEntropyLoss(
+            reduction='none', ignore_index=self.ignore_index)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         mask_ce_loss = torch.mean(
@@ -171,10 +174,16 @@ class BaseDecodeHead(nn.Module):
 
         wrap_dict['mask_accuracy'] = accuracy(clean_mask_logit,
                                               clean_mask_label)
-        wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label,
-                                      self.num_classes)
-        wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label,
-                                      self.num_classes)
+        wrap_dict['mask_tiou'] = tiou(
+            clean_mask_logit,
+            clean_mask_label,
+            self.num_classes,
+            reduce_zero_label=False)
+        wrap_dict['mask_miou'] = miou(
+            clean_mask_logit,
+            clean_mask_label,
+            self.num_classes,
+            reduce_zero_label=False)
 
         return wrap_dict
 

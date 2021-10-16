@@ -3,7 +3,7 @@ norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='EncoderDecoder',
     backbone=dict(
-        type='TorchDeeplabResNet50',
+        type='TorchResNet50',
         in_channels=3,
         out_indices=(1, 2, 3, 4),
         pretrained=True,
@@ -11,13 +11,13 @@ model = dict(
         act_cfg=dict(type='ReLU'),
     ),
     decode_head=dict(
-        type='UNetHead',
-        num_classes=3,
-        in_channels=(256, 512, 1024, 2048),
+        type='UPerDGMHead',
+        in_channels=[256, 512, 1024, 2048],
         in_index=[0, 1, 2, 3],
-        stage_convs=[3, 3, 3, 3],
-        stage_channels=[256, 512, 1024, 2048],
+        pool_scales=(1, 2, 3, 6),
+        channels=512,
         dropout_rate=0.1,
+        num_classes=82,
         act_cfg=dict(type='ReLU'),
         norm_cfg=norm_cfg,
         align_corners=False),

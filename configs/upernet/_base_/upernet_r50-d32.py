@@ -3,7 +3,7 @@ norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='EncoderDecoder',
     backbone=dict(
-        type='TorchDeeplabResNet50',
+        type='TorchResNet50',
         in_channels=3,
         out_indices=(1, 2, 3, 4),
         pretrained=True,

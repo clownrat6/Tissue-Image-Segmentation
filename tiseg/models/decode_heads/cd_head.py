@@ -309,7 +309,8 @@ class CDHead(BaseDecodeHead):
 
     def _mask_loss(self, mask_logit, mask_label):
         mask_loss = {}
-        mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        mask_ce_loss_calculator = nn.CrossEntropyLoss(
+            reduction='none', ignore_index=self.ignore_index)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         mask_ce_loss = torch.mean(
