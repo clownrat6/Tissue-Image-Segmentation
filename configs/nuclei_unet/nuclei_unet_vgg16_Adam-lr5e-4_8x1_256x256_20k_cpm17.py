@@ -1,6 +1,6 @@
 _base_ = [
     '../_base_/datasets/nuclei_cpm17.py',
-    './_base_/nuclei_unet_runtime.py',
+    '../_base_/default_runtime.py',
     './_base_/nuclei_unet_vgg16.py',
     './_base_/nuclei_unet_schedule_20k.py',
 ]
