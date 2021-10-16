@@ -282,10 +282,8 @@ def main():
         '--crop-size and --crop-stride only valid when both of them are set')
 
     train_raw_path = osp.join(root_path, 'MoNuSeg',
-                              'MoNuSeg 2018 Training Data',
                               'MoNuSeg 2018 Training Data')
-    test_raw_path = osp.join(root_path, 'MoNuSeg', 'MoNuSegTestData',
-                             'MoNuSegTestData')
+    test_raw_path = osp.join(root_path, 'MoNuSeg', 'MoNuSegTestData')
 
     if crop_size is not None:
         train_part_name = f'train_c{crop_size}_s{crop_stride}'
