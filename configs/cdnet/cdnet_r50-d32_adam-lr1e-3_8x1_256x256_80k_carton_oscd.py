@@ -1,8 +1,8 @@
 _base_ = [
     '../_base_/datasets/carton_oscd.py',
     '../_base_/default_runtime.py',
-    './_base_/cdnet_r50-d32.py',
-    './_base_/cdnet_schedule_80k.py',
+    '../_base_/models/cdnet_r50-d32.py',
+    '../_base_/schedules/mDice_schedule_80k.py',
 ]
 
 optimizer = dict(_delete_=True, type='Adam', lr=0.001, weight_decay=0.0005)
@@ -24,5 +24,3 @@ model = dict(
 )
 
 data = dict(samples_per_gpu=8, workers_per_gpu=8)
-
-evaluation = dict(save_best='mDice')

@@ -1,5 +1,5 @@
 _base_ = [
-    '../../_base_/schedules/schedule_80k.py',
+    './schedule_80k.py',
 ]
 evaluation = dict(
     _delete_=True,

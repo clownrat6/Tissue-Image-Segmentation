@@ -1,11 +1,11 @@
 _base_ = [
-    '../../_base_/schedules/schedule_80k.py',
+    './mIoU_schedule_80k.py',
 ]
 evaluation = dict(
     _delete_=True,
     interval=4000,
     metric='all',
-    save_best='mIoU',
+    save_best='mDice',
     rule='greater',
 )
 checkpoint_config = dict(
