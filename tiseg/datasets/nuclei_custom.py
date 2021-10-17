@@ -138,8 +138,10 @@ class NucleiCustomDataset(Dataset):
         # path retrieval
         results['img_info']['img_name'] = data_info['img_name']
         results['img_info']['img_dir'] = self.img_dir
+        results['img_info']['img_suffix'] = self.img_suffix
         results['ann_info']['ann_name'] = data_info['ann_name']
         results['ann_info']['ann_dir'] = self.ann_dir
+        results['ann_info']['ann_suffix'] = self.ann_suffix
 
         # build seg fileds
         results['seg_fields'] = []

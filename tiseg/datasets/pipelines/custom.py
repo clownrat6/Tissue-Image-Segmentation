@@ -9,74 +9,63 @@ from ..utils import (angle_to_vector, calculate_centerpoint,
 
 
 @PIPELINES.register_module()
-class CDNetLabelMake(object):
-    """Label construction for CDNet."""
+class NucleiLabelMake(object):
+    """Label construction for Nuclei dataset."""
 
-    def __init__(self,
-                 input_level='semantic_with_edge',
-                 re_edge=True,
-                 edge_id=2,
-                 num_angle_types=8):
+    def __init__(self, re_edge=True, edge_id=2, num_angle_types=8):
         # If input with edge, re_edge can be set to False.
         # However, in order to generate better boundary, we will re-generate
         # edge.
-        if re_edge:
-            assert input_level == 'semantic_with_edge'
         self.re_edge = re_edge
         self.edge_id = edge_id
-        self.input_level = input_level
         self.num_angle_types = num_angle_types
 
     def __call__(self, results):
-        assert self.input_level in ['semantic_with_edge']
-        if self.input_level == 'semantic_with_edge':
-            raw_semantic_map = results['gt_semantic_map']
+        raw_semantic_map = results['gt_semantic_map']
 
-            # Check if the input level is "semantic_with_edge"
-            # "semantic_with_edge" means the semantic map has three classes
-            # (background, nuclei_inside, nuclei_edge)
-            if self.re_edge:
-                semantic_map_with_edge = np.zeros_like(raw_semantic_map)
-                id_list = list(np.unique(raw_semantic_map))
-                for id in id_list:
-                    if id == self.edge_id or id == 0:
-                        continue
-                    id_mask = raw_semantic_map == id
-                    bound = morphology.dilation(
-                        id_mask,
-                        selem=morphology.selem.disk(1)) & (~morphology.erosion(
-                            id_mask, selem=morphology.selem.disk(1)))
-                    semantic_map_with_edge[id_mask > 0] = id
-                    semantic_map_with_edge[bound > 0] = self.edge_id
-                # fuse boundary & inside
-                semantic_map_inside = semantic_map_with_edge.copy()
-                semantic_map_inside[semantic_map_inside == self.edge_id] = 0
-            else:
-                semantic_map_with_edge = raw_semantic_map
-                semantic_map_inside = semantic_map_with_edge.copy()
-                semantic_map_inside[semantic_map_inside == self.edge_id] = 0
-
-            results['gt_semantic_map_inside'] = semantic_map_inside
-            results['gt_semantic_map_with_edge'] = semantic_map_with_edge
-
-            instance_map = measure.label(
-                semantic_map_inside > 0, connectivity=1)
-
-            # XXX: If re_edge, we need to dilate two pixels during
-            # model-agnostic postprocess.
-            if self.re_edge:
-                # re_edge will remove a pixel length of nuclei inside and raw
-                # semantic map has already remove a pixel length of nuclei
-                # inside, so we need to dilate 2 pixel length.
-                instance_map = morphology.dilation(
-                    instance_map, selem=morphology.selem.disk(2))
-            else:
-                instance_map = morphology.dilation(
-                    instance_map, selem=morphology.selem.disk(1))
-
-            results['gt_instance_map'] = instance_map
+        # Check if the input level is "semantic_with_edge"
+        # "semantic_with_edge" means the semantic map has three classes
+        # (background, nuclei_inside, nuclei_edge)
+        if self.re_edge:
+            semantic_map_with_edge = np.zeros_like(raw_semantic_map)
+            id_list = list(np.unique(raw_semantic_map))
+            for id in id_list:
+                if id == self.edge_id or id == 0:
+                    continue
+                id_mask = raw_semantic_map == id
+                bound = morphology.dilation(
+                    id_mask,
+                    selem=morphology.selem.disk(1)) & (~morphology.erosion(
+                        id_mask, selem=morphology.selem.disk(1)))
+                semantic_map_with_edge[id_mask > 0] = id
+                semantic_map_with_edge[bound > 0] = self.edge_id
+            # fuse boundary & inside
+            semantic_map_inside = semantic_map_with_edge.copy()
+            semantic_map_inside[semantic_map_inside == self.edge_id] = 0
         else:
-            raise NotImplementedError
+            semantic_map_with_edge = raw_semantic_map
+            semantic_map_inside = semantic_map_with_edge.copy()
+            semantic_map_inside[semantic_map_inside == self.edge_id] = 0
+
+        results['gt_semantic_map_inside'] = semantic_map_inside
+        results['gt_semantic_map_with_edge'] = semantic_map_with_edge
+
+        instance_map = measure.label(semantic_map_inside > 0, connectivity=1)
+
+        # XXX: If re_edge, we need to dilate two pixels during
+        # model-agnostic postprocess.
+        if self.re_edge:
+            # re_edge will remove a pixel length of nuclei inside and raw
+            # semantic map has already remove a pixel length of nuclei
+            # inside, so we need to dilate 2 pixel length.
+            instance_map = morphology.dilation(
+                instance_map, selem=morphology.selem.disk(2))
+        else:
+            instance_map = morphology.dilation(
+                instance_map, selem=morphology.selem.disk(1))
+
+        results['gt_instance_map'] = instance_map
+        results['gt_semantic_map'] = results['gt_semantic_map_with_edge']
 
         # point map calculation & gradient map calculation
         point_map, gradient_map = self.calculate_point_map(instance_map)
@@ -178,11 +167,10 @@ class CDNetLabelMake(object):
 class GeneralLabelMake(object):
     """build direction label & point label for any dataset."""
 
-    def __init__(self, num_classes, edge_id, re_edge=True, num_angle_types=8):
+    def __init__(self, edge_id, re_edge=True, num_angle_types=8):
         # If input with edge, re_edge can be set to False.
         # However, in order to generate better boundary, we will re-generate
         # edge.
-        self.num_classes = num_classes
         self.edge_id = edge_id
         self.re_edge = re_edge
         self.num_angle_types = num_angle_types

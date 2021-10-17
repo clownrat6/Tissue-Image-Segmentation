@@ -1,5 +1,5 @@
 from .compose import Compose
-from .custom import CDNetLabelMake, GeneralLabelMake
+from .custom import GeneralLabelMake, NucleiLabelMake
 from .formating import Collect, DefaultFormatBundle, to_tensor
 from .loading import LoadAnnotations, LoadImageFromFile
 from .test_time_aug import MultiScaleFlipAug
@@ -10,5 +10,5 @@ __all__ = [
     'DefaultFormatBundle', 'Resize', 'RandomCrop', 'RandomFlip',
     'PhotoMetricDistortion', 'MultiScaleFlipAug', 'EdgeMapCalculation',
     'InstanceMapCalculation', 'PointMapCalculation', 'DirectionMapCalculation',
-    'CDNetLabelMake', 'GeneralLabelMake', 'to_tensor'
+    'NucleiLabelMake', 'GeneralLabelMake', 'to_tensor'
 ]
