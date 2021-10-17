@@ -1,11 +1,11 @@
 _base_ = [
-    '../_base_/datasets/carton_oscd.py',
+    '../_base_/datasets/only-train_t16_nuclei_monuseg_256x256_c300_s260.py',
     '../_base_/default_runtime.py',
     '../_base_/models/cdnet_vgg16.py',
-    '../_base_/schedules/mDice_schedule_80k.py',
+    '../_base_/schedules/Aji_schedule_20k.py',
 ]
 
-optimizer = dict(_delete_=True, type='Adam', lr=0.001, weight_decay=0.0005)
+optimizer = dict(_delete_=True, type='Adam', lr=0.0005, weight_decay=0.0005)
 
 lr_config = dict(
     _delete_=True,
@@ -20,9 +20,12 @@ lr_config = dict(
 model = dict(
     decode_head=dict(num_classes=3),
     train_cfg=dict(),
-    test_cfg=dict(mode='whole', plane_size=(256, 256), use_ddm=True),
+    test_cfg=dict(
+        mode='slide',
+        plane_size=(256, 256),
+        crop_size=(256, 256),
+        stride=(216, 216),
+        use_ddm=True),
 )
 
 data = dict(samples_per_gpu=8, workers_per_gpu=8)
-
-evaluation = dict(save_best='mDice')

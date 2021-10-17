@@ -18,7 +18,7 @@ lr_config = dict(
     by_epoch=False)
 
 model = dict(
-    decode_head=dict(type='NucleiCDHead', num_classes=3),
+    decode_head=dict(num_classes=3),
     train_cfg=dict(),
     test_cfg=dict(mode='whole', plane_size=(256, 256), use_ddm=True),
 )
