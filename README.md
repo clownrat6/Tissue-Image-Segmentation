@@ -16,7 +16,8 @@ Supported Dataset:
 
 1. Install MMCV-full (Linux recommend): `pip install MMCV-full==1.3.13`;
 2. Install requirements package: `pip install -r requirements.txt`;
-3. Install tiseg: `pip install -e .`;
+3. Download tiseg: `git clone https://github.com/sennnnn/Torch-Image-Segmentation`;
+4. Install tiseg: `pip install -e .`;
 
 ## Usage
 
