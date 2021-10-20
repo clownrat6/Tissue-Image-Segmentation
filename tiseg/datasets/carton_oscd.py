@@ -1,6 +1,4 @@
-import os
 import os.path as osp
-import warnings
 from collections import OrderedDict
 
 import mmcv
@@ -17,7 +15,7 @@ from tiseg.utils.evaluation.metrics import (accuracy, aggregated_jaccard_index,
                                             precision_recall)
 from .builder import DATASETS
 from .pipelines import Compose
-from .utils import draw_instance, draw_semantic, re_instance
+from .utils import re_instance
 
 
 @DATASETS.register_module()
@@ -185,12 +183,7 @@ class CartonOSCDDataset(Dataset):
                 seg_map, flag='unchanged', backend='pillow')
             yield gt_seg_map
 
-    def pre_eval(self,
-                 preds,
-                 indices,
-                 show_semantic=False,
-                 show_instance=False,
-                 show_folder=None):
+    def pre_eval(self, preds, indices):
         """Collect eval result from each iteration.
 
         Args:
@@ -214,15 +207,6 @@ class CartonOSCDDataset(Dataset):
             indices = [indices]
         if not isinstance(preds, list):
             preds = [preds]
-
-        if show_folder is None and (show_semantic or show_instance):
-            warnings.warn(
-                'show_semantic or show_instance is set to True, but the '
-                'show_folder is None. We will use default show_folder: '
-                '.oscd_show')
-            show_folder = '.oscd_show'
-            if not osp.exists(show_folder):
-                os.makedirs(show_folder, 0o775)
 
         pre_eval_results = []
 
@@ -293,21 +277,6 @@ class CartonOSCDDataset(Dataset):
                 edge_Recall=edge_recall_metric,
                 edge_Precision=edge_precision_metric)
             pre_eval_results.append(single_loop_results)
-
-            data_id = self.data_infos[index]['ann_name'].replace(
-                self.ann_suffix, '')
-            # illustrating semantic level results
-            if show_semantic:
-                data_info = self.data_infos[index]
-                image_path = osp.join(self.img_dir, data_info['img_name'])
-                draw_semantic(show_folder, data_id, image_path,
-                              pred_semantic_edge, seg_map_semantic_edge,
-                              single_loop_results)
-
-            # illustrating instance level results
-            if show_instance:
-                draw_instance(show_folder, data_id, pred_instance,
-                              seg_map_instance)
 
         return pre_eval_results
 
