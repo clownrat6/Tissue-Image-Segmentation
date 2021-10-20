@@ -1,12 +1,12 @@
 _base_ = [
-    '../_base_/datasets/instance_coco_stuff.py',
+    '../_base_/datasets/instance_coco_pure.py',
     '../_base_/default_runtime.py',
     '../_base_/models/upernet_r50-d32.py',
     '../_base_/schedules/mIoU_schedule_80k.py',
 ]
 
 optimizer = dict(
-    _delete_=True, type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005)
+    _delete_=True, type='SGD', lr=0.005, momentum=0.9, weight_decay=0.0005)
 
 lr_config = dict(
     _delete_=True,
@@ -19,7 +19,7 @@ lr_config = dict(
     by_epoch=False)
 
 model = dict(
-    decode_head=dict(num_classes=172),
+    decode_head=dict(num_classes=82),
     train_cfg=dict(),
     test_cfg=dict(mode='whole'),
 )
