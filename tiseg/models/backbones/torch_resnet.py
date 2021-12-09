@@ -98,8 +98,13 @@ class TorchResNet18(TorchResNet):
 
     output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
 
-    def __init__(self, model_name='resnet18-d32', **kwargs):
-        super().__init__(model_name=model_name, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(
+            model_name='resnet18-d32',
+            grou_base_channels=64,
+            norm_cfg=dict(type='BN'),
+            act_cfg=dict(type='ReLU'),
+            **kwargs)
 
 
 @BACKBONES.register_module()
@@ -107,8 +112,13 @@ class TorchResNet34(TorchResNet):
 
     output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
 
-    def __init__(self, model_name='resnet34-d32', **kwargs):
-        super().__init__(model_name=model_name, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(
+            model_name='resnet34-d32',
+            grou_base_channels=64,
+            norm_cfg=dict(type='BN'),
+            act_cfg=dict(type='ReLU'),
+            **kwargs)
 
 
 @BACKBONES.register_module()
@@ -116,8 +126,13 @@ class TorchResNet50(TorchResNet):
 
     output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
 
-    def __init__(self, model_name='resnet50-d32', **kwargs):
-        super().__init__(model_name=model_name, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(
+            model_name='resnet50-d32',
+            grou_base_channels=64,
+            norm_cfg=dict(type='BN'),
+            act_cfg=dict(type='ReLU'),
+            **kwargs)
 
 
 @BACKBONES.register_module()
@@ -125,8 +140,13 @@ class TorchResNet101(TorchResNet):
 
     output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
 
-    def __init__(self, model_name='resnet101-d32', **kwargs):
-        super().__init__(model_name=model_name, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(
+            model_name='resnet101-d32',
+            grou_base_channels=64,
+            norm_cfg=dict(type='BN'),
+            act_cfg=dict(type='ReLU'),
+            **kwargs)
 
 
 @BACKBONES.register_module()
@@ -134,8 +154,13 @@ class TorchDeeplabResNet50(TorchResNet):
 
     output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
 
-    def __init__(self, model_name='resnet50-d8', **kwargs):
-        super().__init__(model_name=model_name, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(
+            model_name='resnet50-d8',
+            grou_base_channels=64,
+            norm_cfg=dict(type='BN'),
+            act_cfg=dict(type='ReLU'),
+            **kwargs)
 
 
 @BACKBONES.register_module()
@@ -143,5 +168,10 @@ class TorchDeeplabResNet101(TorchResNet):
 
     output_names = ('relu', 'layer1', 'layer2', 'layer3', 'layer4')
 
-    def __init__(self, model_name='resnet101-d8', **kwargs):
-        super().__init__(model_name=model_name, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(
+            model_name='resnet101-d8',
+            grou_base_channels=64,
+            norm_cfg=dict(type='BN'),
+            act_cfg=dict(type='ReLU'),
+            **kwargs)

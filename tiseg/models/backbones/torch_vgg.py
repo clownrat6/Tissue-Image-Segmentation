@@ -79,13 +79,21 @@ class TorchVGG16BN(TorchVGG):
 
     output_names = ('6', '13', '23', '33', '43')
 
-    def __init__(self, model_name='vgg16_bn', **kwargs):
-        super().__init__(model_name=model_name, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(
+            model_name='vgg16_bn',
+            norm_cfg=dict(type='BN'),
+            act_cfg=dict(type='ReLU'),
+            **kwargs)
 
 
 class TorchVGG19BN(TorchVGG):
 
     output_names = ('6', '13', '26', '39', '52')
 
-    def __init__(self, model_name='vgg19_bn', **kwargs):
-        super().__init__(model_name=model_name, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(
+            model_name='vgg19_bn',
+            norm_cfg=dict(type='BN'),
+            act_cfg=dict(type='ReLU'),
+            **kwargs)
