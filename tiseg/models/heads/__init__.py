@@ -7,5 +7,5 @@ from .unet_head import UNetHead
 
 __all__ = [
     'BaseDecodeHead', 'CDHead', 'NucleiCDHead', 'NucleiBaseDecodeHead',
-    'NucleiUNetHead', 'UPerHead', 'UNetHead', 'UPerDGMHead', 'PSPHead'
+    'NucleiUNetHead', 'UNetHead'
 ]

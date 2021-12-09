@@ -1,5 +1,4 @@
 # model settings
-norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='EncoderDecoder',
     backbone=dict(
@@ -7,7 +6,7 @@ model = dict(
         in_channels=3,
         out_indices=(0, 1, 2, 3, 4),
         pretrained=True,
-        norm_cfg=norm_cfg,
+        norm_cfg=dict(type='BN', requires_grad=True),
         act_cfg=dict(type='ReLU'),
     ),
     decode_head=dict(
@@ -20,7 +19,7 @@ model = dict(
         stage_channels=[64, 128, 256, 512, 512],
         dropout_rate=0.1,
         act_cfg=dict(type='ReLU'),
-        norm_cfg=norm_cfg,
+        norm_cfg=dict(type='BN', requires_grad=True),
         align_corners=False),
     # model training and testing settings
     train_cfg=dict(),
