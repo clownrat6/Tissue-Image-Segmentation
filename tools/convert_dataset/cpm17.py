@@ -110,7 +110,7 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
         instance_label, with_edge=True)
 
     # split map into patches
-    if crop_size is not None:
+    if crop_size != 0 and crop_stride != 0:
         crop_stride = crop_stride
         image_patches = crop_patches(image, crop_size, crop_stride)
         instance_patches = crop_patches(instance_label, crop_size, crop_stride)
@@ -123,9 +123,7 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
 
         item_len = len(image_patches)
         # record patch item name
-        sub_item_list = [
-            f'{item}_{i}_c{crop_size}_s{crop_stride}' for i in range(item_len)
-        ]
+        sub_item_list = [f'{item}_{i}' for i in range(item_len)]
     else:
         image_patches = [image]
         instance_patches = [instance_label]
@@ -165,21 +163,21 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
     return {item: sub_item_list}
 
 
-def convert_cohort(raw_image_folder,
-                   raw_label_folder,
-                   new_path,
+def convert_cohort(img_folder,
+                   lbl_folder,
+                   new_folder,
                    item_list,
-                   crop_size=None,
-                   crop_stride=None):
-    if not osp.exists(new_path):
-        os.makedirs(new_path, 0o775)
+                   c_size=0,
+                   c_stride=0):
+    if not osp.exists(new_folder):
+        os.makedirs(new_folder, 0o775)
 
     fix_kwargs = {
-        'raw_image_folder': raw_image_folder,
-        'raw_label_folder': raw_label_folder,
-        'new_path': new_path,
-        'crop_size': crop_size,
-        'crop_stride': crop_stride
+        'raw_image_folder': img_folder,
+        'raw_label_folder': lbl_folder,
+        'new_path': new_folder,
+        'crop_size': c_size,
+        'crop_stride': c_stride
     }
 
     meta_process = partial(parse_single_item, **fix_kwargs)
@@ -198,11 +196,13 @@ def parse_args():
         '-c',
         '--crop-size',
         type=int,
+        default=0,
         help='the crop size of fix crop in dataset convertion operation')
     parser.add_argument(
         '-s',
         '--crop-stride',
         type=int,
+        default=0,
         help='the crop slide stride of fix crop')
 
     return parser.parse_args()
@@ -219,69 +219,38 @@ def main():
     assert flag1 or flag2, (
         '--crop-size and --crop-stride only valid when both of them are set')
 
-    if crop_size is not None:
-        train_part_name = f'train_c{crop_size}_s{crop_stride}'
-        val_part_name = 'val'
-        test_part_name = 'test'
-    else:
-        train_part_name = 'train'
-        val_part_name = 'val'
-        test_part_name = 'test'
+    for split in ['train', 'test']:
+        raw_root = osp.join(root_path, 'CPM17', split)
+        new_root = osp.join(root_path, split, f'c{crop_size}s{crop_stride}')
 
-    train_raw_path = osp.join(root_path, 'CPM17', 'train')
-    test_raw_path = osp.join(root_path, 'CPM17', 'test')
+        raw_img_folder = osp.join(raw_root, 'Images')
+        raw_lbl_folder = osp.join(raw_root, 'Labels')
 
-    train_new_path = osp.join(root_path, train_part_name)
-    test_new_path = osp.join(root_path, test_part_name)
+        item_list = [
+            x.rstrip('.png') for x in os.listdir(raw_img_folder) if '.png' in x
+        ]
 
-    # make train cohort dataset
-    train_image_folder = osp.join(train_raw_path, 'Images')
-    train_label_folder = osp.join(train_raw_path, 'Labels')
+        if split == 'test':
+            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list,
+                           0, 0)
+        else:
+            convert_cohort(
+                raw_img_folder,
+                raw_lbl_folder,
+                new_root,
+                item_list,
+                c_size=crop_size,
+                c_stride=crop_stride)
 
-    # make test cohort dataset
-    test_image_folder = osp.join(test_raw_path, 'Images')
-    test_label_folder = osp.join(test_raw_path, 'Labels')
+        item_list = [
+            x.rstrip('_instance.npy') for x in os.listdir(new_root)
+            if '_instance.npy' in x
+        ]
 
-    # record convertion item
-    full_train_item_list = [
-        x.rstrip('.png') for x in os.listdir(train_image_folder) if '.png' in x
-    ]
-    full_test_item_list = [
-        x.rstrip('.png') for x in os.listdir(test_image_folder) if '.png' in x
-    ]
-
-    # convertion main loop
-    real_train_item_dict = convert_cohort(train_image_folder,
-                                          train_label_folder, train_new_path,
-                                          full_train_item_list, crop_size,
-                                          crop_stride)
-    _ = convert_cohort(test_image_folder, test_label_folder, test_new_path,
-                       full_test_item_list, None, None)
-
-    train_item_list = [
-        x.rstrip('.png') for x in os.listdir(train_image_folder) if '.png' in x
-    ]
-    val_item_list = None
-    test_item_list = [
-        x.rstrip('.png') for x in os.listdir(test_image_folder) if '.png' in x
-    ]
-
-    real_train_item_list = []
-    [
-        real_train_item_list.extend(real_train_item_dict[x])
-        for x in train_item_list
-    ]
-    real_val_item_list = val_item_list
-    real_test_item_list = test_item_list
-
-    with open(osp.join(root_path, f'{train_part_name}.txt'), 'w') as fp:
-        [fp.write(item + '\n') for item in real_train_item_list]
-    with open(osp.join(root_path, f'{test_part_name}.txt'), 'w') as fp:
-        [fp.write(item + '\n') for item in real_test_item_list]
-
-    if real_val_item_list is not None:
-        with open(osp.join(root_path, f'{val_part_name}.txt'), 'w') as fp:
-            [fp.write(item + '\n') for item in real_val_item_list]
+        with open(
+                osp.join(root_path, f'{split}_c{crop_size}s{crop_stride}.txt'),
+                'w') as fp:
+            [fp.write(item + '\n') for item in item_list]
 
 
 if __name__ == '__main__':
