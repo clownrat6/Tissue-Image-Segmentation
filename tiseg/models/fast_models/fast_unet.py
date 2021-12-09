@@ -7,24 +7,26 @@ from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
-from ..heads import UNetHead
-from ..losses import GeneralizedDiceLoss, accuracy, miou, tiou
+from ..heads.fast_unet_head import UNetHead
+from ..losses import GeneralizedDiceLoss, miou, tiou
 
 
 @SEGMENTORS.register_module()
 class UNetSegmentor(BaseModule):
     """Base class for segmentors."""
 
-    def __init__(self, ):
+    def __init__(self, train_cfg, test_cfg):
         super(UNetSegmentor, self).__init__()
+        self.train_cfg = train_cfg
+        self.test_cfg = test_cfg
+        self.num_classes = 3
+
         self.backbone = TorchVGG16BN(
             in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4])
         self.head = UNetHead(
-            num_classes=3,
-            in_channels=(64, 128, 256, 512, 512),
-            in_index=[0, 1, 2, 3, 4],
-            stage_convs=[3, 3, 3, 3, 3],
-            stage_channels=[64, 128, 256, 512, 512],
+            num_classes=self.num_classes,
+            in_dims=(64, 128, 256, 512, 512),
+            stage_dims=[64, 128, 256, 512, 512],
             dropout_rate=0.1,
             act_cfg=dict(type='ReLU'),
             norm_cfg=dict(type='BN'),
@@ -47,11 +49,7 @@ class UNetSegmentor(BaseModule):
             assert label is not None
             mask_label = label['gt_semantic_map']
             loss = dict()
-            mask_logit = resize(
-                input=mask_logit,
-                size=mask_label.shape[2:],
-                mode='bilinear',
-                align_corners=self.align_corners)
+            mask_logit = resize(input=mask_logit, size=mask_label.shape[2:])
             mask_label = mask_label.squeeze(1)
             mask_loss = self._mask_loss(mask_logit, mask_label)
             loss.update(mask_loss)
@@ -90,8 +88,6 @@ class UNetSegmentor(BaseModule):
         clean_mask_logit = mask_logit.clone().detach()
         clean_mask_label = mask_label.clone().detach()
 
-        wrap_dict['mask_accuracy'] = accuracy(clean_mask_logit,
-                                              clean_mask_label)
         wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label,
                                       self.num_classes)
         wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label,
