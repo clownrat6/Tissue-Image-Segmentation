@@ -20,10 +20,10 @@ checkpoint_config = dict(
     max_keep_ckpts=1,
 )
 
-optimizer = dict(_delete_=True, type='Adam', lr=0.0005, weight_decay=0.0005)
+optimizer = dict(type='Adam', lr=0.001, weight_decay=0.0005)
+optimizer_config = dict()
 
 lr_config = dict(
-    _delete_=True,
     policy='poly',
     warmup='linear',
     warmup_iters=1500,
@@ -38,7 +38,7 @@ model = dict(
     # model training and testing settings
     num_classes=3,
     train_cfg=dict(),
-    test_cfg=dict(mode='whole'),
+    test_cfg=dict(mode='slide', crop_size=(256, 256), stride=(216, 216)),
 )
 
-data = dict(samples_per_gpu=1, workers_per_gpu=1)
+data = dict(samples_per_gpu=8, workers_per_gpu=8)

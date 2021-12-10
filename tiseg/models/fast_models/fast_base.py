@@ -134,7 +134,7 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
         if rescale:
             preds = resize(
                 preds,
-                size=meta[0]['ori_hw'],
+                size=meta['ori_hw'],
                 mode='bilinear',
                 align_corners=False)
         return preds
@@ -193,7 +193,7 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
         if rescale:
             output = resize(
                 output,
-                size=meta[0]['ori_hw'],
+                size=meta['ori_hw'],
                 mode='bilinear',
                 align_corners=False)
         return output

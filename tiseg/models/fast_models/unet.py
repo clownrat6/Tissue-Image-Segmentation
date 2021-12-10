@@ -35,6 +35,11 @@ class UNetSegmentor(FastBaseSegmentor):
     def calculate(self, img):
         img_feats = self.backbone(img)
         mask_logit = self.head(img_feats)
+        mask_logit = resize(
+            input=mask_logit,
+            size=img.shape[2:],
+            mode='bilinear',
+            align_corners=False)
 
         return mask_logit
 
@@ -51,7 +56,7 @@ class UNetSegmentor(FastBaseSegmentor):
         if self.training:
             mask_logit = self.calculate(data['img'])
             assert label is not None
-            mask_label = label['gt_semantic_map']
+            mask_label = label['sem_gt']
             loss = dict()
             mask_logit = resize(input=mask_logit, size=mask_label.shape[2:])
             mask_label = mask_label.squeeze(1)

@@ -94,12 +94,12 @@ class UNetHead(nn.Module):
             self.stage_dims[0], self.num_classes, kernel_size=1, stride=1)
 
     def forward(self, inputs):
-
         # decode stage feed forward
         x = None
         skips = inputs[::-1]
-        self.decode_layers = self.decode_layers[::-1]
-        for skip, decode_stage in zip(skips, self.decode_layers):
+
+        decode_layers = self.decode_layers[::-1]
+        for skip, decode_stage in zip(skips, decode_layers):
             x = decode_stage(x, skip)
 
         out = self.dropout(x)

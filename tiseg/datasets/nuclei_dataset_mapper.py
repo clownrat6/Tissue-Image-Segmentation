@@ -49,9 +49,10 @@ class NucleiDatasetMapper(object):
         sem_seg = read_image(data_info['sem_file_name'])
         inst_seg = read_image(data_info['inst_file_name'])
 
+        data_info['ori_hw'] = img.shape[:2]
+
         if not self.test_mode:
             h, w = img.shape[:2]
-            data_info['ori_hw'] = (h, w)
             assert img.shape[:2] == sem_seg.shape[:2]
 
             if self.if_flip:
@@ -84,7 +85,7 @@ class NucleiDatasetMapper(object):
             'metas': info_dc,
         }
 
-        if self.with_dir:
+        if self.with_dir and not self.test_mode:
             res = self.dir_label_maker(sem_seg, inst_seg)
             point_reg = res['gt_point_map']
             dir_seg = res['gt_direction_map']
