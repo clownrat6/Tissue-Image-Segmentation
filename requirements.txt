@@ -12,7 +12,7 @@ prettytable
 pycocotools==2.0.2
 pytest
 rich
-scikit-image
+scikit-image==0.18.3
 scipy
 xdoctest>=0.10.0
 yapf
