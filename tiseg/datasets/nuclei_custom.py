@@ -262,70 +262,57 @@ class NucleiCustomDataset(Dataset):
         pre_eval_results = []
 
         for pred, index in zip(preds, indices):
-            seg_map = osp.join(self.ann_dir,
-                               self.data_infos[index]['ann_name'])
-            if self.input_level == 'semantic_with_edge':
-                # semantic level label make
-                seg_map_semantic = mmcv.imread(
-                    seg_map, flag='unchanged', backend='pillow')
-                seg_map_inside = (seg_map_semantic == 1).astype(np.uint8)
-                seg_map_edge = (seg_map_semantic == 2).astype(np.uint8)
-                # instance level label make
-                seg_map_instance = seg_map.replace('_semantic_with_edge.png',
-                                                   '_instance.npy')
-                seg_map_instance = np.load(seg_map_instance)
-                seg_map_instance = re_instance(seg_map_instance)
-            elif self.input_level == 'instance':
-                # instance level label make
-                seg_map_instance = np.load(seg_map)
-                seg_map_instance = re_instance(seg_map_instance)
-                # semantic level label make
-                seg_map_semantic = seg_map.replace('_instance.npy',
-                                                   '_semantic_with_edge.png')
-                seg_map_semantic = mmcv.imread(
-                    seg_map_semantic, flag='unchanged', backend='pillow')
-                seg_map_edge = (seg_map_semantic == 2).astype(np.uint8)
-                seg_map_inside = (seg_map_semantic == 1).astype(np.uint8)
+            sem_file_name = self.data_infos[index]['sem_file_name']
+            # semantic level label make
+            sem_seg = mmcv.imread(
+                sem_file_name, flag='unchanged', backend='pillow')
+            sem_seg_in = (sem_seg == 1).astype(np.uint8)
+            seg_map_edge = (sem_seg == 2).astype(np.uint8)
+            # instance level label make
+            inst_file_name = self.data_infos[index]['inst_file_name']
+            inst_seg = np.load(inst_file_name)
+            inst_seg = re_instance(inst_seg)
 
-            data_id = self.data_infos[index]['ann_name'].replace(
-                self.ann_suffix, '')
+            data_id = osp.basename(
+                self.data_infos[index]['sem_file_name']).replace(
+                    self.sem_suffix, '')
 
             # metric calculation post process codes:
             # extract inside
-            pred_semantic = pred
-            pred_edge = (pred == 2).astype(np.uint8)
-            pred_inside = (pred == 1).astype(np.uint8)
+            pred_seg = pred
+            pred_seg_in = (pred == 1).astype(np.uint8)
+            pred_seg_edge = (pred == 2).astype(np.uint8)
 
             # model-agnostic post process operations
-            pred_inside, pred_instance = self.model_agnostic_postprocess(
-                pred_inside)
+            pred_seg_in, pred_inst_seg = self.model_agnostic_postprocess(
+                pred_seg_in)
 
             # TODO: (Important issue about post process)
             # This may be the dice metric calculation trick (Need be
             # considering carefully)
             # convert instance map (after postprocess) to semantic level
-            pred_inside = (pred_instance > 0).astype(np.uint8)
-            seg_map_inside = (seg_map_instance > 0).astype(np.uint8)
+            pred_seg_in = (pred_inst_seg > 0).astype(np.uint8)
+            sem_seg_in = (inst_seg > 0).astype(np.uint8)
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
             precision_metric, recall_metric = precision_recall(
-                pred_inside, seg_map_inside, 2)
+                pred_seg_in, sem_seg_in, 2)
             precision_metric = precision_metric[1]
             recall_metric = recall_metric[1]
-            dice_metric = dice_similarity_coefficient(pred_inside,
-                                                      seg_map_inside, 2)[1]
+            dice_metric = dice_similarity_coefficient(pred_seg_in, sem_seg_in,
+                                                      2)[1]
 
             edge_precision_metric, edge_recall_metric = \
-                precision_recall(pred_edge, seg_map_edge, 2)
+                precision_recall(pred_seg_edge, seg_map_edge, 2)
             edge_precision_metric = edge_precision_metric[1]
             edge_recall_metric = edge_recall_metric[1]
             edge_dice_metric = dice_similarity_coefficient(
-                pred_edge, seg_map_edge, 2)[1]
+                pred_seg_edge, seg_map_edge, 2)[1]
 
             # instance metric calculation
             aji_metric = aggregated_jaccard_index(
-                pred_instance, seg_map_instance, is_semantic=False)
+                pred_inst_seg, inst_seg, is_semantic=False)
 
             single_loop_results = dict(
                 name=data_id,
@@ -342,13 +329,12 @@ class NucleiCustomDataset(Dataset):
             if show_semantic:
                 data_info = self.data_infos[index]
                 image_path = osp.join(self.img_dir, data_info['img_name'])
-                draw_semantic(show_folder, data_id, image_path, pred_semantic,
-                              seg_map_semantic, single_loop_results)
+                draw_semantic(show_folder, data_id, image_path, pred_seg,
+                              sem_seg, single_loop_results)
 
             # illustrating instance level results
             if show_instance:
-                draw_instance(show_folder, data_id, pred_instance,
-                              seg_map_instance)
+                draw_instance(show_folder, data_id, pred_inst_seg, inst_seg)
 
         return pre_eval_results
 

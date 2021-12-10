@@ -54,3 +54,6 @@ collect*/
 
 # visualization files
 .*_show
+
+# pickle sequence file
+*.p

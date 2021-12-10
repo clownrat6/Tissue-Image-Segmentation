@@ -32,7 +32,13 @@ class UNetSegmentor(FastBaseSegmentor):
             norm_cfg=dict(type='BN'),
             align_corners=False)
 
-    def forward(self, data, label=None, **kwargs):
+    def calculate(self, img):
+        img_feats = self.backbone(img)
+        mask_logit = self.head(img_feats)
+
+        return mask_logit
+
+    def forward(self, data, label=None, metas=None, **kwargs):
         """Calls either :func:`forward_train` or :func:`forward_test` depending
         on whether ``return_loss`` is ``True``.
 
@@ -42,10 +48,8 @@ class UNetSegmentor(FastBaseSegmentor):
         should be double nested (i.e.  List[Tensor], List[List[dict]]), with
         the outer list indicating test time augmentations.
         """
-        img_feats = self.backbone(data['img'])
-        mask_logit = self.head(img_feats)
-
         if self.training:
+            mask_logit = self.calculate(data['img'])
             assert label is not None
             mask_label = label['gt_semantic_map']
             loss = dict()
@@ -59,7 +63,15 @@ class UNetSegmentor(FastBaseSegmentor):
             loss.update(training_metric_dict)
             return loss
         else:
-            return mask_logit
+            assert metas is not None
+            # NOTE: only support batch size = 1 now.
+            seg_logit = self.inference(data['img'], metas[0], True)
+            seg_pred = seg_logit.argmax(dim=1)
+            # Extract inside class
+            seg_pred = seg_pred.cpu().numpy()
+            # unravel batch dim
+            seg_pred = list(seg_pred)
+            return seg_pred
 
     def _mask_loss(self, mask_logit, mask_label):
         """calculate mask branch loss."""

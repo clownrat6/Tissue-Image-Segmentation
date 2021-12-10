@@ -55,10 +55,6 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
     which could be dumped during inference.
     """
 
-    def encoder_decoder(self, img):
-        data = {'img': img}
-        return self(data, return_loss=False)
-
     def train_step(self, data_batch, optimizer, **kwargs):
         """The iteration step during training.
 
@@ -103,26 +99,6 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
         output = self(**data_batch, **kwargs)
         return output
 
-    def forward_test(self, data, metas, label, **kwargs):
-        """
-        Args:
-            data (List[dict]): test-time augmentations data wrapper list and
-                inner structure:
-                    [dict('img': Tensor (NxCxHxW)), ...]
-            metas (List[List[dict]]): the outer list indicates test-time
-                augs (multiscale, flip, etc.) and the inner list indicates
-                images in a batch.
-            label: The placeholder to compat with forward_train
-        """
-        imgs = [single_data['img'] for single_data in data]
-
-        num_augs = len(data)
-
-        if num_augs == 1:
-            return self.simple_test(imgs[0], metas[0], **kwargs)
-        else:
-            return self.aug_test(imgs, metas, **kwargs)
-
     # TODO refactor
     def slide_inference(self, img, meta, rescale):
         """Inference by sliding-window with overlap.
@@ -147,7 +123,7 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
                 y1 = max(y2 - h_crop, 0)
                 x1 = max(x2 - w_crop, 0)
                 crop_img = img[:, :, y1:y2, x1:x2]
-                crop_seg_logit = self.encode_decode(crop_img, meta)
+                crop_seg_logit = self.calculate(crop_img)
                 preds += F.pad(crop_seg_logit,
                                (int(x1), int(preds.shape[3] - x2), int(y1),
                                 int(preds.shape[2] - y2)))
@@ -158,10 +134,9 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
         if rescale:
             preds = resize(
                 preds,
-                size=meta[0]['img_info']['ori_shape'][:2],
+                size=meta[0]['ori_hw'],
                 mode='bilinear',
-                align_corners=self.align_corners,
-                warning=False)
+                align_corners=False)
         return preds
 
     # TODO: refactor code stryle
@@ -203,7 +178,7 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
 
                 input_patch = input[:, :, i:r_end, j:c_end]
                 input_var = input_patch
-                output_patch = self.encode_decode(input_var, meta)
+                output_patch = self.calculate(input_var)
 
                 ind2_s = j + overlap_size // 2 if j > 0 else 0
                 ind2_e = (
@@ -218,24 +193,21 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
         if rescale:
             output = resize(
                 output,
-                size=meta[0]['img_info']['ori_shape'][:2],
+                size=meta[0]['ori_hw'],
                 mode='bilinear',
-                align_corners=self.align_corners,
-                warning=False)
+                align_corners=False)
         return output
 
     def whole_inference(self, img, meta, rescale):
         """Inference with full image."""
 
-        seg_logit = self.encode_decode(img, meta)
+        seg_logit = self.calculate(img)
         if rescale:
-            size = meta[0]['img_info']['ori_shape'][:2]
             seg_logit = resize(
                 seg_logit,
-                size=size,
+                size=meta['ori_hw'],
                 mode='bilinear',
-                align_corners=self.align_corners,
-                warning=False)
+                align_corners=False)
 
         return seg_logit
 
@@ -253,66 +225,33 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
         """
 
         assert self.test_cfg.mode in ['slide', 'whole']
-        ori_shape = meta[0]['img_info']['ori_shape']
-        assert all(_['img_info']['ori_shape'] == ori_shape for _ in meta)
         if self.test_cfg.mode == 'slide':
             seg_logit = self.slide_inference(img, meta, rescale)
         else:
             seg_logit = self.whole_inference(img, meta, rescale)
-        output = seg_logit
-        # output = F.softmax(seg_logit, dim=1)
-        flip = meta[0]['img_info']['flip']
-        rotate = meta[0]['img_info']['rotate']
-        # reverse tta must have reverse order of origin tta
-        if rotate:
-            rotate_degree = meta[0]['img_info']['rotate_degree']
-            assert rotate_degree in [90, 180, 270]
-            # torch.rot90 has reverse direction of mmcv.imrotate
-            # TODO: recover rotate output (Need to conside the flip operation.)
-            if rotate_degree == 90:
-                output = output.rot90(dims=(2, 3))
-            elif rotate_degree == 180:
-                output = output.rot90(k=2, dims=(2, 3))
-            elif rotate_degree == 270:
-                output = output.rot90(k=3, dims=(2, 3))
-        if flip:
-            flip_direction = meta[0]['img_info']['flip_direction']
-            assert flip_direction in ['horizontal', 'vertical', 'diagonal']
-            if flip_direction == 'horizontal':
-                output = output.flip(dims=(3, ))
-            elif flip_direction == 'vertical':
-                output = output.flip(dims=(2, ))
-            elif flip_direction == 'diagonal':
-                output = output.flip(dims=(2, 3))
+        # output = seg_logit
+        # flip = meta[0]['img_info']['flip']
+        # rotate = meta[0]['img_info']['rotate']
+        # # reverse tta must have reverse order of origin tta
+        # if rotate:
+        #     rotate_degree = meta[0]['img_info']['rotate_degree']
+        #     assert rotate_degree in [90, 180, 270]
+        #     # torch.rot90 has reverse direction of mmcv.imrotate
+        #     # TODO: recover rotate output (Need to conside the flip operation.)
+        #     if rotate_degree == 90:
+        #         output = output.rot90(dims=(2, 3))
+        #     elif rotate_degree == 180:
+        #         output = output.rot90(k=2, dims=(2, 3))
+        #     elif rotate_degree == 270:
+        #         output = output.rot90(k=3, dims=(2, 3))
+        # if flip:
+        #     flip_direction = meta[0]['img_info']['flip_direction']
+        #     assert flip_direction in ['horizontal', 'vertical', 'diagonal']
+        #     if flip_direction == 'horizontal':
+        #         output = output.flip(dims=(3, ))
+        #     elif flip_direction == 'vertical':
+        #         output = output.flip(dims=(2, ))
+        #     elif flip_direction == 'diagonal':
+        #         output = output.flip(dims=(2, 3))
 
-        return output
-
-    def simple_test(self, img, meta, rescale=True):
-        """Simple test with single image."""
-        seg_logit = self.inference(img, meta, rescale)
-        seg_pred = seg_logit.argmax(dim=1)
-        # Extract inside class
-        seg_pred = seg_pred.cpu().numpy()
-        # unravel batch dim
-        seg_pred = list(seg_pred)
-        return seg_pred
-
-    def aug_test(self, imgs, metas, rescale=True):
-        """Test with augmentations.
-
-        Only rescale=True is supported.
-        """
-        # aug_test rescale all imgs back to ori_shape for now
-        assert rescale
-        # to save memory, we get augmented seg logit inplace
-        seg_logit = self.inference(imgs[0], metas[0], rescale)
-        for i in range(1, len(imgs)):
-            cur_seg_logit = self.inference(imgs[i], metas[i], rescale)
-            seg_logit += cur_seg_logit
-        seg_logit /= len(imgs)
-        seg_pred = seg_logit.argmax(dim=1)
-        # Extract inside class
-        seg_pred = seg_pred.cpu().numpy()
-        # unravel batch dim
-        seg_pred = list(seg_pred)
-        return seg_pred
+        return seg_logit

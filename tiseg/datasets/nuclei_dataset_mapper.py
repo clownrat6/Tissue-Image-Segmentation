@@ -12,7 +12,6 @@ from .ops import (ColorJitter, DirectionLabelMake, RandomFlip, Resize,
 def read_image(path):
     _, suffix = osp.splitext(osp.basename(path))
     if suffix == '.tif':
-        print(path)
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     elif suffix == '.npy':
@@ -52,8 +51,7 @@ class NucleiDatasetMapper(object):
 
         if not self.test_mode:
             h, w = img.shape[:2]
-            data_info['raw_h'] = h
-            data_info['raw_w'] = w
+            data_info['ori_hw'] = (h, w)
             assert img.shape[:2] == sem_seg.shape[:2]
 
             if self.if_flip:
@@ -68,8 +66,7 @@ class NucleiDatasetMapper(object):
             img = self.color_jitter(img)
 
         h, w = img.shape[:2]
-        data_info['input_h'] = h
-        data_info['input_w'] = w
+        data_info['input_hw'] = (h, w)
 
         img_dc = format_img(img)
         sem_dc = format_seg(sem_seg)

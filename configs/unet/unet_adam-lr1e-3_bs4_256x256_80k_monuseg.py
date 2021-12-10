@@ -1,8 +1,24 @@
 _base_ = [
     '../_base_/datasets/monuseg.py',
     '../_base_/default_runtime.py',
-    '../_base_/schedules/Aji_schedule_20k.py',
 ]
+
+# runtime settings
+runner = dict(type='IterBasedRunner', max_iters=20000)
+
+evaluation = dict(
+    _delete_=True,
+    interval=1000,
+    metric='all',
+    save_best='Aji',
+    rule='greater',
+)
+checkpoint_config = dict(
+    _delete_=True,
+    by_epoch=False,
+    interval=1000,
+    max_keep_ckpts=1,
+)
 
 optimizer = dict(_delete_=True, type='Adam', lr=0.0005, weight_decay=0.0005)
 
