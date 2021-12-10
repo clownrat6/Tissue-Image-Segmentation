@@ -1,4 +1,5 @@
 import argparse
+import math
 import os
 import os.path as osp
 from functools import partial
@@ -64,38 +65,54 @@ def pillow_save(save_path, array, palette=None):
     image.save(save_path)
 
 
-def crop_patches(image, crop_size, crop_stride):
-    """crop image into several patches according to the crop size & slide
-    stride."""
-    h_crop = w_crop = crop_size
-    h_stride = w_stride = crop_stride
+# NOTE: Old style patch crop
+# def crop_patches(image, crop_size, crop_stride):
+#     """crop image into several patches according to the crop size & slide
+#     stride."""
+#     h_crop = w_crop = crop_size
+#     h_stride = w_stride = crop_stride
 
-    assert image.ndim >= 2
+#     assert image.ndim >= 2
 
-    h_img, w_img = image.shape[:2]
+#     h_img, w_img = image.shape[:2]
 
-    image_patch_list = []
+#     image_patch_list = []
 
-    h_grids = max(h_img - h_crop + h_stride - 1, 0) // h_stride + 1
-    w_grids = max(w_img - w_crop + w_stride - 1, 0) // w_stride + 1
+#     h_grids = max(h_img - h_crop + h_stride - 1, 0) // h_stride + 1
+#     w_grids = max(w_img - w_crop + w_stride - 1, 0) // w_stride + 1
 
-    for h_idx in range(h_grids):
-        for w_idx in range(w_grids):
-            y1 = h_idx * h_stride
-            x1 = w_idx * w_stride
-            y2 = min(y1 + h_crop, h_img)
-            x2 = min(x1 + w_crop, w_img)
-            y1 = max(y2 - h_crop, 0)
-            x1 = max(x2 - w_crop, 0)
-            crop_img = image[y1:y2, x1:x2]
+#     for h_idx in range(h_grids):
+#         for w_idx in range(w_grids):
+#             y1 = h_idx * h_stride
+#             x1 = w_idx * w_stride
+#             y2 = min(y1 + h_crop, h_img)
+#             x2 = min(x1 + w_crop, w_img)
+#             y1 = max(y2 - h_crop, 0)
+#             x1 = max(x2 - w_crop, 0)
+#             crop_img = image[y1:y2, x1:x2]
 
-            image_patch_list.append(crop_img)
+#             image_patch_list.append(crop_img)
 
-    return image_patch_list
+#     return image_patch_list
+
+
+# NOTE: new style patch crop.
+def crop_patches(image, c_size):
+    h, w = image.shape[:2]
+    patches = []
+
+    h_overlap = math.ceil((4 * c_size - h) / 3)
+    w_overlap = math.ceil((4 * c_size - w) / 3)
+    for i in range(0, h - c_size + 1, c_size - h_overlap):
+        for j in range(0, w - c_size + 1, c_size - w_overlap):
+            patch = image[i:i + c_size, j:j + c_size]
+            patches.append(patch)
+
+    return patches
 
 
 def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
-                      crop_size, crop_stride):
+                      crop_size):
     """meta process of single item data."""
 
     image_path = osp.join(raw_image_folder, item + '.png')
@@ -110,13 +127,11 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
         instance_label, with_edge=True)
 
     # split map into patches
-    if crop_size != 0 and crop_stride != 0:
-        crop_stride = crop_stride
-        image_patches = crop_patches(image, crop_size, crop_stride)
-        instance_patches = crop_patches(instance_label, crop_size, crop_stride)
-        semantic_patches = crop_patches(semantic_label, crop_size, crop_stride)
-        semantic_edge_patches = crop_patches(semantic_label_edge, crop_size,
-                                             crop_stride)
+    if crop_size != 0:
+        image_patches = crop_patches(image, crop_size)
+        instance_patches = crop_patches(instance_label, crop_size)
+        semantic_patches = crop_patches(semantic_label, crop_size)
+        semantic_edge_patches = crop_patches(semantic_label_edge, crop_size)
 
         assert len(image_patches) == len(instance_patches) == len(
             semantic_patches) == len(semantic_edge_patches)
@@ -163,12 +178,7 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
     return {item: sub_item_list}
 
 
-def convert_cohort(img_folder,
-                   lbl_folder,
-                   new_folder,
-                   item_list,
-                   c_size=0,
-                   c_stride=0):
+def convert_cohort(img_folder, lbl_folder, new_folder, item_list, c_size=0):
     if not osp.exists(new_folder):
         os.makedirs(new_folder, 0o775)
 
@@ -177,7 +187,6 @@ def convert_cohort(img_folder,
         'raw_label_folder': lbl_folder,
         'new_path': new_folder,
         'crop_size': c_size,
-        'crop_stride': c_stride
     }
 
     meta_process = partial(parse_single_item, **fix_kwargs)
@@ -198,12 +207,6 @@ def parse_args():
         type=int,
         default=0,
         help='the crop size of fix crop in dataset convertion operation')
-    parser.add_argument(
-        '-s',
-        '--crop-stride',
-        type=int,
-        default=0,
-        help='the crop slide stride of fix crop')
 
     return parser.parse_args()
 
@@ -212,16 +215,9 @@ def main():
     args = parse_args()
     root_path = args.root_path
     crop_size = args.crop_size
-    crop_stride = args.crop_stride
-
-    flag1 = (crop_size is not None) and (crop_stride is not None)
-    flag2 = (crop_size is None) and (crop_stride is None)
-    assert flag1 or flag2, (
-        '--crop-size and --crop-stride only valid when both of them are set')
 
     for split in ['train', 'test']:
         raw_root = osp.join(root_path, 'CPM17', split)
-        new_root = osp.join(root_path, split, f'c{crop_size}s{crop_stride}')
 
         raw_img_folder = osp.join(raw_root, 'Images')
         raw_lbl_folder = osp.join(raw_root, 'Labels')
@@ -231,25 +227,28 @@ def main():
         ]
 
         if split == 'test':
+            new_root = osp.join(root_path, split, 'c0')
             convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list,
-                           0, 0)
+                           0)
         else:
+            new_root = osp.join(root_path, split, f'c{crop_size}')
             convert_cohort(
                 raw_img_folder,
                 raw_lbl_folder,
                 new_root,
                 item_list,
-                c_size=crop_size,
-                c_stride=crop_stride)
+                c_size=crop_size)
 
         item_list = [
             x.rstrip('_instance.npy') for x in os.listdir(new_root)
             if '_instance.npy' in x
         ]
 
-        with open(
-                osp.join(root_path, f'{split}_c{crop_size}s{crop_stride}.txt'),
-                'w') as fp:
+        if split == 'train':
+            name = f'train_c{crop_size}.txt'
+        else:
+            name = 'test_c0.txt'
+        with open(osp.join(root_path, name), 'w') as fp:
             [fp.write(item + '\n') for item in item_list]
 
 

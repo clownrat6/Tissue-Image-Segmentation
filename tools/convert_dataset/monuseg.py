@@ -12,7 +12,7 @@ from PIL import Image
 from skimage import morphology
 
 # dataset split
-only_train_split_dict = {
+split_dict = {
     'train': [
         'TCGA-A7-A13E-01Z-00-DX1', 'TCGA-A7-A13F-01Z-00-DX1',
         'TCGA-AR-A1AK-01Z-00-DX1', 'TCGA-B0-5711-01Z-00-DX1',
@@ -133,38 +133,54 @@ def pillow_save(save_path, array):
     array.save(save_path)
 
 
-def crop_patches(image, crop_size, crop_stride):
-    """crop image into several patches according to the crop size & slide
-    stride."""
-    h_crop = w_crop = crop_size
-    h_stride = w_stride = crop_stride
+# NOTE: Old style patch crop
+# def crop_patches(image, c_size, c_stride):
+#     """crop image into several patches according to the crop size & slide
+#     stride."""
+#     h_crop = w_crop = c_size
+#     h_stride = w_stride = c_stride
 
-    assert image.ndim >= 2
+#     assert image.ndim >= 2
 
-    h_img, w_img = image.shape[:2]
+#     h_img, w_img = image.shape[:2]
 
-    image_patch_list = []
+#     image_patch_list = []
 
-    h_grids = max(h_img - h_crop + h_stride - 1, 0) // h_stride + 1
-    w_grids = max(w_img - w_crop + w_stride - 1, 0) // w_stride + 1
+#     h_grids = max(h_img - h_crop + h_stride - 1, 0) // h_stride + 1
+#     w_grids = max(w_img - w_crop + w_stride - 1, 0) // w_stride + 1
 
-    for h_idx in range(h_grids):
-        for w_idx in range(w_grids):
-            y1 = h_idx * h_stride
-            x1 = w_idx * w_stride
-            y2 = min(y1 + h_crop, h_img)
-            x2 = min(x1 + w_crop, w_img)
-            y1 = max(y2 - h_crop, 0)
-            x1 = max(x2 - w_crop, 0)
-            crop_img = image[y1:y2, x1:x2]
+#     for h_idx in range(h_grids):
+#         for w_idx in range(w_grids):
+#             y1 = h_idx * h_stride
+#             x1 = w_idx * w_stride
+#             y2 = min(y1 + h_crop, h_img)
+#             x2 = min(x1 + w_crop, w_img)
+#             y1 = max(y2 - h_crop, 0)
+#             x1 = max(x2 - w_crop, 0)
+#             crop_img = image[y1:y2, x1:x2]
 
-            image_patch_list.append(crop_img)
+#             image_patch_list.append(crop_img)
 
-    return image_patch_list
+#     return image_patch_list
+
+
+# NOTE: new style patch crop.
+def crop_patches(image, c_size):
+    h, w = image.shape[:2]
+    patches = []
+
+    h_overlap = math.ceil((4 * c_size - h) / 3)
+    w_overlap = math.ceil((4 * c_size - w) / 3)
+    for i in range(0, h - c_size + 1, c_size - h_overlap):
+        for j in range(0, w - c_size + 1, c_size - w_overlap):
+            patch = image[i:i + c_size, j:j + c_size]
+            patches.append(patch)
+
+    return patches
 
 
 def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
-                      crop_size, crop_stride):
+                      c_size):
     """meta process of single item data."""
 
     image_path = osp.join(raw_image_folder, item + '.tif')
@@ -181,22 +197,18 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
         instance_label, H, W, len(contours), with_edge=True)
 
     # split map into patches
-    if crop_size is not None:
-        crop_stride = crop_stride
-        image_patches = crop_patches(image, crop_size, crop_stride)
-        instance_patches = crop_patches(instance_label, crop_size, crop_stride)
-        semantic_patches = crop_patches(semantic_label, crop_size, crop_stride)
-        semantic_edge_patches = crop_patches(semantic_label_edge, crop_size,
-                                             crop_stride)
+    if c_size != 0:
+        image_patches = crop_patches(image, c_size)
+        instance_patches = crop_patches(instance_label, c_size)
+        semantic_patches = crop_patches(semantic_label, c_size)
+        semantic_edge_patches = crop_patches(semantic_label_edge, c_size)
 
         assert len(image_patches) == len(instance_patches) == len(
             semantic_patches) == len(semantic_edge_patches)
 
         item_len = len(image_patches)
         # record patch item name
-        sub_item_list = [
-            f'{item}_{i}_c{crop_size}_s{crop_stride}' for i in range(item_len)
-        ]
+        sub_item_list = [f'{item}_{i}' for i in range(item_len)]
     else:
         image_patches = [image]
         instance_patches = [instance_label]
@@ -228,8 +240,7 @@ def convert_cohort(raw_image_folder,
                    raw_label_folder,
                    new_path,
                    item_list,
-                   crop_size=None,
-                   crop_stride=None):
+                   c_size=0):
     if not osp.exists(new_path):
         os.makedirs(new_path, 0o775)
 
@@ -237,8 +248,7 @@ def convert_cohort(raw_image_folder,
         'raw_image_folder': raw_image_folder,
         'raw_label_folder': raw_label_folder,
         'new_path': new_path,
-        'crop_size': crop_size,
-        'crop_stride': crop_stride
+        'c_size': c_size,
     }
     meta_process = partial(parse_single_item, **fix_kwargs)
 
@@ -257,12 +267,8 @@ def parse_args():
         '-c',
         '--crop-size',
         type=int,
+        default=0,
         help='the crop size of fix crop in dataset convertion operation')
-    parser.add_argument(
-        '-s',
-        '--crop-stride',
-        type=int,
-        help='the crop slide stride of fix crop')
 
     return parser.parse_args()
 
@@ -270,98 +276,93 @@ def parse_args():
 def main():
     args = parse_args()
     root_path = args.root_path
-    split = args.split
-    crop_size = args.crop_size
-    crop_stride = args.crop_stride
+    total_split = args.split
+    c_size = args.crop_size
 
-    assert split in ['official', 'only-train_t16', 'only-train_t12_v4']
+    assert total_split in ['official', 'only-train_t16', 'only-train_t12_v4']
 
-    flag1 = (crop_size is not None) and (crop_stride is not None)
-    flag2 = (crop_size is None) and (crop_stride is None)
-    assert flag1 or flag2, (
-        '--crop-size and --crop-stride only valid when both of them are set')
+    for split, name in [('train', 'MoNuSeg 2018 Training Data'),
+                        ('test', 'MoNuSegTestData')]:
+        raw_root = osp.join(root_path, 'MoNuSeg', name)
 
-    train_raw_path = osp.join(root_path, 'MoNuSeg',
-                              'MoNuSeg 2018 Training Data')
-    test_raw_path = osp.join(root_path, 'MoNuSeg', 'MoNuSegTestData')
+        if split == 'train':
+            raw_img_folder = osp.join(raw_root, 'Tissue Images')
+            raw_lbl_folder = osp.join(raw_root, 'Annotations')
+            new_root = osp.join(root_path, split, f'c{c_size}')
 
-    if crop_size is not None:
-        train_part_name = f'train_c{crop_size}_s{crop_stride}'
-        val_part_name = 'val'
-        test_part_name = 'test'
-    else:
-        train_part_name = 'train'
-        val_part_name = 'val'
-        test_part_name = 'test'
+            item_list = [
+                x.rstrip('.tif') for x in os.listdir(raw_img_folder)
+                if '.tif' in x
+            ]
 
-    # storage path of convertion dataset
-    train_new_path = osp.join(root_path, train_part_name)
-    test_new_path = osp.join(root_path, test_part_name)
+            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list,
+                           c_size)
+            if c_size != 0:
+                new_root = osp.join(root_path, split, 'c0')
+                convert_cohort(raw_img_folder, raw_lbl_folder, new_root,
+                               item_list, 0)
+        else:
+            raw_img_folder = raw_root
+            raw_lbl_folder = raw_root
+            new_root = osp.join(root_path, split, 'c0')
 
-    # make train cohort dataset
-    train_image_folder = osp.join(train_raw_path, 'Tissue Images')
-    train_label_folder = osp.join(train_raw_path, 'Annotations')
+            item_list = [
+                x.rstrip('.tif') for x in os.listdir(raw_img_folder)
+                if '.tif' in x
+            ]
 
-    # make test cohort dataset
-    test_image_folder = test_raw_path
-    test_label_folder = test_raw_path
+            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list,
+                           0)
 
-    # record convertion item
-    full_train_item_list = [
-        x.rstrip('.tif') for x in os.listdir(train_image_folder) if '.tif' in x
-    ]
-    full_test_item_list = [
-        x.rstrip('.tif') for x in os.listdir(test_image_folder) if '.tif' in x
-    ]
+    train_img_folder = osp.join(root_path, 'train', f'c{c_size}')
+    test_img_folder = osp.join(root_path, 'test', 'c0')
 
-    # convertion main loop
-    real_train_item_dict = convert_cohort(train_image_folder,
-                                          train_label_folder, train_new_path,
-                                          full_train_item_list, crop_size,
-                                          crop_stride)
-    _ = convert_cohort(test_image_folder, test_label_folder, test_new_path,
-                       full_test_item_list, None, None)
-
-    if split == 'official':
+    if total_split == 'official':
         train_item_list = [
-            x.rstrip('.tif') for x in os.listdir(train_image_folder)
+            x.rstrip('.tif') for x in os.listdir(train_img_folder)
             if '.tif' in x
         ]
         val_item_list = None
         test_item_list = [
-            x.rstrip('.tif') for x in os.listdir(test_image_folder)
+            x.rstrip('.tif') for x in os.listdir(test_img_folder)
             if '.tif' in x
         ]
-    elif split == 'only-train_t16':
-        train_item_list = only_train_split_dict[
-            'train'] + only_train_split_dict['val']
+    elif total_split == 'only-train_t16':
+        item_list = split_dict['train'] + split_dict['val']
+        train_item_list = []
+        for item in item_list:
+            name_list = [
+                x.rstrip('.tif') for x in os.listdir(train_img_folder)
+            ]
+            for name in name_list:
+                if item in name and '_instance.npy' in name:
+                    name = name.replace('_instance.npy', '')
+                    train_item_list.append(name)
         val_item_list = None
-        test_item_list = only_train_split_dict[
-            'test1'] + only_train_split_dict['test2']
-    elif split == 'only-train_t12_v4':
-        train_item_list = only_train_split_dict['train']
-        val_item_list = only_train_split_dict['val']
-        test_item_list = only_train_split_dict[
-            'test1'] + only_train_split_dict['test2']
+        test_item_list = split_dict['test1'] + split_dict['test2']
+    elif total_split == 'only-train_t12_v4':
+        item_list = split_dict['train']
+        train_item_list = []
+        for item in item_list:
+            name_list = [
+                x.rstrip('.tif') for x in os.listdir(train_img_folder)
+            ]
+            for name in name_list:
+                if item in name and '_instance.npy' in name:
+                    name = name.replace('_instance.npy', '')
+                    train_item_list.append(name)
+        val_item_list = split_dict['val']
+        test_item_list = split_dict['test1'] + split_dict['test2']
 
-    real_train_item_list = []
-    [
-        real_train_item_list.extend(real_train_item_dict[x])
-        for x in train_item_list
-    ]
-    real_val_item_list = val_item_list
-    real_test_item_list = test_item_list
-
-    with open(osp.join(root_path, f'{split}_{train_part_name}.txt'),
+    with open(osp.join(root_path, f'{total_split}_train_c{c_size}.txt'),
               'w') as fp:
-        [fp.write(item + '\n') for item in real_train_item_list]
-    with open(osp.join(root_path, f'{split}_{test_part_name}.txt'), 'w') as fp:
-        [fp.write(item + '\n') for item in real_test_item_list]
+        [fp.write(item + '\n') for item in train_item_list]
+    with open(osp.join(root_path, f'{total_split}_test_c0.txt'), 'w') as fp:
+        [fp.write(item + '\n') for item in test_item_list]
 
-    if real_val_item_list is not None:
-        with open(osp.join(root_path, f'{split}_{val_part_name}.txt'),
-                  'w') as fp:
-            [fp.write(item + '\n') for item in real_val_item_list]
+    if val_item_list is not None:
+        with open(osp.join(root_path, f'{total_split}_val_c0.txt'), 'w') as fp:
+            [fp.write(item + '\n') for item in val_item_list]
 
 
 if __name__ == '__main__':
