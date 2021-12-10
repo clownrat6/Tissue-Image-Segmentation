@@ -283,7 +283,7 @@ def main():
 
     for split, name in [('train', 'MoNuSeg 2018 Training Data'),
                         ('test', 'MoNuSegTestData')]:
-        raw_root = osp.join(root_path, 'MoNuSeg', name)
+        raw_root = osp.join(root_path, 'monuseg', name)
 
         if split == 'train':
             raw_img_folder = osp.join(raw_root, 'Tissue Images')

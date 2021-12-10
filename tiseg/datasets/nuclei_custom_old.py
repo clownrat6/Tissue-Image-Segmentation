@@ -18,7 +18,7 @@ from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
                                             dice_similarity_coefficient,
                                             precision_recall)
 from .builder import DATASETS
-from .nuclei_dataset_mapper import NucleiDatasetMapper
+from .pipelines import Compose
 from .utils import colorize_seg_map, re_instance
 
 
@@ -113,26 +113,33 @@ class NucleiCustomDataset(Dataset):
 
     PALETTE = [[0, 0, 0], [255, 2, 255], [2, 255, 255]]
 
-    def __init__(self,
-                 process_cfg,
-                 img_dir,
-                 ann_dir,
-                 data_root=None,
-                 img_suffix='.tif',
-                 sem_suffix='_semantic_with_edge.png',
-                 inst_suffix='_instance.npy',
-                 test_mode=False,
-                 split=None):
+    def __init__(
+            self,
+            pipeline,
+            img_dir,
+            ann_dir,
+            data_root=None,
+            img_suffix='.tif',
+            ann_suffix='_semantic_with_edge.png',
+            # ann_suffix='_instance.npy',
+            test_mode=False,
+            split=None):
 
-        self.mapper = NucleiDatasetMapper(test_mode, process_cfg=process_cfg)
+        # semantic level input or instance level input
+        assert ann_suffix in ['_semantic_with_edge.png', '_instance.npy']
+        if ann_suffix == '_semantic_with_edge.png':
+            self.input_level = 'semantic_with_edge'
+        elif ann_suffix == '_instance.npy':
+            self.input_level = 'instance'
+
+        self.pipeline = Compose(pipeline)
 
         self.img_dir = img_dir
         self.ann_dir = ann_dir
         self.data_root = data_root
 
         self.img_suffix = img_suffix
-        self.sem_suffix = sem_suffix
-        self.inst_suffix = inst_suffix
+        self.ann_suffix = ann_suffix
 
         self.test_mode = test_mode
         self.split = split
@@ -146,10 +153,8 @@ class NucleiCustomDataset(Dataset):
             if not (self.split is None or osp.isabs(self.split)):
                 self.split = osp.join(self.data_root, self.split)
 
-        self.data_infos = self.load_annotations(self.img_dir, self.ann_dir,
-                                                self.img_suffix,
-                                                self.sem_suffix,
-                                                self.inst_suffix, self.split)
+        self.data_infos = self.load_annotations(self.img_dir, self.img_suffix,
+                                                self.ann_suffix, self.split)
 
     def __len__(self):
         """Total number of samples of data."""
@@ -165,16 +170,63 @@ class NucleiCustomDataset(Dataset):
             dict: Training/test data (with annotation if `test_mode` is set
                 False).
         """
-        data_info = self.data_infos[index]
-        return self.mapper(data_info)
+        if self.test_mode:
+            return self.prepare_test_data(index)
+        else:
+            # res = self.prepare_train_data(index)
+            # import pickle as p
+            # p.dump(res, open('res.p', 'wb'))
+            # exit(0)
+            return self.prepare_train_data(index)
 
-    def load_annotations(self,
-                         img_dir,
-                         ann_dir,
-                         img_suffix,
-                         sem_suffix,
-                         inst_suffix,
-                         split=None):
+    def prepare_test_data(self, index):
+        """Get testing data after pipeline.
+
+        Args:
+            idx (int): Index of data.
+
+        Returns:
+            dict: Testing data after pipeline with new keys introduced by
+                pipeline.
+        """
+        data_info = self.data_infos[index]
+        results = self.pre_pipeline(data_info)
+        return self.pipeline(results)
+
+    def prepare_train_data(self, index):
+        """Get training data and annotations after pipeline.
+
+        Args:
+            idx (int): Index of data.
+
+        Returns:
+            dict: Training data and annotation after pipeline with new keys
+                introduced by pipeline.
+        """
+        data_info = self.data_infos[index]
+        results = self.pre_pipeline(data_info)
+        return self.pipeline(results)
+
+    def pre_pipeline(self, data_info):
+        """Prepare results dict for pipeline."""
+        results = {}
+        results['img_info'] = {}
+        results['ann_info'] = {}
+
+        # path retrieval
+        results['img_info']['img_name'] = data_info['img_name']
+        results['img_info']['img_dir'] = self.img_dir
+        results['img_info']['img_suffix'] = self.img_suffix
+        results['ann_info']['ann_name'] = data_info['ann_name']
+        results['ann_info']['ann_dir'] = self.ann_dir
+        results['ann_info']['ann_suffix'] = self.ann_suffix
+
+        # build seg fileds
+        results['seg_fields'] = []
+
+        return results
+
+    def load_annotations(self, img_dir, img_suffix, ann_suffix, split=None):
         """Load annotation from directory.
 
         Args:
@@ -194,31 +246,25 @@ class NucleiCustomDataset(Dataset):
             with open(split, 'r') as fp:
                 for line in fp.readlines():
                     img_id = line.strip()
-                    img_name = img_id + img_suffix
-                    sem_name = img_id + sem_suffix
-                    inst_name = img_id + inst_suffix
-                    img_file_name = osp.join(img_dir, img_name)
-                    sem_file_name = osp.join(ann_dir, sem_name)
-                    inst_file_name = osp.join(ann_dir, inst_name)
-                    data_info = dict(
-                        file_name=img_file_name,
-                        sem_file_name=sem_file_name,
-                        inst_file_name=inst_file_name)
+                    image_name = img_id + img_suffix
+                    ann_name = img_id + ann_suffix
+                    data_info = dict(img_name=image_name, ann_name=ann_name)
                     data_infos.append(data_info)
         else:
             for img_name in mmcv.scandir(img_dir, img_suffix, recursive=True):
-                sem_name = img_name.replace(img_suffix, sem_suffix)
-                inst_name = img_name.replace(img_suffix, inst_suffix)
-                img_file_name = osp.join(img_dir, img_name)
-                sem_file_name = osp.join(ann_dir, sem_name)
-                inst_file_name = osp.join(ann_dir, inst_name)
-                data_info = dict(
-                    file_name=img_file_name,
-                    sem_file_name=sem_file_name,
-                    inst_file_name=inst_file_name)
+                ann_name = img_name.replace(img_suffix, ann_suffix)
+                data_info = dict(img_name=img_name, ann_name=ann_name)
                 data_infos.append(data_info)
 
         return data_infos
+
+    def get_gt_seg_maps(self):
+        """Ground Truth maps generator."""
+        for data_info in self.data_infos:
+            seg_map = osp.join(self.ann_dir, data_info['ann_name'])
+            gt_seg_map = mmcv.imread(
+                seg_map, flag='unchanged', backend='pillow')
+            yield gt_seg_map
 
     def pre_eval(self,
                  preds,

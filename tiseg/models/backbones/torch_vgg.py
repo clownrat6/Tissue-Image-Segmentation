@@ -63,6 +63,8 @@ class TorchVGG(BaseModule):
         return stages
 
     def forward(self, x):
+        print(x.shape)
+        exit(0)
         if self.in_channels != 3:
             x = self.input_stem(x)
 

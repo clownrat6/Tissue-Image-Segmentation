@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from mmcv.runner import BaseModule
 
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
@@ -9,17 +8,18 @@ from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads.fast_unet_head import UNetHead
 from ..losses import GeneralizedDiceLoss, miou, tiou
+from .fast_base import FastBaseSegmentor
 
 
 @SEGMENTORS.register_module()
-class UNetSegmentor(BaseModule):
+class UNetSegmentor(FastBaseSegmentor):
     """Base class for segmentors."""
 
-    def __init__(self, train_cfg, test_cfg):
+    def __init__(self, num_classes, train_cfg, test_cfg):
         super(UNetSegmentor, self).__init__()
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
-        self.num_classes = 3
+        self.num_classes = num_classes
 
         self.backbone = TorchVGG16BN(
             in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4])

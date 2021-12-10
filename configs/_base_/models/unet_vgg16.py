@@ -4,11 +4,11 @@ model = dict(
     type='EncoderDecoder',
     backbone=dict(
         type='TorchVGG16BN',
-        in_channels=3,
+        # in_channels=3,
         out_indices=(0, 1, 2, 3, 4),
         pretrained=True,
-        norm_cfg=norm_cfg,
-        act_cfg=dict(type='ReLU'),
+        # norm_cfg=norm_cfg,
+        # act_cfg=dict(type='ReLU'),
     ),
     decode_head=dict(
         type='UNetHead',

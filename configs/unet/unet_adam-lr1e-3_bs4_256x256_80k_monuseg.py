@@ -1,7 +1,6 @@
 _base_ = [
-    '../_base_/datasets/nuclei_cpm17.py',
+    '../_base_/datasets/monuseg.py',
     '../_base_/default_runtime.py',
-    '../_base_/models/unet_vgg16.py',
     '../_base_/schedules/Aji_schedule_20k.py',
 ]
 
@@ -17,10 +16,13 @@ lr_config = dict(
     min_lr=0.0,
     by_epoch=False)
 
+# model settings
 model = dict(
-    decode_head=dict(num_classes=3),
+    type='UNetSegmentor',
+    # model training and testing settings
+    num_classes=3,
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=(256, 256), stride=(216, 216)),
+    test_cfg=dict(mode='whole'),
 )
 
-data = dict(samples_per_gpu=2, workers_per_gpu=1)
+data = dict(samples_per_gpu=1, workers_per_gpu=1)
