@@ -4,7 +4,6 @@ from .builder import (BACKBONES, HEADS, LOSSES, NECKS, SEGMENTORS,
                       build_segmentor)
 from .fast_models import *  # noqa: F401, F403
 from .heads import *  # noqa: F401, F403
-from .segmentors import *  # noqa: F401, F403
 
 __all__ = [
     'build_segmentor', 'build_backbone', 'build_loss', 'build_neck',

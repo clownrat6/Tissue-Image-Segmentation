@@ -78,7 +78,6 @@ def main():
         ]
         cfg.data.test.pipeline[1].rotate = True
         cfg.data.test.pipeline[1].rotate_degree = [90]
-    cfg.model.pretrained = None
 
     # init distributed env first, since logger depends on the dist info.
     if args.launcher == 'none':
@@ -90,7 +89,7 @@ def main():
     # build the model and load checkpoint
     cfg.model.train_cfg = None
     model = build_segmentor(cfg.model, test_cfg=cfg.get('test_cfg'))
-    _ = load_checkpoint(model, args.checkpoint, map_location='cpu')
+    # _ = load_checkpoint(model, args.checkpoint, map_location='cpu')
 
     if not isinstance(cfg.data.test, list):
         cfg.data.test = [cfg.data.test]

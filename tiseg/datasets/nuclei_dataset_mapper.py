@@ -12,6 +12,7 @@ from .ops import (ColorJitter, DirectionLabelMake, RandomFlip, Resize,
 def read_image(path):
     _, suffix = osp.splitext(osp.basename(path))
     if suffix == '.tif':
+        print(path)
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     elif suffix == '.npy':
