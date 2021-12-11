@@ -7,20 +7,18 @@ _base_ = [
 runner = dict(type='IterBasedRunner', max_iters=10000)
 
 evaluation = dict(
-    _delete_=True,
     interval=1000,
     metric='all',
     save_best='Aji',
     rule='greater',
 )
 checkpoint_config = dict(
-    _delete_=True,
     by_epoch=False,
     interval=1000,
     max_keep_ckpts=1,
 )
 
-optimizer = dict(type='Adam', lr=0.001, weight_decay=0.0005)
+optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
 optimizer_config = dict()
 
 lr_config = dict(
