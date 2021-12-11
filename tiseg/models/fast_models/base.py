@@ -199,17 +199,16 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         Returns:
             Tensor: The output segmentation map.
         """
-
+        raw_img = img
         assert self.test_cfg.mode in ['slide', 'whole']
 
         self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
         seg_logit_list = []
-
         for rotate_degree in self.rotate_degrees:
             for flip_direction in self.flip_directions:
                 rotate_num = (rotate_degree // 90) % 4
-                img = torch.rot90(img, k=rotate_num, dims=(-2, -1))
+                img = torch.rot90(raw_img, k=rotate_num, dims=(-2, -1))
 
                 if flip_direction == 'horizontal':
                     img = torch.flip(img, dims=[-1])
@@ -231,7 +230,7 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
                     seg_logit = torch.flip(seg_logit, dims=[-2, -1])
 
                 rotate_num = 4 - rotate_num
-                seg_logit = torch.rot90(seg_logit, k=rotate_num)
+                seg_logit = torch.rot90(seg_logit, k=rotate_num, dims=(-2, -1))
 
                 seg_logit_list.append(seg_logit)
 

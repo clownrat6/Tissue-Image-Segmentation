@@ -8,7 +8,7 @@ from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads.cd_head import CDHead
-from ..losses import GeneralizedDiceLoss, miou, tiou
+from ..losses import miou, tiou, MultiClassDiceLoss
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 
@@ -151,7 +151,7 @@ class CDNetSegmentor(BaseSegmentor):
         Returns:
             Tensor: The output segmentation map.
         """
-
+        raw_img = img
         assert self.test_cfg.mode in ['slide', 'whole']
 
         self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
@@ -161,7 +161,7 @@ class CDNetSegmentor(BaseSegmentor):
         for rotate_degree in self.rotate_degrees:
             for flip_direction in self.flip_directions:
                 rotate_num = (rotate_degree // 90) % 4
-                img = torch.rot90(img, k=rotate_num, dims=(-2, -1))
+                img = torch.rot90(raw_img, k=rotate_num, dims=(-2, -1))
 
                 if flip_direction == 'horizontal':
                     img = torch.flip(img, dims=[-1])
@@ -183,7 +183,7 @@ class CDNetSegmentor(BaseSegmentor):
                     seg_logit = torch.flip(seg_logit, dims=[-2, -1])
 
                 rotate_num = 4 - rotate_num
-                seg_logit = torch.rot90(seg_logit, k=rotate_num)
+                seg_logit = torch.rot90(seg_logit, k=rotate_num, dims=(-2, -1))
 
                 seg_logit_list.append(seg_logit)
 
@@ -249,7 +249,7 @@ class CDNetSegmentor(BaseSegmentor):
     def _mask_loss(self, mask_logit, mask_gt):
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = GeneralizedDiceLoss(num_classes=self.num_classes)
+        mask_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_classes)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_gt))
@@ -265,7 +265,7 @@ class CDNetSegmentor(BaseSegmentor):
     def _direction_loss(self, direction_logit, dir_gt):
         direction_loss = {}
         direction_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        direction_dice_loss_calculator = GeneralizedDiceLoss(num_classes=self.num_angles + 1)
+        direction_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_angles + 1)
         direction_ce_loss = torch.mean(direction_ce_loss_calculator(direction_logit, dir_gt))
         direction_dice_loss = direction_dice_loss_calculator(direction_logit, dir_gt)
         # loss weight

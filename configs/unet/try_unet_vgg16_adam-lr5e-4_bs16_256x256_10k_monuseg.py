@@ -30,5 +30,11 @@ model = dict(
     # model training and testing settings
     num_classes=3,
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=(256, 256), stride=(216, 216)),
+    test_cfg=dict(
+        mode='slide',
+        crop_size=(256, 256),
+        stride=(216, 216),
+        rotate_degrees=[0, 90],
+        flip_directions=['none', 'horizontal'],
+    ),
 )
