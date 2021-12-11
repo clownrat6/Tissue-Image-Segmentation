@@ -16,8 +16,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='test (and eval) a model')
     parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
-    parser.add_argument(
-        '--aug-test', action='store_true', help='Use Flip and Multi scale aug')
+    parser.add_argument('--aug-test', action='store_true', help='Use Flip and Multi scale aug')
     parser.add_argument(
         '--format-only',
         action='store_true',
@@ -30,22 +29,10 @@ def parse_args():
         nargs='+',
         help='evaluation metrics, which depends on the dataset, e.g., "mIoU"'
         ' for generic datasets, and "cityscapes" for Cityscapes')
-    parser.add_argument(
-        '--gpu-collect',
-        action='store_true',
-        help='whether to use gpu to collect results.')
-    parser.add_argument(
-        '--eval-options',
-        nargs='+',
-        action=DictAction,
-        help='custom options for evaluation')
-    parser.add_argument(
-        '--launcher',
-        choices=['none', 'pytorch', 'slurm', 'mpi'],
-        default='none',
-        help='job launcher')
-    parser.add_argument(
-        '--work-dir', type=str, help='The dump folder of evaluation results')
+    parser.add_argument('--gpu-collect', action='store_true', help='whether to use gpu to collect results.')
+    parser.add_argument('--eval-options', nargs='+', action=DictAction, help='custom options for evaluation')
+    parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], default='none', help='job launcher')
+    parser.add_argument('--work-dir', type=str, help='The dump folder of evaluation results')
     parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
@@ -73,9 +60,7 @@ def main():
         # hard code index
         cfg.data.test.pipeline[1].img_ratios = [1.0]
         cfg.data.test.pipeline[1].flip = True
-        cfg.data.test.pipeline[1].flip_direction = [
-            'horizontal', 'vertical', 'diagonal'
-        ]
+        cfg.data.test.pipeline[1].flip_direction = ['horizontal', 'vertical', 'diagonal']
         cfg.data.test.pipeline[1].rotate = True
         cfg.data.test.pipeline[1].rotate_degree = [90]
 
@@ -89,7 +74,7 @@ def main():
     # build the model and load checkpoint
     cfg.model.train_cfg = None
     model = build_segmentor(cfg.model, test_cfg=cfg.get('test_cfg'))
-    # _ = load_checkpoint(model, args.checkpoint, map_location='cpu')
+    _ = load_checkpoint(model, args.checkpoint, map_location='cpu')
 
     if not isinstance(cfg.data.test, list):
         cfg.data.test = [cfg.data.test]
@@ -102,19 +87,14 @@ def main():
         # TODO: support multiple images per gpu (only minor changes are needed)
         dataset = build_dataset(data_test)
         data_loader = build_dataloader(
-            dataset,
-            samples_per_gpu=1,
-            workers_per_gpu=cfg.data.workers_per_gpu,
-            dist=distributed,
-            shuffle=False)
+            dataset, samples_per_gpu=1, workers_per_gpu=cfg.data.workers_per_gpu, dist=distributed, shuffle=False)
 
         model.CLASSES = dataset.CLASSES
         model.PALETTE = dataset.PALETTE
 
         eval_kwargs = {} if args.eval_options is None else args.eval_options
 
-        eval_kwargs['dump_path'] = (None if args.work_dir is None else
-                                    f'{args.work_dir}/evaluation_dump.txt')
+        eval_kwargs['dump_path'] = (None if args.work_dir is None else f'{args.work_dir}/evaluation_dump.txt')
 
         if args.format_only:
             if 'imgfile_prefix' in eval_kwargs:
@@ -139,9 +119,7 @@ def main():
                 format_args=eval_kwargs)
         else:
             model = MMDistributedDataParallel(
-                model.cuda(),
-                device_ids=[torch.cuda.current_device()],
-                broadcast_buffers=False)
+                model.cuda(), device_ids=[torch.cuda.current_device()], broadcast_buffers=False)
             results = multi_gpu_test(
                 model,
                 data_loader,
