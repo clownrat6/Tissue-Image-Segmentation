@@ -43,7 +43,7 @@ def _parse_losses(losses):
     return loss, log_vars
 
 
-class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
+class BaseSegmentor(BaseModule, metaclass=ABCMeta):
     """Segmentor supports multiplt data & multiple labels.
 
     For example (CDNet):

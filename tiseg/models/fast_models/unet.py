@@ -8,11 +8,11 @@ from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads import UNetHead
 from ..losses import GeneralizedDiceLoss, miou, tiou
-from .fast_base import FastBaseSegmentor
+from .base import BaseSegmentor
 
 
 @SEGMENTORS.register_module()
-class UNetSegmentor(FastBaseSegmentor):
+class UNetSegmentor(BaseSegmentor):
     """Base class for segmentors."""
 
     def __init__(self, num_classes, train_cfg, test_cfg):
