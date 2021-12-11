@@ -5,8 +5,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from .ops import (ColorJitter, DirectionLabelMake, RandomFlip, Resize,
-                  format_img, format_info, format_reg, format_seg)
+from .ops import (ColorJitter, DirectionLabelMake, Identity, ReEdge, RandomFlip, RandomElasticDeform, RandomCrop,
+                  Resize, format_img, format_info, format_reg, format_seg)
 
 
 def read_image(path):
@@ -38,9 +38,13 @@ class NucleiDatasetMapper(object):
         self.edge_id = process_cfg['edge_id']
 
         self.color_jitter = ColorJitter()
-        self.flipper = RandomFlip(prob=0.5)
+        self.flipper = RandomFlip(prob=0.5) if self.if_flip else Identity()
+        # self.rotater = RandomRotate()
         self.resizer = Resize(self.min_size, self.max_size, self.resize_mode)
+        self.deformer = RandomElasticDeform(prob=0.8)
+        self.cropper = RandomCrop((self.min_size, self.min_size))
         self.dir_label_maker = DirectionLabelMake(edge_id=self.edge_id)
+        self.re_edge = ReEdge(edge_id=self.edge_id)
 
     def __call__(self, data_info):
         data_info = copy.deepcopy(data_info)
@@ -55,16 +59,20 @@ class NucleiDatasetMapper(object):
             h, w = img.shape[:2]
             assert img.shape[:2] == sem_seg.shape[:2]
 
-            if self.if_flip:
-                img, segs = self.flipper(img, [sem_seg, inst_seg])
-                sem_seg = segs[0]
-                inst_seg = segs[1]
+            segs = [sem_seg, inst_seg]
 
-            img, segs = self.resizer(img, [sem_seg, inst_seg])
+            # 1. Random Color
+            # 2. Random Horizontal Flip
+            # 3. Random Elastic Transform
+            # 4. Random Crop
+            img = self.color_jitter(img)
+            img, segs = self.flipper(img, segs)
+            img, segs = self.deformer(img, segs)
+            img, segs = self.cropper(img, segs)
+            # img, segs = self.resizer(img, segs)
+
             sem_seg = segs[0]
             inst_seg = segs[1]
-
-            img = self.color_jitter(img)
 
         h, w = img.shape[:2]
         data_info['input_hw'] = (h, w)
@@ -87,9 +95,15 @@ class NucleiDatasetMapper(object):
 
         if self.with_dir and not self.test_mode:
             res = self.dir_label_maker(sem_seg, inst_seg)
+            sem_seg = res['gt_sem_map']
             point_reg = res['gt_point_map']
             dir_seg = res['gt_direction_map']
+            ret['label']['sem_gt'] = format_seg(sem_seg)
             ret['label']['point_gt'] = format_reg(point_reg)
             ret['label']['dir_gt'] = format_seg(dir_seg)
+        else:
+            res = self.re_edge(sem_seg)
+            sem_seg = res['gt_sem_map']
+            ret['label']['sem_gt'] = format_seg(sem_seg)
 
         return ret

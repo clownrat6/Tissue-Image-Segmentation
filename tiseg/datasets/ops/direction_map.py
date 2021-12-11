@@ -3,8 +3,39 @@ from scipy.ndimage import gaussian_filter
 from scipy.ndimage.morphology import distance_transform_edt
 from skimage import morphology
 
-from ..utils import (angle_to_vector, calculate_centerpoint,
-                     calculate_gradient, vector_to_label)
+from ..utils import (angle_to_vector, calculate_centerpoint, calculate_gradient, vector_to_label)
+
+
+class ReEdge:
+    """Re-generate high quality edge labels."""
+
+    def __init__(self, edge_id):
+        self.edge_id = edge_id
+
+    def __call__(self, sem_map):
+        sem_map_w_edge = np.zeros_like(sem_map)
+        id_list = list(np.unique(sem_map))
+        for id in id_list:
+            if id == self.edge_id or id == 0:
+                continue
+            id_mask = sem_map == id
+
+            bound = morphology.dilation(
+                id_mask,
+                selem=morphology.selem.disk(1)) & (~morphology.erosion(id_mask, selem=morphology.selem.disk(1)))
+            sem_map_w_edge[id_mask > 0] = id
+            sem_map_w_edge[bound > 0] = self.edge_id
+
+        sem_map_in = sem_map_w_edge.copy()
+        sem_map_in[sem_map_in == self.edge_id] = 0
+
+        results = {}
+
+        results['gt_sem_map'] = sem_map_w_edge
+        results['gt_sem_map_in'] = sem_map_in
+        results['gt_sem_map_w_edge'] = sem_map_w_edge
+
+        return results
 
 
 class DirectionLabelMake(object):
@@ -30,8 +61,7 @@ class DirectionLabelMake(object):
                 id_mask = sem_map == id
                 bound = morphology.dilation(
                     id_mask,
-                    selem=morphology.selem.disk(1)) & (~morphology.erosion(
-                        id_mask, selem=morphology.selem.disk(1)))
+                    selem=morphology.selem.disk(1)) & (~morphology.erosion(id_mask, selem=morphology.selem.disk(1)))
                 sem_map_w_edge[id_mask > 0] = id
                 sem_map_w_edge[bound > 0] = self.edge_id
 
@@ -52,8 +82,7 @@ class DirectionLabelMake(object):
         point_map, gradient_map = self.calculate_point_map(instance_map)
 
         # direction map calculation
-        direction_map = self.calculate_direction_map(instance_map,
-                                                     gradient_map)
+        direction_map = self.calculate_direction_map(instance_map, gradient_map)
 
         results['gt_point_map'] = point_map
         results['gt_direction_map'] = direction_map
@@ -63,8 +92,7 @@ class DirectionLabelMake(object):
     def calculate_direction_map(self, instance_map, gradient_map):
         # Prepare for gradient map & direction map calculation
         # continue angle calculation
-        angle_map = np.degrees(
-            np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
+        angle_map = np.degrees(np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
         angle_map[instance_map == 0] = 0
         vector_map = angle_to_vector(angle_map, self.num_angle_types)
         # angle type judgement
@@ -98,20 +126,17 @@ class DirectionLabelMake(object):
             point_map[center[0], center[1]] = 1
 
             # Calculate distance from points of instance to instance center.
-            distance_to_center_instance = self.calculate_distance_to_center(
-                single_instance_map, center)
+            distance_to_center_instance = self.calculate_distance_to_center(single_instance_map, center)
             distance_to_center_map += distance_to_center_instance
 
             # Calculate gradient of (to center) distance
-            gradient_map_instance = self.calculate_gradient(
-                single_instance_map, distance_to_center_instance)
+            gradient_map_instance = self.calculate_gradient(single_instance_map, distance_to_center_instance)
             gradient_map[(single_instance_map != 0), :] = 0
             gradient_map += gradient_map_instance
         assert int(point_map.sum()) == markers_len
 
         # Use gaussian filter to process center point map
-        point_map_gaussian = gaussian_filter(
-            point_map * 255, sigma=2, order=0).astype(np.float32)
+        point_map_gaussian = gaussian_filter(point_map * 255, sigma=2, order=0).astype(np.float32)
 
         return point_map_gaussian, gradient_map
 
@@ -123,17 +148,14 @@ class DirectionLabelMake(object):
         distance_to_center = distance_transform_edt(1 - point_map_instance)
         # Only calculate distance (to center) in distance region
         distance_to_center = distance_to_center * single_instance_map
-        distance_to_center_instance = (
-            1 - distance_to_center /
-            (distance_to_center.max() + 0.0000001)) * single_instance_map
+        distance_to_center_instance = (1 - distance_to_center /
+                                       (distance_to_center.max() + 0.0000001)) * single_instance_map
 
         return distance_to_center_instance
 
-    def calculate_gradient(self, single_instance_map,
-                           distance_to_center_instance):
+    def calculate_gradient(self, single_instance_map, distance_to_center_instance):
         H, W = single_instance_map.shape[:2]
         gradient_map_instance = np.zeros((H, W, 2))
-        gradient_map_instance = calculate_gradient(
-            distance_to_center_instance, ksize=11)
+        gradient_map_instance = calculate_gradient(distance_to_center_instance, ksize=11)
         gradient_map_instance[(single_instance_map == 0), :] = 0
         return gradient_map_instance
