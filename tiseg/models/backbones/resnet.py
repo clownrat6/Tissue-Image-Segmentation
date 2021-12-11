@@ -7,11 +7,93 @@ import warnings
 import torch.nn as nn
 import torch.utils.checkpoint as cp
 from mmcv.cnn import build_conv_layer, build_norm_layer, build_plugin_layer
-from mmcv.runner import BaseModule
+from mmcv.runner import BaseModule, Sequential
 from mmcv.utils.parrots_wrapper import _BatchNorm
 
 from ..builder import BACKBONES
-from ..utils import ResLayer
+
+
+class ResLayer(Sequential):
+    """ResLayer to build ResNet style backbone.
+
+    Args:
+        block (nn.Module): block used to build ResLayer.
+        inplanes (int): inplanes of block.
+        planes (int): planes of block.
+        num_blocks (int): number of blocks.
+        stride (int): stride of the first block. Default: 1
+        avg_down (bool): Use AvgPool instead of stride conv when
+            downsampling in the bottleneck. Default: False
+        conv_cfg (dict): dictionary to construct and config conv layer.
+            Default: None
+        norm_cfg (dict): dictionary to construct and config norm layer.
+            Default: dict(type='BN')
+        multi_grid (int | None): Multi grid dilation rates of last
+            stage. Default: None
+        contract_dilation (bool): Whether contract first dilation of each layer
+            Default: False
+    """
+
+    def __init__(self,
+                 block,
+                 inplanes,
+                 planes,
+                 num_blocks,
+                 stride=1,
+                 dilation=1,
+                 avg_down=False,
+                 conv_cfg=None,
+                 norm_cfg=dict(type='BN'),
+                 multi_grid=None,
+                 contract_dilation=False,
+                 **kwargs):
+        self.block = block
+
+        downsample = None
+        if stride != 1 or inplanes != planes * block.expansion:
+            downsample = []
+            conv_stride = stride
+            if avg_down:
+                conv_stride = 1
+                downsample.append(
+                    nn.AvgPool2d(kernel_size=stride, stride=stride, ceil_mode=True, count_include_pad=False))
+            downsample.extend([
+                build_conv_layer(
+                    conv_cfg, inplanes, planes * block.expansion, kernel_size=1, stride=conv_stride, bias=False),
+                build_norm_layer(norm_cfg, planes * block.expansion)[1]
+            ])
+            downsample = nn.Sequential(*downsample)
+
+        layers = []
+        if multi_grid is None:
+            if dilation > 1 and contract_dilation:
+                first_dilation = dilation // 2
+            else:
+                first_dilation = dilation
+        else:
+            first_dilation = multi_grid[0]
+        layers.append(
+            block(
+                inplanes=inplanes,
+                planes=planes,
+                stride=stride,
+                dilation=first_dilation,
+                downsample=downsample,
+                conv_cfg=conv_cfg,
+                norm_cfg=norm_cfg,
+                **kwargs))
+        inplanes = planes * block.expansion
+        for i in range(1, num_blocks):
+            layers.append(
+                block(
+                    inplanes=inplanes,
+                    planes=planes,
+                    stride=1,
+                    dilation=dilation if multi_grid is None else multi_grid[i],
+                    conv_cfg=conv_cfg,
+                    norm_cfg=norm_cfg,
+                    **kwargs))
+        super(ResLayer, self).__init__(*layers)
 
 
 class BasicBlock(BaseModule):
@@ -40,17 +122,9 @@ class BasicBlock(BaseModule):
         self.norm2_name, norm2 = build_norm_layer(norm_cfg, planes, postfix=2)
 
         self.conv1 = build_conv_layer(
-            conv_cfg,
-            inplanes,
-            planes,
-            3,
-            stride=stride,
-            padding=dilation,
-            dilation=dilation,
-            bias=False)
+            conv_cfg, inplanes, planes, 3, stride=stride, padding=dilation, dilation=dilation, bias=False)
         self.add_module(self.norm1_name, norm1)
-        self.conv2 = build_conv_layer(
-            conv_cfg, planes, planes, 3, padding=1, bias=False)
+        self.conv2 = build_conv_layer(conv_cfg, planes, planes, 3, padding=1, bias=False)
         self.add_module(self.norm2_name, norm2)
 
         self.relu = nn.ReLU(inplace=True)
@@ -144,18 +218,9 @@ class Bottleneck(BaseModule):
 
         if self.with_plugins:
             # collect plugins for conv1/conv2/conv3
-            self.after_conv1_plugins = [
-                plugin['cfg'] for plugin in plugins
-                if plugin['position'] == 'after_conv1'
-            ]
-            self.after_conv2_plugins = [
-                plugin['cfg'] for plugin in plugins
-                if plugin['position'] == 'after_conv2'
-            ]
-            self.after_conv3_plugins = [
-                plugin['cfg'] for plugin in plugins
-                if plugin['position'] == 'after_conv3'
-            ]
+            self.after_conv1_plugins = [plugin['cfg'] for plugin in plugins if plugin['position'] == 'after_conv1']
+            self.after_conv2_plugins = [plugin['cfg'] for plugin in plugins if plugin['position'] == 'after_conv2']
+            self.after_conv3_plugins = [plugin['cfg'] for plugin in plugins if plugin['position'] == 'after_conv3']
 
         if self.style == 'pytorch':
             self.conv1_stride = 1
@@ -166,16 +231,9 @@ class Bottleneck(BaseModule):
 
         self.norm1_name, norm1 = build_norm_layer(norm_cfg, planes, postfix=1)
         self.norm2_name, norm2 = build_norm_layer(norm_cfg, planes, postfix=2)
-        self.norm3_name, norm3 = build_norm_layer(
-            norm_cfg, planes * self.expansion, postfix=3)
+        self.norm3_name, norm3 = build_norm_layer(norm_cfg, planes * self.expansion, postfix=3)
 
-        self.conv1 = build_conv_layer(
-            conv_cfg,
-            inplanes,
-            planes,
-            kernel_size=1,
-            stride=self.conv1_stride,
-            bias=False)
+        self.conv1 = build_conv_layer(conv_cfg, inplanes, planes, kernel_size=1, stride=self.conv1_stride, bias=False)
         self.add_module(self.norm1_name, norm1)
         fallback_on_stride = False
         if self.with_dcn:
@@ -203,24 +261,16 @@ class Bottleneck(BaseModule):
                 bias=False)
 
         self.add_module(self.norm2_name, norm2)
-        self.conv3 = build_conv_layer(
-            conv_cfg,
-            planes,
-            planes * self.expansion,
-            kernel_size=1,
-            bias=False)
+        self.conv3 = build_conv_layer(conv_cfg, planes, planes * self.expansion, kernel_size=1, bias=False)
         self.add_module(self.norm3_name, norm3)
 
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
 
         if self.with_plugins:
-            self.after_conv1_plugin_names = self.make_block_plugins(
-                planes, self.after_conv1_plugins)
-            self.after_conv2_plugin_names = self.make_block_plugins(
-                planes, self.after_conv2_plugins)
-            self.after_conv3_plugin_names = self.make_block_plugins(
-                planes * self.expansion, self.after_conv3_plugins)
+            self.after_conv1_plugin_names = self.make_block_plugins(planes, self.after_conv1_plugins)
+            self.after_conv2_plugin_names = self.make_block_plugins(planes, self.after_conv2_plugins)
+            self.after_conv3_plugin_names = self.make_block_plugins(planes * self.expansion, self.after_conv3_plugins)
 
     def make_block_plugins(self, in_channels, plugins):
         """make plugins for block.
@@ -236,10 +286,7 @@ class Bottleneck(BaseModule):
         plugin_names = []
         for plugin in plugins:
             plugin = plugin.copy()
-            name, layer = build_plugin_layer(
-                plugin,
-                in_channels=in_channels,
-                postfix=plugin.pop('postfix', ''))
+            name, layer = build_plugin_layer(plugin, in_channels=in_channels, postfix=plugin.pop('postfix', ''))
             assert not hasattr(self, name), f'duplicate plugin {name}'
             self.add_module(name, layer)
             plugin_names.append(name)
@@ -414,30 +461,20 @@ class ResNet(BaseModule):
         assert not (init_cfg and pretrained), \
             'init_cfg and pretrained cannot be setting at the same time'
         if isinstance(pretrained, str):
-            warnings.warn('DeprecationWarning: pretrained is a deprecated, '
-                          'please use "init_cfg" instead')
+            warnings.warn('DeprecationWarning: pretrained is a deprecated, ' 'please use "init_cfg" instead')
             self.init_cfg = dict(type='Pretrained', checkpoint=pretrained)
         elif pretrained is None:
             if init_cfg is None:
                 self.init_cfg = [
                     dict(type='Kaiming', layer='Conv2d'),
-                    dict(
-                        type='Constant',
-                        val=1,
-                        layer=['_BatchNorm', 'GroupNorm'])
+                    dict(type='Constant', val=1, layer=['_BatchNorm', 'GroupNorm'])
                 ]
                 block = self.arch_settings[depth][0]
                 if self.zero_init_residual:
                     if block is BasicBlock:
-                        block_init_cfg = dict(
-                            type='Constant',
-                            val=0,
-                            override=dict(name='norm2'))
+                        block_init_cfg = dict(type='Constant', val=0, override=dict(name='norm2'))
                     elif block is Bottleneck:
-                        block_init_cfg = dict(
-                            type='Constant',
-                            val=0,
-                            override=dict(name='norm3'))
+                        block_init_cfg = dict(type='Constant', val=0, override=dict(name='norm3'))
         else:
             raise TypeError('pretrained must be a str or None')
 
@@ -482,8 +519,7 @@ class ResNet(BaseModule):
             else:
                 stage_plugins = None
             # multi grid is applied to last layer only
-            stage_multi_grid = multi_grid if i == len(
-                self.stage_blocks) - 1 else None
+            stage_multi_grid = multi_grid if i == len(self.stage_blocks) - 1 else None
             planes = base_channels * 2**i
             res_layer = self.make_res_layer(
                 block=self.block,
@@ -509,8 +545,7 @@ class ResNet(BaseModule):
 
         self._freeze_stages()
 
-        self.feat_dim = self.block.expansion * base_channels * 2**(
-            len(self.stage_blocks) - 1)
+        self.feat_dim = self.block.expansion * base_channels * 2**(len(self.stage_blocks) - 1)
 
     def make_stage_plugins(self, plugins, stage_idx):
         """make plugins for ResNet 'stage_idx'th stage .
@@ -579,15 +614,8 @@ class ResNet(BaseModule):
         if self.deep_stem:
             self.stem = nn.Sequential(
                 build_conv_layer(
-                    self.conv_cfg,
-                    in_channels,
-                    stem_channels // 2,
-                    kernel_size=3,
-                    stride=2,
-                    padding=1,
-                    bias=False),
-                build_norm_layer(self.norm_cfg, stem_channels // 2)[1],
-                nn.ReLU(inplace=True),
+                    self.conv_cfg, in_channels, stem_channels // 2, kernel_size=3, stride=2, padding=1, bias=False),
+                build_norm_layer(self.norm_cfg, stem_channels // 2)[1], nn.ReLU(inplace=True),
                 build_conv_layer(
                     self.conv_cfg,
                     stem_channels // 2,
@@ -596,29 +624,14 @@ class ResNet(BaseModule):
                     stride=1,
                     padding=1,
                     bias=False),
-                build_norm_layer(self.norm_cfg, stem_channels // 2)[1],
-                nn.ReLU(inplace=True),
+                build_norm_layer(self.norm_cfg, stem_channels // 2)[1], nn.ReLU(inplace=True),
                 build_conv_layer(
-                    self.conv_cfg,
-                    stem_channels // 2,
-                    stem_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                    bias=False),
-                build_norm_layer(self.norm_cfg, stem_channels)[1],
-                nn.ReLU(inplace=True))
+                    self.conv_cfg, stem_channels // 2, stem_channels, kernel_size=3, stride=1, padding=1, bias=False),
+                build_norm_layer(self.norm_cfg, stem_channels)[1], nn.ReLU(inplace=True))
         else:
             self.conv1 = build_conv_layer(
-                self.conv_cfg,
-                in_channels,
-                stem_channels,
-                kernel_size=7,
-                stride=2,
-                padding=3,
-                bias=False)
-            self.norm1_name, norm1 = build_norm_layer(
-                self.norm_cfg, stem_channels, postfix=1)
+                self.conv_cfg, in_channels, stem_channels, kernel_size=7, stride=2, padding=3, bias=False)
+            self.norm1_name, norm1 = build_norm_layer(self.norm_cfg, stem_channels, postfix=1)
             self.add_module(self.norm1_name, norm1)
             self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -683,8 +696,7 @@ class ResNetV1c(ResNet):
     """
 
     def __init__(self, **kwargs):
-        super(ResNetV1c, self).__init__(
-            deep_stem=True, avg_down=False, **kwargs)
+        super(ResNetV1c, self).__init__(deep_stem=True, avg_down=False, **kwargs)
 
 
 @BACKBONES.register_module()
@@ -697,8 +709,7 @@ class ResNetV1d(ResNet):
     """
 
     def __init__(self, **kwargs):
-        super(ResNetV1d, self).__init__(
-            deep_stem=True, avg_down=True, **kwargs)
+        super(ResNetV1d, self).__init__(deep_stem=True, avg_down=True, **kwargs)
 
 
 @BACKBONES.register_module()

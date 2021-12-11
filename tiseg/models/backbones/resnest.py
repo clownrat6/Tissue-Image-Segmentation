@@ -11,7 +11,7 @@ import torch.utils.checkpoint as cp
 from mmcv.cnn import build_conv_layer, build_norm_layer
 
 from ..builder import BACKBONES
-from ..utils import ResLayer
+from .resnet import ResLayer
 from .resnet import Bottleneck as _Bottleneck
 from .resnet import ResNetV1d
 
@@ -95,17 +95,13 @@ class SplitAttentionConv2d(nn.Module):
             dilation=dilation,
             groups=groups * radix,
             bias=False)
-        self.norm0_name, norm0 = build_norm_layer(
-            norm_cfg, channels * radix, postfix=0)
+        self.norm0_name, norm0 = build_norm_layer(norm_cfg, channels * radix, postfix=0)
         self.add_module(self.norm0_name, norm0)
         self.relu = nn.ReLU(inplace=True)
-        self.fc1 = build_conv_layer(
-            None, channels, inter_channels, 1, groups=self.groups)
-        self.norm1_name, norm1 = build_norm_layer(
-            norm_cfg, inter_channels, postfix=1)
+        self.fc1 = build_conv_layer(None, channels, inter_channels, 1, groups=self.groups)
+        self.norm1_name, norm1 = build_norm_layer(norm_cfg, inter_channels, postfix=1)
         self.add_module(self.norm1_name, norm1)
-        self.fc2 = build_conv_layer(
-            None, inter_channels, channels * radix, 1, groups=self.groups)
+        self.fc2 = build_conv_layer(None, inter_channels, channels * radix, 1, groups=self.groups)
         self.rsoftmax = RSoftmax(radix, groups)
 
     @property
@@ -182,23 +178,15 @@ class Bottleneck(_Bottleneck):
         if groups == 1:
             width = self.planes
         else:
-            width = math.floor(self.planes *
-                               (base_width / base_channels)) * groups
+            width = math.floor(self.planes * (base_width / base_channels)) * groups
 
         self.avg_down_stride = avg_down_stride and self.conv2_stride > 1
 
-        self.norm1_name, norm1 = build_norm_layer(
-            self.norm_cfg, width, postfix=1)
-        self.norm3_name, norm3 = build_norm_layer(
-            self.norm_cfg, self.planes * self.expansion, postfix=3)
+        self.norm1_name, norm1 = build_norm_layer(self.norm_cfg, width, postfix=1)
+        self.norm3_name, norm3 = build_norm_layer(self.norm_cfg, self.planes * self.expansion, postfix=3)
 
         self.conv1 = build_conv_layer(
-            self.conv_cfg,
-            self.inplanes,
-            width,
-            kernel_size=1,
-            stride=self.conv1_stride,
-            bias=False)
+            self.conv_cfg, self.inplanes, width, kernel_size=1, stride=self.conv1_stride, bias=False)
         self.add_module(self.norm1_name, norm1)
         self.with_modulated_dcn = False
         self.conv2 = SplitAttentionConv2d(
@@ -219,12 +207,7 @@ class Bottleneck(_Bottleneck):
         if self.avg_down_stride:
             self.avd_layer = nn.AvgPool2d(3, self.conv2_stride, padding=1)
 
-        self.conv3 = build_conv_layer(
-            self.conv_cfg,
-            width,
-            self.planes * self.expansion,
-            kernel_size=1,
-            bias=False)
+        self.conv3 = build_conv_layer(self.conv_cfg, width, self.planes * self.expansion, kernel_size=1, bias=False)
         self.add_module(self.norm3_name, norm3)
 
     def forward(self, x):
@@ -292,13 +275,7 @@ class ResNeSt(ResNetV1d):
         200: (Bottleneck, (3, 24, 36, 3))
     }
 
-    def __init__(self,
-                 groups=1,
-                 base_width=4,
-                 radix=2,
-                 reduction_factor=4,
-                 avg_down_stride=True,
-                 **kwargs):
+    def __init__(self, groups=1, base_width=4, radix=2, reduction_factor=4, avg_down_stride=True, **kwargs):
         self.groups = groups
         self.base_width = base_width
         self.radix = radix
