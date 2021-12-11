@@ -46,8 +46,7 @@ def convert_instance_to_semantic(instance_map, with_edge=True):
             continue
         single_instance_map = instance_map == id
         if with_edge:
-            boundary = morphology.dilation(single_instance_map) & (
-                ~morphology.erosion(single_instance_map))
+            boundary = morphology.dilation(single_instance_map) & (~morphology.erosion(single_instance_map))
             semantic_map += single_instance_map
             semantic_map[boundary > 0] = 2
         else:
@@ -111,8 +110,7 @@ def crop_patches(image, c_size):
     return patches
 
 
-def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
-                      crop_size):
+def parse_single_item(item, raw_image_folder, raw_label_folder, new_path, crop_size):
     """meta process of single item data."""
 
     image_path = osp.join(raw_image_folder, item + '.png')
@@ -121,10 +119,8 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
     # image & label extraction
     image = np.array(Image.open(image_path))
     instance_label = convert_mat_to_array(label_path)
-    semantic_label = convert_instance_to_semantic(
-        instance_label, with_edge=False)
-    semantic_label_edge = convert_instance_to_semantic(
-        instance_label, with_edge=True)
+    semantic_label = convert_instance_to_semantic(instance_label, with_edge=False)
+    semantic_label_edge = convert_instance_to_semantic(instance_label, with_edge=True)
 
     # split map into patches
     if crop_size != 0:
@@ -133,8 +129,7 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
         semantic_patches = crop_patches(semantic_label, crop_size)
         semantic_edge_patches = crop_patches(semantic_label_edge, crop_size)
 
-        assert len(image_patches) == len(instance_patches) == len(
-            semantic_patches) == len(semantic_edge_patches)
+        assert len(image_patches) == len(instance_patches) == len(semantic_patches) == len(semantic_edge_patches)
 
         item_len = len(image_patches)
         # record patch item name
@@ -148,8 +143,7 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
         sub_item_list = [item]
 
     # patch storage
-    patch_batches = zip(image_patches, instance_patches, semantic_patches,
-                        semantic_edge_patches)
+    patch_batches = zip(image_patches, instance_patches, semantic_patches, semantic_edge_patches)
     for patch, sub_item in zip(patch_batches, sub_item_list):
         # jump when exists
         if osp.exists(osp.join(new_path, sub_item + '.png')):
@@ -158,22 +152,17 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
         pillow_save(osp.join(new_path, sub_item + '.png'), patch[0])
         # save instance level label
         np.save(osp.join(new_path, sub_item + '_instance.npy'), patch[1])
-        pillow_save(
-            osp.join(new_path, sub_item + '_instance_colorized.png'),
-            colorize_seg_map(patch[1]))
+        pillow_save(osp.join(new_path, sub_item + '_instance_colorized.png'), colorize_seg_map(patch[1]))
         # save semantic level label
         palette = np.zeros((2, 3), dtype=np.uint8)
         palette[0, :] = (0, 0, 0)
         palette[1, :] = (255, 255, 2)
-        pillow_save(
-            osp.join(new_path, sub_item + '_semantic.png'), patch[2], palette)
+        pillow_save(osp.join(new_path, sub_item + '_semantic.png'), patch[2], palette)
         palette = np.zeros((3, 3), dtype=np.uint8)
         palette[0, :] = (0, 0, 0)
         palette[1, :] = (255, 0, 0)
         palette[2, :] = (0, 255, 0)
-        pillow_save(
-            osp.join(new_path, sub_item + '_semantic_with_edge.png'), patch[3],
-            palette)
+        pillow_save(osp.join(new_path, sub_item + '_semantic_with_edge.png'), patch[3], palette)
 
     return {item: sub_item_list}
 
@@ -202,11 +191,7 @@ def parse_args():
     parser = argparse.ArgumentParser('Convert cpm17 dataset.')
     parser.add_argument('root_path', help='dataset root path.')
     parser.add_argument(
-        '-c',
-        '--crop-size',
-        type=int,
-        default=0,
-        help='the crop size of fix crop in dataset convertion operation')
+        '-c', '--crop-size', type=int, default=0, help='the crop size of fix crop in dataset convertion operation')
 
     return parser.parse_args()
 
@@ -217,32 +202,21 @@ def main():
     crop_size = args.crop_size
 
     for split in ['train', 'test']:
-        raw_root = osp.join(root_path, 'CPM17', split)
+        raw_root = osp.join(root_path, 'cpm17', split)
 
         raw_img_folder = osp.join(raw_root, 'Images')
         raw_lbl_folder = osp.join(raw_root, 'Labels')
 
-        item_list = [
-            x.rstrip('.png') for x in os.listdir(raw_img_folder) if '.png' in x
-        ]
+        item_list = [x.rstrip('.png') for x in os.listdir(raw_img_folder) if '.png' in x]
 
         if split == 'test':
             new_root = osp.join(root_path, split, 'c0')
-            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list,
-                           0)
+            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list, 0)
         else:
             new_root = osp.join(root_path, split, f'c{crop_size}')
-            convert_cohort(
-                raw_img_folder,
-                raw_lbl_folder,
-                new_root,
-                item_list,
-                c_size=crop_size)
+            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list, c_size=crop_size)
 
-        item_list = [
-            x.rstrip('_instance.npy') for x in os.listdir(new_root)
-            if '_instance.npy' in x
-        ]
+        item_list = [x.rstrip('_instance.npy') for x in os.listdir(new_root) if '_instance.npy' in x]
 
         if split == 'train':
             name = f'train_c{crop_size}.txt'
