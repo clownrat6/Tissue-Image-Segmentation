@@ -1,13 +1,53 @@
+import torch
 import torch.nn as nn
-
-from ..builder import HEADS
-from ..utils import UNetDecoderLayer
-from .decode_head import BaseDecodeHead
+import torch.nn.functional as F
+from mmcv.cnn import ConvModule
 
 
-# TODO: Add doc string & Add comments
-@HEADS.register_module()
-class UNetHead(BaseDecodeHead):
+def conv1x1(in_dims, out_dims, norm_cfg=None, act_cfg=None):
+    return ConvModule(
+        in_dims, out_dims, 1, 1, 0, norm_cfg=norm_cfg, act_cfg=act_cfg)
+
+
+def conv3x3(in_dims, out_dims, norm_cfg=None, act_cfg=None):
+    return ConvModule(
+        in_dims, out_dims, 3, 1, 1, norm_cfg=norm_cfg, act_cfg=act_cfg)
+
+
+class UNetLayer(nn.Module):
+
+    def __init__(self, in_dims, skip_dims, feed_dims, num_convs, norm_cfg,
+                 act_cfg):
+        super().__init__()
+        self.in_dims = in_dims
+        self.skip_dims = skip_dims
+        self.feed_dims = feed_dims
+
+        if skip_dims != 0:
+            self.skip_conv = conv1x1(skip_dims, feed_dims, norm_cfg, act_cfg)
+            skip_dims = feed_dims
+
+        convs = [conv1x1(skip_dims + in_dims, feed_dims, norm_cfg, act_cfg)]
+        for _ in range(num_convs - 1):
+            convs.append(conv3x3(feed_dims, feed_dims, norm_cfg, act_cfg))
+        self.convs = nn.Sequential(*convs)
+
+    def forward(self, x, skip=None):
+        if x is None:
+            x = skip
+            skip = None
+
+        if skip is not None:
+            skip_shape = skip.shape[-2:]
+            skip = self.skip_conv(skip)
+            x = F.interpolate(x, size=skip_shape)
+            x = torch.cat([skip, x], dim=1)
+
+        out = self.convs(x)
+        return out
+
+
+class UNetHead(nn.Module):
     """UNet for nulcie segmentation task.
 
     Args:
@@ -18,56 +58,49 @@ class UNetHead(BaseDecodeHead):
     """
 
     def __init__(self,
-                 stage_convs=[3, 3, 3, 3],
-                 stage_channels=[16, 32, 64, 128],
-                 **kwargs):
-        super().__init__(**kwargs)
-        self.stage_convs = stage_convs
-        self.stage_channels = stage_channels
+                 num_classes,
+                 in_dims=[16, 32, 64, 128],
+                 stage_dims=[16, 32, 64, 128],
+                 dropout_rate=0.1,
+                 norm_cfg=dict(type='BN'),
+                 act_cfg=dict(type='ReLU'),
+                 align_corners=False):
+        super().__init__()
+        self.num_classes = num_classes
+        self.in_dims = in_dims
+        self.stage_dims = stage_dims
+        self.in_index = [i for i in range(len(in_dims))]
+        self.dropout_rate = dropout_rate
+        self.norm_cfg = norm_cfg
+        self.act_cfg = act_cfg
+        self.align_corners = align_corners
 
-        # initial check
-        assert len(self.in_channels) == len(self.in_index) == len(
-            self.stage_channels)
-        num_stages = len(self.in_channels)
-
-        # judge if the num_stages is valid
-        assert num_stages in [
-            4, 5
-        ], 'Only support four stage or four stage with an extra stage now.'
+        num_layers = len(self.in_dims)
 
         # make channel pair
-        self.stage_channels.append(None)
-        channel_pairs = [(self.in_channels[idx], self.stage_channels[idx],
-                          self.stage_channels[idx + 1])
-                         for idx in range(num_stages)]
-        channel_pairs = channel_pairs[::-1]
-
-        self.decode_stages = nn.ModuleList()
-        for (skip_channels, feedforward_channels,
-             in_channels), depth in zip(channel_pairs, stage_convs):
-            self.decode_stages.append(
-                UNetDecoderLayer(
-                    in_channels=in_channels,
-                    skip_channels=skip_channels,
-                    feedforward_channels=feedforward_channels,
-                    depth=depth,
-                    align_corners=self.align_corners,
-                    norm_cfg=self.norm_cfg,
-                    act_cfg=self.act_cfg,
-                ))
+        self.decode_layers = nn.ModuleList()
+        for idx in range(num_layers):
+            if idx == num_layers - 1:
+                self.decode_layers.append(
+                    UNetLayer(self.in_dims[idx], 0, self.stage_dims[idx], 3,
+                              norm_cfg, act_cfg))
+            else:
+                self.decode_layers.append(
+                    UNetLayer(self.stage_dims[idx + 1], self.in_dims[idx],
+                              self.stage_dims[idx], 4, norm_cfg, act_cfg))
 
         self.dropout = nn.Dropout2d(self.dropout_rate)
         self.postprocess = nn.Conv2d(
-            stage_channels[0], self.num_classes, kernel_size=1, stride=1)
+            self.stage_dims[0], self.num_classes, kernel_size=1, stride=1)
 
     def forward(self, inputs):
-        inputs = self._transform_inputs(inputs)
-
         # decode stage feed forward
         x = None
         skips = inputs[::-1]
-        for skip, decode_stage in zip(skips, self.decode_stages):
-            x = decode_stage(skip, x)
+
+        decode_layers = self.decode_layers[::-1]
+        for skip, decode_stage in zip(skips, decode_layers):
+            x = decode_stage(x, skip)
 
         out = self.dropout(x)
         out = self.postprocess(out)
