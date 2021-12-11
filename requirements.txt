@@ -12,3 +12,5 @@ rich
 scikit-image==0.18.3
 scipy
 yapf
+tensorboard
+future

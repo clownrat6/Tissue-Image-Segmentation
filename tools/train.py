@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*
 import argparse
 import copy
 import os
@@ -22,43 +23,27 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Train a segmentor')
     parser.add_argument('config', help='train config file path')
     parser.add_argument('--work-dir', help='the dir to save logs and models')
-    parser.add_argument(
-        '--load-from', help='the checkpoint file to load weights from')
-    parser.add_argument(
-        '--resume-from', help='the checkpoint file to resume from')
+    parser.add_argument('--load-from', help='the checkpoint file to load weights from')
+    parser.add_argument('--resume-from', help='the checkpoint file to resume from')
     # Whether to evaluation when training
     parser.add_argument(
-        '--no-validate',
-        action='store_true',
-        help='whether not to evaluate the checkpoint during training')
+        '--no-validate', action='store_true', help='whether not to evaluate the checkpoint during training')
     group_gpus = parser.add_mutually_exclusive_group()
     group_gpus.add_argument(
-        '--gpus',
-        type=int,
-        help='number of gpus to use '
+        '--gpus', type=int, help='number of gpus to use '
         '(only applicable to non-distributed training)')
     group_gpus.add_argument(
-        '--gpu-ids',
-        type=int,
-        nargs='+',
-        help='ids of gpus to use '
+        '--gpu-ids', type=int, nargs='+', help='ids of gpus to use '
         '(only applicable to non-distributed training)')
     # Set pytorch initial seed and cudnn op selection
     parser.add_argument('--seed', type=int, default=None, help='random seed')
     parser.add_argument(
-        '--deterministic',
-        action='store_true',
-        help='whether to set deterministic options for CUDNN backend.')
+        '--deterministic', action='store_true', help='whether to set deterministic options for CUDNN backend.')
     # Manual set some config option
-    parser.add_argument(
-        '--options', nargs='+', action=DictAction, help='custom options')
+    parser.add_argument('--options', nargs='+', action=DictAction, help='custom options')
     # Set runtime launcher. If launcher is not None, we will use MMDDP；
     # If None, we will use MMDP. MMDDP & MMDP can compat DP & DDP.
-    parser.add_argument(
-        '--launcher',
-        choices=['none', 'pytorch', 'slurm', 'mpi'],
-        default='none',
-        help='job launcher')
+    parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], default='none', help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
@@ -114,8 +99,7 @@ def main():
     env_info_dict = collect_env()
     env_info = '\n'.join([f'{k}: {v}' for k, v in env_info_dict.items()])
     dash_line = '-' * 60 + '\n'
-    logger.info('Environment info:\n' + dash_line + env_info + '\n' +
-                dash_line)
+    logger.info('Environment info:\n' + dash_line + env_info + '\n' + dash_line)
     meta['env_info'] = env_info
 
     # log some basic info
@@ -125,8 +109,7 @@ def main():
 
     # set random seeds
     if args.seed is not None:
-        logger.info(f'Set random seed to {args.seed}, deterministic: '
-                    f'{args.deterministic}')
+        logger.info(f'Set random seed to {args.seed}, deterministic: ' f'{args.deterministic}')
         # If seed is fixed and deterministic is False, the training
         # results is surely reproducibility
         set_random_seed(args.seed, deterministic=args.deterministic)
@@ -135,17 +118,13 @@ def main():
     meta['exp_name'] = osp.basename(args.config)
 
     # Build top level model
-    model = build_segmentor(
-        cfg.model,
-        train_cfg=cfg.get('train_cfg'),
-        test_cfg=cfg.get('test_cfg'))
+    model = build_segmentor(cfg.model, train_cfg=cfg.get('train_cfg'), test_cfg=cfg.get('test_cfg'))
     model.init_weights()
 
     if not distributed:
-        warnings.warn(
-            'SyncBN only support DDP. In order to compat with DP, we convert '
-            'SyncBN tp BN. Please to use dist_train.py which has official '
-            'support to avoid this problem.')
+        warnings.warn('SyncBN only support DDP. In order to compat with DP, we convert '
+                      'SyncBN tp BN. Please to use dist_train.py which has official '
+                      'support to avoid this problem.')
         model = revert_sync_batchnorm(model)
 
     logger.info(model)
@@ -160,18 +139,10 @@ def main():
     if cfg.checkpoint_config is not None:
         # save tres version, config file content and class names in
         # checkpoints as meta data
-        cfg.checkpoint_config.meta = dict(
-            tres_version=f'{__version__}+{get_git_hash()[:7]}',
-            config=cfg.pretty_text)
+        cfg.checkpoint_config.meta = dict(tres_version=f'{__version__}+{get_git_hash()[:7]}', config=cfg.pretty_text)
     meta.update(cfg.checkpoint_config.meta)
     train_segmentor(
-        model,
-        datasets,
-        cfg,
-        distributed=distributed,
-        validate=(not args.no_validate),
-        timestamp=timestamp,
-        meta=meta)
+        model, datasets, cfg, distributed=distributed, validate=(not args.no_validate), timestamp=timestamp, meta=meta)
 
 
 if __name__ == '__main__':
