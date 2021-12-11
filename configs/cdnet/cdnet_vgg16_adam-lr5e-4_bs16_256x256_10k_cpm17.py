@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/datasets/monuseg.py',
+    '../_base_/datasets/cpm17_w_dir.py',
     '../_base_/default_runtime.py',
 ]
 
@@ -26,9 +26,9 @@ lr_config = dict(
 
 # model settings
 model = dict(
-    type='UNetSegmentor',
+    type='CDNetSegmentor',
     # model training and testing settings
     num_classes=3,
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=(256, 256), stride=(216, 216)),
+    test_cfg=dict(mode='slide', plane_size=(256, 256), crop_size=(256, 256), stride=(216, 216), use_ddm=True),
 )
