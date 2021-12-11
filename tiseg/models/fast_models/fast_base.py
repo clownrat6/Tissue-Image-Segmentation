@@ -84,8 +84,7 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
         losses = self(**data_batch)
         loss, log_vars = _parse_losses(losses)
 
-        outputs = dict(
-            loss=loss, log_vars=log_vars, num_samples=len(data_batch['metas']))
+        outputs = dict(loss=loss, log_vars=log_vars, num_samples=len(data_batch['metas']))
 
         return outputs
 
@@ -124,27 +123,20 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
                 x1 = max(x2 - w_crop, 0)
                 crop_img = img[:, :, y1:y2, x1:x2]
                 crop_seg_logit = self.calculate(crop_img)
-                preds += F.pad(crop_seg_logit,
-                               (int(x1), int(preds.shape[3] - x2), int(y1),
-                                int(preds.shape[2] - y2)))
+                preds += F.pad(crop_seg_logit, (int(x1), int(preds.shape[3] - x2), int(y1), int(preds.shape[2] - y2)))
 
                 count_mat[:, :, y1:y2, x1:x2] += 1
         assert (count_mat == 0).sum() == 0
         preds = preds / count_mat
         if rescale:
-            preds = resize(
-                preds,
-                size=meta['ori_hw'],
-                mode='bilinear',
-                align_corners=False)
+            preds = resize(preds, size=meta['ori_hw'], mode='bilinear', align_corners=False)
         return preds
 
     # TODO: refactor code stryle
     def split_inference(self, img, meta, rescale):
         """using half-and-half strategy to slide inference."""
         window_size = self.test_cfg.crop_size[0]
-        overlap_size = (self.test_cfg.crop_size[0] -
-                        self.test_cfg.stride[0]) * 2
+        overlap_size = (self.test_cfg.crop_size[0] - self.test_cfg.stride[0]) * 2
 
         N, C, H, W = img.shape
 
@@ -153,14 +145,12 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
         # zero pad for border patches
         pad_h = 0
         if H - window_size > 0:
-            pad_h = (window_size - overlap_size) - (H - window_size) % (
-                window_size - overlap_size)
+            pad_h = (window_size - overlap_size) - (H - window_size) % (window_size - overlap_size)
             tmp = torch.zeros((N, C, pad_h, W)).to(img.device)
             input = torch.cat((input, tmp), dim=2)
 
         if W - window_size > 0:
-            pad_w = (window_size - overlap_size) - (W - window_size) % (
-                window_size - overlap_size)
+            pad_w = (window_size - overlap_size) - (W - window_size) % (window_size - overlap_size)
             tmp = torch.zeros((N, C, H + pad_h, pad_w)).to(img.device)
             input = torch.cat((input, tmp), dim=3)
 
@@ -170,9 +160,7 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
         for i in range(0, H1 - overlap_size, window_size - overlap_size):
             r_end = i + window_size if i + window_size < H1 else H1
             ind1_s = i + overlap_size // 2 if i > 0 else 0
-            ind1_e = (
-                i + window_size -
-                overlap_size // 2 if i + window_size < H1 else H1)
+            ind1_e = (i + window_size - overlap_size // 2 if i + window_size < H1 else H1)
             for j in range(0, W1 - overlap_size, window_size - overlap_size):
                 c_end = j + window_size if j + window_size < W1 else W1
 
@@ -181,21 +169,13 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
                 output_patch = self.calculate(input_var)
 
                 ind2_s = j + overlap_size // 2 if j > 0 else 0
-                ind2_e = (
-                    j + window_size -
-                    overlap_size // 2 if j + window_size < W1 else W1)
-                output[:, :, ind1_s:ind1_e,
-                       ind2_s:ind2_e] = output_patch[:, :,
-                                                     ind1_s - i:ind1_e - i,
-                                                     ind2_s - j:ind2_e - j]
+                ind2_e = (j + window_size - overlap_size // 2 if j + window_size < W1 else W1)
+                output[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = output_patch[:, :, ind1_s - i:ind1_e - i,
+                                                                          ind2_s - j:ind2_e - j]
 
         output = output[:, :, :H, :W]
         if rescale:
-            output = resize(
-                output,
-                size=meta['ori_hw'],
-                mode='bilinear',
-                align_corners=False)
+            output = resize(output, size=meta['ori_hw'], mode='bilinear', align_corners=False)
         return output
 
     def whole_inference(self, img, meta, rescale):
@@ -203,11 +183,7 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
 
         seg_logit = self.calculate(img)
         if rescale:
-            seg_logit = resize(
-                seg_logit,
-                size=meta['ori_hw'],
-                mode='bilinear',
-                align_corners=False)
+            seg_logit = resize(seg_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
 
         return seg_logit
 
@@ -225,33 +201,40 @@ class FastBaseSegmentor(BaseModule, metaclass=ABCMeta):
         """
 
         assert self.test_cfg.mode in ['slide', 'whole']
-        if self.test_cfg.mode == 'slide':
-            seg_logit = self.slide_inference(img, meta, rescale)
-        else:
-            seg_logit = self.whole_inference(img, meta, rescale)
-        # output = seg_logit
-        # flip = meta[0]['img_info']['flip']
-        # rotate = meta[0]['img_info']['rotate']
-        # # reverse tta must have reverse order of origin tta
-        # if rotate:
-        #     rotate_degree = meta[0]['img_info']['rotate_degree']
-        #     assert rotate_degree in [90, 180, 270]
-        #     # torch.rot90 has reverse direction of mmcv.imrotate
-        #     # TODO: recover rotate output (Need to conside the flip operation.)
-        #     if rotate_degree == 90:
-        #         output = output.rot90(dims=(2, 3))
-        #     elif rotate_degree == 180:
-        #         output = output.rot90(k=2, dims=(2, 3))
-        #     elif rotate_degree == 270:
-        #         output = output.rot90(k=3, dims=(2, 3))
-        # if flip:
-        #     flip_direction = meta[0]['img_info']['flip_direction']
-        #     assert flip_direction in ['horizontal', 'vertical', 'diagonal']
-        #     if flip_direction == 'horizontal':
-        #         output = output.flip(dims=(3, ))
-        #     elif flip_direction == 'vertical':
-        #         output = output.flip(dims=(2, ))
-        #     elif flip_direction == 'diagonal':
-        #         output = output.flip(dims=(2, 3))
+
+        self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
+        self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
+        seg_logit_list = []
+
+        for rotate_degree in self.rotate_degrees:
+            for flip_direction in self.flip_directions:
+                rotate_num = (rotate_degree // 90) % 4
+                img = torch.rot90(img, k=rotate_num, dims=(-2, -1))
+
+                if flip_direction == 'horizontal':
+                    img = torch.flip(img, dims=[-1])
+                if flip_direction == 'vertical':
+                    img = torch.flip(img, dims=[-2])
+                if flip_direction == 'diagonal':
+                    img = torch.flip(img, dims=[-2, -1])
+
+                if self.test_cfg.mode == 'slide':
+                    seg_logit = self.slide_inference(img, meta, rescale)
+                else:
+                    seg_logit = self.whole_inference(img, meta, rescale)
+
+                if flip_direction == 'horizontal':
+                    seg_logit = torch.flip(seg_logit, dims=[-1])
+                if flip_direction == 'vertical':
+                    seg_logit = torch.flip(seg_logit, dims=[-2])
+                if flip_direction == 'diagonal':
+                    seg_logit = torch.flip(seg_logit, dims=[-2, -1])
+
+                rotate_num = 4 - rotate_num
+                seg_logit = torch.rot90(seg_logit, k=rotate_num)
+
+                seg_logit_list.append(seg_logit)
+
+        seg_logit = sum(seg_logit_list) / len(seg_logit_list)
 
         return seg_logit

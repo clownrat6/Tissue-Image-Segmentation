@@ -6,7 +6,7 @@ from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
-from ..heads.fast_unet_head import UNetHead
+from ..heads import UNetHead
 from ..losses import GeneralizedDiceLoss, miou, tiou
 from .fast_base import FastBaseSegmentor
 
@@ -21,12 +21,11 @@ class UNetSegmentor(FastBaseSegmentor):
         self.test_cfg = test_cfg
         self.num_classes = num_classes
 
-        self.backbone = TorchVGG16BN(
-            in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4])
+        self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4])
         self.head = UNetHead(
             num_classes=self.num_classes,
             in_dims=(64, 128, 256, 512, 512),
-            stage_dims=[64, 128, 256, 512, 512],
+            stage_dims=[16, 32, 64, 128, 256],
             dropout_rate=0.1,
             act_cfg=dict(type='ReLU'),
             norm_cfg=dict(type='BN'),
@@ -35,11 +34,7 @@ class UNetSegmentor(FastBaseSegmentor):
     def calculate(self, img):
         img_feats = self.backbone(img)
         mask_logit = self.head(img_feats)
-        mask_logit = resize(
-            input=mask_logit,
-            size=img.shape[2:],
-            mode='bilinear',
-            align_corners=False)
+        mask_logit = resize(input=mask_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
 
         return mask_logit
 
@@ -63,8 +58,7 @@ class UNetSegmentor(FastBaseSegmentor):
             mask_loss = self._mask_loss(mask_logit, mask_label)
             loss.update(mask_loss)
             # calculate training metric
-            training_metric_dict = self._training_metric(
-                mask_logit, mask_label)
+            training_metric_dict = self._training_metric(mask_logit, mask_label)
             loss.update(training_metric_dict)
             return loss
         else:
@@ -82,12 +76,10 @@ class UNetSegmentor(FastBaseSegmentor):
         """calculate mask branch loss."""
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = GeneralizedDiceLoss(
-            num_classes=self.num_classes)
+        mask_dice_loss_calculator = GeneralizedDiceLoss(num_classes=self.num_classes)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
-        mask_ce_loss = torch.mean(
-            mask_ce_loss_calculator(mask_logit, mask_label))
+        mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
         mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
         # loss weight
         alpha = 1
@@ -105,15 +97,12 @@ class UNetSegmentor(FastBaseSegmentor):
         clean_mask_logit = mask_logit.clone().detach()
         clean_mask_label = mask_label.clone().detach()
 
-        wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label,
-                                      self.num_classes)
-        wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label,
-                                      self.num_classes)
+        wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label, self.num_classes)
+        wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label, self.num_classes)
 
         # metric calculate (the edge id is set `self.num_classes - 1` in
         # default)
-        mask_pred = torch.argmax(
-            mask_logit, dim=1).cpu().numpy().astype(np.uint8)
+        mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
         mask_pred[mask_pred == (self.num_classes - 1)] = 0
         mask_target = mask_label.cpu().numpy().astype(np.uint8)
         mask_target[mask_target == (self.num_classes - 1)] = 0
@@ -121,8 +110,7 @@ class UNetSegmentor(FastBaseSegmentor):
         N = mask_pred.shape[0]
         wrap_dict['aji'] = 0.
         for i in range(N):
-            aji_single_image = aggregated_jaccard_index(
-                mask_pred[i], mask_target[i])
+            aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
             wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
         # distributed environment requires cuda tensor
         wrap_dict['aji'] /= N
