@@ -9,6 +9,8 @@ try.*
 
 # Image
 *.png
+*.jpg
+*.tif
 
 # Numpy
 *.npy
