@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 from .ops import (ColorJitter, DirectionLabelMake, Identity, ReEdge, RandomFlip, RandomElasticDeform, RandomCrop,
-                  Resize, format_img, format_info, format_reg, format_seg)
+                  format_img, format_info, format_reg, format_seg)
 
 
 def read_image(path):
@@ -40,7 +40,7 @@ class NucleiDatasetMapper(object):
         self.color_jitter = ColorJitter()
         self.flipper = RandomFlip(prob=0.5) if self.if_flip else Identity()
         # self.rotater = RandomRotate()
-        self.resizer = Resize(self.min_size, self.max_size, self.resize_mode)
+        # self.resizer = Resize(self.min_size, self.max_size, self.resize_mode)
         self.deformer = RandomElasticDeform(prob=0.8)
         self.cropper = RandomCrop((self.min_size, self.min_size))
         self.dir_label_maker = DirectionLabelMake(edge_id=self.edge_id)

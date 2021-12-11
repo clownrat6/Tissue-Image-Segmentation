@@ -4,36 +4,27 @@ import torch.nn as nn
 
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
-from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
-from ..heads import UNetHead
-from ..losses import GeneralizedDiceLoss, miou, tiou
+from ..losses import MultiClassDiceLoss, miou, tiou
 from .base import BaseSegmentor
+
+from .try_unet_backbone import Unet
 
 
 @SEGMENTORS.register_module()
-class UNetSegmentor(BaseSegmentor):
+class TryUNetSegmentor(BaseSegmentor):
     """Base class for segmentors."""
 
     def __init__(self, num_classes, train_cfg, test_cfg):
-        super(UNetSegmentor, self).__init__()
+        super(TryUNetSegmentor, self).__init__()
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
 
-        self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4])
-        self.head = UNetHead(
-            num_classes=self.num_classes,
-            in_dims=(64, 128, 256, 512, 512),
-            stage_dims=[16, 32, 64, 128, 256],
-            dropout_rate=0.1,
-            act_cfg=dict(type='ReLU'),
-            norm_cfg=dict(type='BN'),
-            align_corners=False)
+        self.unet = Unet()
 
     def calculate(self, img):
-        img_feats = self.backbone(img)
-        mask_logit = self.head(img_feats)
+        mask_logit = self.unet(img)
         mask_logit = resize(input=mask_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
 
         return mask_logit
@@ -49,8 +40,7 @@ class UNetSegmentor(BaseSegmentor):
         the outer list indicating test time augmentations.
         """
         if self.training:
-            img_feats = self.backbone(data['img'])
-            mask_logit = self.head(img_feats)
+            mask_logit = self.calculate(data['img'])
             assert label is not None
             mask_label = label['sem_gt']
             loss = dict()
@@ -77,7 +67,7 @@ class UNetSegmentor(BaseSegmentor):
         """calculate mask branch loss."""
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = GeneralizedDiceLoss(num_classes=self.num_classes)
+        mask_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_classes)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))

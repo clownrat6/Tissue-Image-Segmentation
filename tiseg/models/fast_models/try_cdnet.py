@@ -5,39 +5,29 @@ import torch.nn.functional as F
 
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
-from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
-from ..heads.cd_head import CDHead
 from ..losses import GeneralizedDiceLoss, miou, tiou
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 
+from .try_cdnet_backbone import Unet
+
 
 @SEGMENTORS.register_module()
-class CDNetSegmentor(BaseSegmentor):
+class TryCDNetSegmentor(BaseSegmentor):
     """Base class for segmentors."""
 
     def __init__(self, num_classes, train_cfg, test_cfg):
-        super(CDNetSegmentor, self).__init__()
+        super(Try`CDNetSegmentor, self).__init__()
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
         self.num_angles = 8
 
-        self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4])
-        self.head = CDHead(
-            num_classes=self.num_classes,
-            num_angles=self.num_angles,
-            in_dims=(64, 128, 256, 512, 512),
-            stage_dims=[16, 32, 64, 128, 256],
-            dropout_rate=0.1,
-            act_cfg=dict(type='ReLU'),
-            norm_cfg=dict(type='BN'),
-            align_corners=False)
+        self.unet = Unet()
 
     def calculate(self, img):
-        img_feats = self.backbone(img)
-        mask_logit, dir_logit, point_logit = self.head(img_feats)
+        mask_logit, dir_logit, point_logit = self.unet(img)
 
         if self.test_cfg.get('use_ddm', False):
             # The whole image is too huge. So we use slide inference in
@@ -61,10 +51,9 @@ class CDNetSegmentor(BaseSegmentor):
         should be double nested (i.e.  List[Tensor], List[List[dict]]), with
         the outer list indicating test time augmentations.
         """
-        if self.training:
-            img_feats = self.backbone(data['img'])
-            mask_logit, dir_logit, point_logit = self.head(img_feats)
 
+        if self.training:
+            mask_logit, direction_logit, point_logit = self.calculate(data['img'])
             assert label is not None
             mask_gt = label['sem_gt']
             point_gt = label['point_gt']
@@ -72,7 +61,7 @@ class CDNetSegmentor(BaseSegmentor):
 
             loss = dict()
             mask_logit = resize(input=mask_logit, size=mask_gt.shape[2:])
-            direction_logit = resize(input=dir_logit, size=dir_gt.shape[2:])
+            direction_logit = resize(input=direction_logit, size=dir_gt.shape[2:])
             point_logit = resize(input=point_logit, size=point_gt.shape[2:])
 
             mask_gt = mask_gt.squeeze(1)
