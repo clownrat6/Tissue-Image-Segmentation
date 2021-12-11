@@ -18,7 +18,7 @@ class TryCDNetSegmentor(BaseSegmentor):
     """Base class for segmentors."""
 
     def __init__(self, num_classes, train_cfg, test_cfg):
-        super(Try`CDNetSegmentor, self).__init__()
+        super(TryCDNetSegmentor, self).__init__()
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
