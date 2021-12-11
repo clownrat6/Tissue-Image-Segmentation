@@ -1,16 +1,10 @@
 # dataset settings
 dataset_type = 'NucleiMoNuSegDataset'
 data_root = 'data/monuseg'
-process_cfg = dict(
-    if_flip=True,
-    min_size=256,
-    max_size=2048,
-    resize_mode='fix',
-    edge_id=2,
-    with_dir=True)
+process_cfg = dict(if_flip=True, min_size=256, max_size=2048, resize_mode='fix', edge_id=2, with_dir=False)
 data = dict(
-    samples_per_gpu=4,
-    workers_per_gpu=4,
+    samples_per_gpu=16,
+    workers_per_gpu=16,
     train=dict(
         type=dataset_type,
         data_root=data_root,
