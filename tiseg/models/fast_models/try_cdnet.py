@@ -53,7 +53,7 @@ class TryCDNetSegmentor(BaseSegmentor):
         """
 
         if self.training:
-            mask_logit, direction_logit, point_logit = self.calculate(data['img'])
+            mask_logit, dir_logit, point_logit = self.unet(data['img'])
             assert label is not None
             mask_gt = label['sem_gt']
             point_gt = label['point_gt']
@@ -61,7 +61,7 @@ class TryCDNetSegmentor(BaseSegmentor):
 
             loss = dict()
             mask_logit = resize(input=mask_logit, size=mask_gt.shape[2:])
-            direction_logit = resize(input=direction_logit, size=dir_gt.shape[2:])
+            direction_logit = resize(input=dir_logit, size=dir_gt.shape[2:])
             point_logit = resize(input=point_logit, size=point_gt.shape[2:])
 
             mask_gt = mask_gt.squeeze(1)
