@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*
 import argparse
 import copy
 import os
@@ -9,14 +8,13 @@ import warnings
 import mmcv
 import torch
 from mmcv.runner import init_dist
-from mmcv.utils import Config, DictAction, get_git_hash
+from mmcv.utils import Config, DictAction, get_git_hash, collect_env, get_logger
 
 from tiseg import __version__
 from tiseg.apis import set_random_seed, train_segmentor
 from tiseg.datasets import build_dataset
 from tiseg.models import build_segmentor
 from tiseg.models.utils import revert_sync_batchnorm
-from tiseg.utils import collect_env, get_root_logger
 
 
 def parse_args():
@@ -91,7 +89,7 @@ def main():
     # init the logger before other steps
     timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
     log_file = osp.join(cfg.work_dir, f'{timestamp}.log')
-    logger = get_root_logger(log_file=log_file, log_level=cfg.log_level)
+    logger = get_logger(name='TorchImageSeg', log_file=log_file, log_level=cfg.log_level)
     # init the meta dict to record some important information such as
     # environment info and seed, which will be logged
     meta = dict()
@@ -137,9 +135,9 @@ def main():
         val_dataset.pipeline = cfg.data.train.pipeline
         datasets.append(build_dataset(val_dataset))
     if cfg.checkpoint_config is not None:
-        # save tres version, config file content and class names in
+        # save tiseg version, config file content and class names in
         # checkpoints as meta data
-        cfg.checkpoint_config.meta = dict(tres_version=f'{__version__}+{get_git_hash()[:7]}', config=cfg.pretty_text)
+        cfg.checkpoint_config.meta = dict(tiseg_version=f'{__version__}+{get_git_hash()[:7]}', config=cfg.pretty_text)
     meta.update(cfg.checkpoint_config.meta)
     train_segmentor(
         model, datasets, cfg, distributed=distributed, validate=(not args.no_validate), timestamp=timestamp, meta=meta)
