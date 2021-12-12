@@ -31,9 +31,9 @@ model = dict(
     num_classes=3,
     train_cfg=dict(),
     test_cfg=dict(
-        mode='slide',
+        mode='split',
         crop_size=(256, 256),
-        stride=(176, 176),
+        overlap_size=(80, 80),
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
