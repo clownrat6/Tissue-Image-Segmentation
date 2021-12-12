@@ -37,6 +37,6 @@ model = dict(
         stride=(176, 176),
         use_ddm=True,
         rotate_degrees=[0, 90],
-        flip_directions=['none', 'horizontal', 'vertical'],
+        flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
 )
