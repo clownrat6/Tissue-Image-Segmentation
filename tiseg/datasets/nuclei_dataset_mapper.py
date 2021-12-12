@@ -93,17 +93,18 @@ class NucleiDatasetMapper(object):
             'metas': info_dc,
         }
 
-        if self.with_dir and not self.test_mode:
-            res = self.label_maker(sem_seg, inst_seg)
-            sem_seg = res['gt_sem_map']
-            point_reg = res['gt_point_map']
-            dir_seg = res['gt_direction_map']
-            ret['label']['sem_gt'] = format_seg(sem_seg)
-            ret['label']['point_gt'] = format_reg(point_reg)
-            ret['label']['dir_gt'] = format_seg(dir_seg)
-        else:
-            res = self.label_maker(sem_seg)
-            sem_seg = res['gt_sem_map']
-            ret['label']['sem_gt'] = format_seg(sem_seg)
+        if not self.test_mode:
+            if self.with_dir:
+                res = self.label_maker(sem_seg, inst_seg)
+                sem_seg = res['gt_sem_map']
+                point_reg = res['gt_point_map']
+                dir_seg = res['gt_direction_map']
+                ret['label']['sem_gt'] = format_seg(sem_seg)
+                ret['label']['point_gt'] = format_reg(point_reg)
+                ret['label']['dir_gt'] = format_seg(dir_seg)
+            else:
+                res = self.label_maker(sem_seg, inst_seg)
+                sem_seg = res['gt_sem_map']
+                ret['label']['sem_gt'] = format_seg(sem_seg)
 
         return ret

@@ -1,7 +1,17 @@
 # dataset settings
 dataset_type = 'NucleiCPM17Dataset'
 data_root = 'data/cpm17'
-process_cfg = dict(if_flip=True, min_size=256, max_size=2048, resize_mode='fix', edge_id=2, with_dir=True)
+process_cfg = dict(
+    if_flip=True,
+    if_jitter=True,
+    if_elastic=True,
+    if_crop=True,
+    with_dir=True,
+    min_size=256,
+    max_size=2048,
+    resize_mode='fix',
+    edge_id=2,
+)
 data = dict(
     samples_per_gpu=16,
     workers_per_gpu=16,

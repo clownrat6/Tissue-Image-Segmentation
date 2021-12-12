@@ -12,7 +12,7 @@ class ReEdge:
     def __init__(self, edge_id):
         self.edge_id = edge_id
 
-    def __call__(self, sem_map):
+    def __call__(self, sem_map, inst_map):
         sem_map_w_edge = np.zeros_like(sem_map)
         id_list = list(np.unique(sem_map))
         for id in id_list:
