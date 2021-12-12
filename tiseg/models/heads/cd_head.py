@@ -1,7 +1,7 @@
 import torch.nn as nn
 from mmcv.cnn import build_activation_layer
 
-from .unet_head import UNetLayer, conv1x1, conv3x3
+from .unet_head import UNetHead, conv1x1, conv3x3
 
 
 class RU(nn.Module):
@@ -127,57 +127,18 @@ class DGM(nn.Module):
         return mask_logit, direction_logit, point_logit
 
 
-class CDHead(nn.Module):
+class CDHead(UNetHead):
 
-    def __init__(self,
-                 num_classes,
-                 num_angles=8,
-                 in_dims=[16, 32, 64, 128],
-                 stage_dims=[16, 32, 64, 128],
-                 dropout_rate=0.1,
-                 norm_cfg=dict(type='BN'),
-                 act_cfg=dict(type='ReLU'),
-                 align_corners=False):
-        super().__init__()
+    def __init__(self, num_classes, num_angles=8, **kwargs):
+        super().__init__(num_classes=num_classes, **kwargs)
         self.num_classes = num_classes
         self.num_angles = num_angles
-        self.in_dims = in_dims
-        self.stage_dims = stage_dims
-        self.in_index = [i for i in range(len(in_dims))]
-        self.dropout_rate = dropout_rate
-        self.norm_cfg = norm_cfg
-        self.act_cfg = act_cfg
-        self.align_corners = align_corners
-
-        num_layers = len(self.in_dims)
-
-        # make channel pair
-        self.decode_layers = nn.ModuleList()
-        for idx in range(num_layers):
-            if idx == num_layers - 1:
-                self.decode_layers.append(UNetLayer(self.in_dims[idx], 0, self.stage_dims[idx], 3, norm_cfg, act_cfg))
-            else:
-                self.decode_layers.append(
-                    UNetLayer(self.stage_dims[idx + 1], self.in_dims[idx], self.stage_dims[idx], 4, norm_cfg, act_cfg))
 
         self.postprocess = DGM(
-            stage_dims[0],
-            stage_dims[0],
+            self.stage_dims[0],
+            self.stage_dims[0],
             num_classes=self.num_classes,
             num_angles=self.num_angles,
             dropout_rate=self.dropout_rate,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
-
-    def forward(self, inputs):
-
-        # decode stage feed forward
-        x = None
-        skips = inputs[::-1]
-        decode_layers = self.decode_layers[::-1]
-        for skip, decode_stage in zip(skips, decode_layers):
-            x = decode_stage(x, skip)
-
-        out = self.postprocess(x)
-
-        return out

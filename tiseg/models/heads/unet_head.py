@@ -5,19 +5,16 @@ from mmcv.cnn import ConvModule
 
 
 def conv1x1(in_dims, out_dims, norm_cfg=None, act_cfg=None):
-    return ConvModule(
-        in_dims, out_dims, 1, 1, 0, norm_cfg=norm_cfg, act_cfg=act_cfg)
+    return ConvModule(in_dims, out_dims, 1, 1, 0, norm_cfg=norm_cfg, act_cfg=act_cfg)
 
 
 def conv3x3(in_dims, out_dims, norm_cfg=None, act_cfg=None):
-    return ConvModule(
-        in_dims, out_dims, 3, 1, 1, norm_cfg=norm_cfg, act_cfg=act_cfg)
+    return ConvModule(in_dims, out_dims, 3, 1, 1, norm_cfg=norm_cfg, act_cfg=act_cfg)
 
 
 class UNetLayer(nn.Module):
 
-    def __init__(self, in_dims, skip_dims, feed_dims, num_convs, norm_cfg,
-                 act_cfg):
+    def __init__(self, in_dims, skip_dims, feed_dims, num_convs, norm_cfg, act_cfg):
         super().__init__()
         self.in_dims = in_dims
         self.skip_dims = skip_dims
@@ -59,50 +56,47 @@ class UNetHead(nn.Module):
 
     def __init__(self,
                  num_classes,
-                 in_dims=[16, 32, 64, 128],
-                 stage_dims=[16, 32, 64, 128],
+                 bottom_in_dim=512,
+                 skip_in_dims=[64, 128, 256, 512, 512],
+                 stage_dims=[16, 32, 64, 128, 256],
                  dropout_rate=0.1,
                  norm_cfg=dict(type='BN'),
-                 act_cfg=dict(type='ReLU'),
-                 align_corners=False):
+                 act_cfg=dict(type='ReLU')):
         super().__init__()
         self.num_classes = num_classes
-        self.in_dims = in_dims
+        self.bottom_in_dim = bottom_in_dim
+        self.skip_in_dims = skip_in_dims
         self.stage_dims = stage_dims
-        self.in_index = [i for i in range(len(in_dims))]
         self.dropout_rate = dropout_rate
         self.norm_cfg = norm_cfg
         self.act_cfg = act_cfg
-        self.align_corners = align_corners
 
-        num_layers = len(self.in_dims)
+        num_layers = len(self.skip_in_dims)
 
         # make channel pair
         self.decode_layers = nn.ModuleList()
         for idx in range(num_layers):
             if idx == num_layers - 1:
+                # bottom, initial layer
                 self.decode_layers.append(
-                    UNetLayer(self.in_dims[idx], 0, self.stage_dims[idx], 3,
-                              norm_cfg, act_cfg))
+                    UNetLayer(self.bottom_in_dim, self.skip_in_dims[idx], self.stage_dims[idx], 4, norm_cfg, act_cfg))
             else:
                 self.decode_layers.append(
-                    UNetLayer(self.stage_dims[idx + 1], self.in_dims[idx],
-                              self.stage_dims[idx], 4, norm_cfg, act_cfg))
+                    UNetLayer(self.stage_dims[idx + 1], self.skip_in_dims[idx], self.stage_dims[idx], 4, norm_cfg,
+                              act_cfg))
 
-        self.dropout = nn.Dropout2d(self.dropout_rate)
-        self.postprocess = nn.Conv2d(
-            self.stage_dims[0], self.num_classes, kernel_size=1, stride=1)
+        self.postprocess = nn.Sequential(
+            nn.Dropout2d(self.dropout_rate), nn.Conv2d(self.stage_dims[0], self.num_classes, kernel_size=1, stride=1))
 
-    def forward(self, inputs):
+    def forward(self, bottom_input, skip_inputs):
         # decode stage feed forward
-        x = None
-        skips = inputs[::-1]
+        x = bottom_input
+        skips = skip_inputs[::-1]
 
         decode_layers = self.decode_layers[::-1]
         for skip, decode_stage in zip(skips, decode_layers):
             x = decode_stage(x, skip)
 
-        out = self.dropout(x)
-        out = self.postprocess(out)
+        out = self.postprocess(x)
 
         return out
