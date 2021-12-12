@@ -258,7 +258,7 @@ class RandomElasticDeform(object):
 
     def __init__(
         self,
-        prob=0.8,
+        prob=0.5,
         alpha=1,
         sigma=50,
         alpha_affine=50,
@@ -336,8 +336,46 @@ class RandomCrop(object):
         return img, segs
 
 
+class AlbuImgWarpper(object):
+    """The image process warpper for albumentation library"""
+
+    def __init__(self, albu_trans):
+        self.trans = albu_trans
+
+    def __call__(self, img):
+        res = self.trans(image=img)
+
+        return res['image']
+
+
 class Identity(object):
     """The placeholder of transform."""
 
     def __call__(self, *args):
         return args
+
+
+class RandomBlur(object):
+    """Random use filter to blur image.
+
+    Filters:
+        1. BLUR (模糊滤波);
+        2. GaussianBlur (高斯滤波);
+        3. MedianBlur (中值滤波);
+    """
+
+    def __init__(self, prob=0.5):
+        self.prob = prob
+
+        self.blur = AlbuImgWarpper(A.Blur())
+        self.gauss = AlbuImgWarpper(A.GaussianBlur())
+        self.median = AlbuImgWarpper(A.MedianBlur())
+
+        self.trans = [self.blur, self.gauss, self.median]
+
+    def __call__(self, img):
+        if np.random.rand() < self.prob:
+            index = random.randint(0, len(self.trans))
+            img = self.trans[index](img)
+
+        return img
