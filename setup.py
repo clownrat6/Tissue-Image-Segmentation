@@ -1,19 +1,12 @@
 from setuptools import find_packages, setup
 
+from tiseg import __version__
+
 
 def readme():
     with open('README.md', encoding='utf-8') as f:
         content = f.read()
     return content
-
-
-version_file = 'tiseg/version.py'
-
-
-def get_version():
-    with open(version_file, 'r') as f:
-        exec(compile(f.read(), version_file, 'exec'))
-    return locals()['__version__']
 
 
 def parse_requirements(fname='requirements.txt', with_version=True):
@@ -58,8 +51,7 @@ def parse_requirements(fname='requirements.txt', with_version=True):
                     if ';' in rest:
                         # Handle platform specific dependencies
                         # http://setuptools.readthedocs.io/en/latest/setuptools.html#declaring-platform-specific-dependencies
-                        version, platform_deps = map(str.strip,
-                                                     rest.split(';'))
+                        version, platform_deps = map(str.strip, rest.split(';'))
                         info['platform_deps'] = platform_deps
                     else:
                         version = rest  # NOQA
@@ -95,15 +87,15 @@ def parse_requirements(fname='requirements.txt', with_version=True):
 if __name__ == '__main__':
     setup(
         name='tiseg',
-        version=get_version(),
+        version=__version__,
         description='boring research toolbox',
         long_description=readme(),
         long_description_content_type='text/markdown',
         author='cyanlaser',
         author_email='cyanblueviolet@gmail.com',
-        keywords='computer vision, nuclei segmentation',
+        keywords='computer vision, nuclei instance segmentation',
         url='https://github.com/sennnnn/Torch_Image_Segmentation',
-        packages=find_packages(exclude=('configs', 'tools', 'demo')),
+        packages=find_packages(exclude=('configs', 'tools')),
         include_package_data=True,
         classifiers=[
             'Development Status :: 4 - Beta',
@@ -114,14 +106,7 @@ if __name__ == '__main__':
             'Programming Language :: Python :: 3.8',
         ],
         license='Apache License 2.0',
-        setup_requires=parse_requirements('requirements/build.txt'),
-        tests_require=parse_requirements('requirements/tests.txt'),
-        install_requires=parse_requirements('requirements/runtime.txt'),
-        extras_require={
-            'all': parse_requirements('requirements.txt'),
-            'tests': parse_requirements('requirements/tests.txt'),
-            'build': parse_requirements('requirements/build.txt'),
-            'optional': parse_requirements('requirements/optional.txt'),
-        },
+        setup_requires=['setuptools'],
+        install_requires=parse_requirements('requirements.txt'),
         ext_modules=[],
         zip_safe=False)

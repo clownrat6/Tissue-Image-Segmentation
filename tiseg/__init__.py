@@ -1,6 +1,6 @@
 import mmcv
 
-from .version import __version__, version_info
+__version__ = '0.0.0'
 
 MMCV_MIN = '1.3.7'
 MMCV_MAX = '1.4.0'
@@ -26,5 +26,3 @@ mmcv_version = digit_version(mmcv.__version__)
 assert (mmcv_min_version <= mmcv_version <= mmcv_max_version), \
     f'MMCV=={mmcv.__version__} is used but incompatible. ' \
     f'Please install mmcv>={mmcv_min_version}, <={mmcv_max_version}.'
-
-__all__ = ['__version__', 'version_info']
