@@ -352,7 +352,10 @@ class Identity(object):
     """The placeholder of transform."""
 
     def __call__(self, *args):
-        return args
+        if len(args) == 1:
+            return args[0]
+        else:
+            return args
 
 
 class RandomBlur(object):
