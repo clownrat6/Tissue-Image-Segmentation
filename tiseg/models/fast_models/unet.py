@@ -7,7 +7,7 @@ from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads import UNetHead
-from ..losses import GeneralizedDiceLoss, miou, tiou
+from ..losses import MultiClassDiceLoss, miou, tiou
 from .base import BaseSegmentor
 
 
@@ -21,36 +21,29 @@ class UNetSegmentor(BaseSegmentor):
         self.test_cfg = test_cfg
         self.num_classes = num_classes
 
-        self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4])
+        self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = UNetHead(
             num_classes=self.num_classes,
             in_dims=(64, 128, 256, 512, 512),
             stage_dims=[16, 32, 64, 128, 256],
             dropout_rate=0.1,
             act_cfg=dict(type='ReLU'),
-            norm_cfg=dict(type='BN'),
-            align_corners=False)
+            norm_cfg=dict(type='BN'))
 
     def calculate(self, img):
         img_feats = self.backbone(img)
-        mask_logit = self.head(img_feats)
+        bottom_feat = img_feats[-1]
+        skip_feats = img_feats[:-1]
+        mask_logit = self.head(bottom_feat, skip_feats)
         mask_logit = resize(input=mask_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
 
         return mask_logit
 
     def forward(self, data, label=None, metas=None, **kwargs):
-        """Calls either :func:`forward_train` or :func:`forward_test` depending
-        on whether ``return_loss`` is ``True``.
-
-        Note this setting will change the expected inputs. When
-        ``return_loss=True``, img and img_meta are single-nested (i.e. Tensor
-        and List[dict]), and when ``resturn_loss=False``, img and img_meta
-        should be double nested (i.e.  List[Tensor], List[List[dict]]), with
-        the outer list indicating test time augmentations.
+        """detectron2 style forward functions. Segmentor can be see as meta_arch of detectron2.
         """
         if self.training:
-            img_feats = self.backbone(data['img'])
-            mask_logit = self.head(img_feats)
+            mask_logit = self.calculate(data['img'])
             assert label is not None
             mask_label = label['sem_gt']
             loss = dict()
@@ -77,7 +70,7 @@ class UNetSegmentor(BaseSegmentor):
         """calculate mask branch loss."""
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = GeneralizedDiceLoss(num_classes=self.num_classes)
+        mask_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_classes)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))

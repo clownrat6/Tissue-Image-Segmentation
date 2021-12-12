@@ -8,7 +8,7 @@ from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads.cd_head import CDHead
-from ..losses import miou, tiou, MultiClassDiceLoss
+from ..losses import MultiClassDiceLoss, miou, tiou
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 
@@ -24,7 +24,7 @@ class CDNetSegmentor(BaseSegmentor):
         self.num_classes = num_classes
         self.num_angles = 8
 
-        self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4])
+        self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = CDHead(
             num_classes=self.num_classes,
             num_angles=self.num_angles,
@@ -32,38 +32,25 @@ class CDNetSegmentor(BaseSegmentor):
             stage_dims=[16, 32, 64, 128, 256],
             dropout_rate=0.1,
             act_cfg=dict(type='ReLU'),
-            norm_cfg=dict(type='BN'),
-            align_corners=False)
+            norm_cfg=dict(type='BN'))
 
     def calculate(self, img):
         img_feats = self.backbone(img)
-        mask_logit, dir_logit, point_logit = self.head(img_feats)
+        bottom_feat = img_feats[-1]
+        skip_feats = img_feats[:-1]
+        mask_logit, dir_logit, point_logit = self.head(bottom_feat, skip_feats)
 
-        if self.test_cfg.get('use_ddm', False):
-            # The whole image is too huge. So we use slide inference in
-            # default.
-            mask_logit = resize(input=mask_logit, size=self.test_cfg['plane_size'])
-            direction_logit = resize(input=dir_logit, size=self.test_cfg['plane_size'])
-            point_logit = resize(input=point_logit, size=self.test_cfg['plane_size'])
-
-            mask_logit = self._ddm_enhencement(mask_logit, direction_logit, point_logit)
         mask_logit = resize(input=mask_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
+        dir_logit = resize(input=dir_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
+        point_logit = resize(input=point_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
 
-        return mask_logit
+        return mask_logit, dir_logit, point_logit
 
     def forward(self, data, label=None, metas=None, **kwargs):
-        """Calls either :func:`forward_train` or :func:`forward_test` depending
-        on whether ``return_loss`` is ``True``.
-
-        Note this setting will change the expected inputs. When
-        ``return_loss=True``, img and img_meta are single-nested (i.e. Tensor
-        and List[dict]), and when ``resturn_loss=False``, img and img_meta
-        should be double nested (i.e.  List[Tensor], List[List[dict]]), with
-        the outer list indicating test time augmentations.
+        """detectron2 style forward functions. Segmentor can be see as meta_arch of detectron2.
         """
         if self.training:
-            img_feats = self.backbone(data['img'])
-            mask_logit, dir_logit, point_logit = self.head(img_feats)
+            mask_logit, dir_logit, point_logit = self.calculate(data['img'])
 
             assert label is not None
             mask_gt = label['sem_gt']
@@ -72,7 +59,7 @@ class CDNetSegmentor(BaseSegmentor):
 
             loss = dict()
             mask_logit = resize(input=mask_logit, size=mask_gt.shape[2:])
-            direction_logit = resize(input=dir_logit, size=dir_gt.shape[2:])
+            dir_logit = resize(input=dir_logit, size=dir_gt.shape[2:])
             point_logit = resize(input=point_logit, size=point_gt.shape[2:])
 
             mask_gt = mask_gt.squeeze(1)
@@ -83,15 +70,14 @@ class CDNetSegmentor(BaseSegmentor):
             mask_loss = self._mask_loss(mask_logit, mask_gt)
             loss.update(mask_loss)
             # direction branch loss calculation
-            direction_loss = self._direction_loss(direction_logit, dir_gt)
-            loss.update(direction_loss)
+            dir_loss = self._dir_loss(dir_logit, dir_gt)
+            loss.update(dir_loss)
             # point branch loss calculation
             point_loss = self._point_loss(point_logit, point_gt)
             loss.update(point_loss)
 
             # calculate training metric
-            training_metric_dict = self._training_metric(mask_logit, direction_logit, point_logit, mask_gt, dir_gt,
-                                                         point_gt)
+            training_metric_dict = self._training_metric(mask_logit, dir_logit, point_logit, mask_gt, dir_gt, point_gt)
             loss.update(training_metric_dict)
             return loss
         else:
@@ -106,56 +92,48 @@ class CDNetSegmentor(BaseSegmentor):
             return seg_pred
 
     def inference(self, img, meta, rescale):
-        """Inference with slide/whole style.
+        """Inference with split/whole style.
 
         Args:
             img (Tensor): The input image of shape (N, 3, H, W).
-            meta (dict): Image info dict where each dict has: 'img_info',
-                'ann_info'
+            meta (dict): Image info dict.
             rescale (bool): Whether rescale back to original shape.
 
         Returns:
             Tensor: The output segmentation map.
         """
-        raw_img = img
         assert self.test_cfg.mode in ['slide', 'whole']
 
         self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
-        seg_logit_list = []
-
+        sem_logit_list = []
+        dir_logit_list = []
+        point_logit_list = []
         for rotate_degree in self.rotate_degrees:
             for flip_direction in self.flip_directions:
-                rotate_num = (rotate_degree // 90) % 4
-                img = torch.rot90(raw_img, k=rotate_num, dims=(-2, -1))
+                img = self.tta_transform(img, rotate_degree, flip_direction)
 
-                if flip_direction == 'horizontal':
-                    img = torch.flip(img, dims=[-1])
-                if flip_direction == 'vertical':
-                    img = torch.flip(img, dims=[-2])
-                if flip_direction == 'diagonal':
-                    img = torch.flip(img, dims=[-2, -1])
-
-                if self.test_cfg.mode == 'slide':
-                    seg_logit = self.split_inference(img, meta, rescale)
+                # inference
+                if self.test_cfg.mode == 'split':
+                    sem_logit, dir_logit, point_logit = self.split_inference(img, meta, rescale)
                 else:
-                    seg_logit = self.whole_inference(img, meta, rescale)
+                    sem_logit, dir_logit, point_logit = self.whole_inference(img, meta, rescale)
 
-                if flip_direction == 'horizontal':
-                    seg_logit = torch.flip(seg_logit, dims=[-1])
-                if flip_direction == 'vertical':
-                    seg_logit = torch.flip(seg_logit, dims=[-2])
-                if flip_direction == 'diagonal':
-                    seg_logit = torch.flip(seg_logit, dims=[-2, -1])
+                sem_logit = self.reverse_tta_transform(sem_logit, rotate_degree, flip_direction)
+                dir_logit = self.reverse_tta_transform(dir_logit, rotate_degree, flip_direction)
+                point_logit = self.reverse_tta_transform(point_logit, rotate_degree, flip_direction)
 
-                rotate_num = 4 - rotate_num
-                seg_logit = torch.rot90(seg_logit, k=rotate_num, dims=(-2, -1))
+                sem_logit_list.append(sem_logit)
+                dir_logit_list.append(dir_logit)
+                point_logit_list.append(point_logit)
 
-                seg_logit_list.append(seg_logit)
+        sem_logit = sum(sem_logit_list) / len(sem_logit_list)
+        dir_logit = sum(dir_logit_list) / len(dir_logit_list)
+        point_logit = sum(point_logit_list) / len(point_logit_list)
 
-        seg_logit = sum(seg_logit_list) / len(seg_logit_list)
+        sem_logit = self._ddm_enhencement(sem_logit, dir_logit, point_logit)
 
-        return seg_logit
+        return sem_logit
 
     def split_axes(self, window_size, overlap_size, height, width):
         ws = window_size
@@ -187,7 +165,7 @@ class CDNetSegmentor(BaseSegmentor):
 
     def split_inference(self, img, meta, rescale):
         ws = self.test_cfg.crop_size[0]
-        os = (self.test_cfg.crop_size[0] - self.test_cfg.stride[0])
+        os = self.test_cfg.overlap_size[0]
 
         B, C, H, W = img.shape
 
@@ -208,7 +186,9 @@ class CDNetSegmentor(BaseSegmentor):
         img_canvas[:, :, pad_h // 2:pad_h // 2 + H, pad_w // 2:pad_w // 2 + W] = img
 
         _, _, H1, W1 = img_canvas.shape
-        sem_output = torch.zeros((B, self.num_classes, H1, W1))
+        sem_logit = torch.zeros((B, self.num_classes, H1, W1), dtype=img.dtype, device=img.device)
+        dir_logit = torch.zeros((B, self.num_angles, H1, W1), dtype=img.dtype, device=img.device)
+        point_logit = torch.zeros((B, 1, H1, W1), dtype=img.dtype, device=img.device)
 
         i_axes, j_axes = self.split_axes(ws, os, H1, W1)
 
@@ -219,7 +199,7 @@ class CDNetSegmentor(BaseSegmentor):
                 c_patch_s = j_axes[j] if j == 0 else j_axes[j] - os // 2
                 c_patch_e = c_patch_s + ws
                 img_patch = img_canvas[:, :, r_patch_s:r_patch_e, c_patch_s:c_patch_e]
-                sem_patch = self.calculate(img_patch)
+                sem_patch, dir_patch, point_patch = self.calculate(img_patch)
 
                 # patch overlap remove
                 r_valid_s = i_axes[i] - r_patch_s
@@ -227,21 +207,31 @@ class CDNetSegmentor(BaseSegmentor):
                 c_valid_s = j_axes[j] - c_patch_s
                 c_valid_e = j_axes[j + 1] - c_patch_s
                 sem_patch = sem_patch[:, :, r_valid_s:r_valid_e, c_valid_s:c_valid_e]
-                sem_output[:, :, i_axes[i]:i_axes[i + 1], j_axes[j]:j_axes[j + 1]] = sem_patch
+                dir_patch = dir_patch[:, :, r_valid_s:r_valid_e, c_valid_s:c_valid_e]
+                point_patch = point_patch[:, :, r_valid_s:r_valid_e, c_valid_s:c_valid_e]
+                sem_logit[:, :, i_axes[i]:i_axes[i + 1], j_axes[j]:j_axes[j + 1]] = sem_patch
+                dir_logit[:, :, i_axes[i]:i_axes[i + 1], j_axes[j]:j_axes[j + 1]] = dir_patch
+                point_logit[:, :, i_axes[i]:i_axes[i + 1], j_axes[j]:j_axes[j + 1]] = point_patch
 
-        sem_output = sem_output[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
+        sem_logit = sem_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
+        dir_logit = dir_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
+        point_logit = point_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
         if rescale:
-            sem_output = resize(sem_output, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-        return sem_output
+            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+            dir_logit = resize(dir_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+            point_logit = resize(point_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+        return sem_logit, dir_logit, point_logit
 
     def whole_inference(self, img, meta, rescale):
         """Inference with full image."""
 
-        seg_logit = self.calculate(img)
+        sem_logit, dir_logit, point_logit = self.calculate(img)
         if rescale:
-            seg_logit = resize(seg_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+            dir_logit = resize(dir_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+            point_logit = resize(point_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
 
-        return seg_logit
+        return sem_logit, dir_logit, point_logit
 
     def _mask_loss(self, mask_logit, mask_gt):
         mask_loss = {}
@@ -259,19 +249,19 @@ class CDNetSegmentor(BaseSegmentor):
 
         return mask_loss
 
-    def _direction_loss(self, direction_logit, dir_gt):
-        direction_loss = {}
-        direction_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        direction_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_angles + 1)
-        direction_ce_loss = torch.mean(direction_ce_loss_calculator(direction_logit, dir_gt))
-        direction_dice_loss = direction_dice_loss_calculator(direction_logit, dir_gt)
+    def _dir_loss(self, dir_logit, dir_gt):
+        dir_loss = {}
+        dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        dir_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_angles + 1)
+        dir_ce_loss = torch.mean(dir_ce_loss_calculator(dir_logit, dir_gt))
+        dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
         # loss weight
         alpha = 1
         beta = 1
-        direction_loss['direction_ce_loss'] = alpha * direction_ce_loss
-        direction_loss['direction_dice_loss'] = beta * direction_dice_loss
+        dir_loss['dir_ce_loss'] = alpha * dir_ce_loss
+        dir_loss['dir_dice_loss'] = beta * dir_dice_loss
 
-        return direction_loss
+        return dir_loss
 
     def _point_loss(self, point_logit, point_gt):
         point_loss = {}
@@ -283,19 +273,19 @@ class CDNetSegmentor(BaseSegmentor):
 
         return point_loss
 
-    def _training_metric(self, mask_logit, direction_logit, point_logit, mask_gt, dir_gt, point_gt):
+    def _training_metric(self, mask_logit, dir_logit, point_logit, mask_gt, dir_gt, point_gt):
         wrap_dict = {}
         # detach these training variable to avoid gradient noise.
         clean_mask_logit = mask_logit.clone().detach()
         clean_mask_gt = mask_gt.clone().detach()
-        clean_direction_logit = direction_logit.clone().detach()
+        clean_dir_logit = dir_logit.clone().detach()
         clean_dir_gt = dir_gt.clone().detach()
 
         wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_gt, self.num_classes)
-        wrap_dict['direction_miou'] = miou(clean_direction_logit, clean_dir_gt, self.num_angles + 1)
+        wrap_dict['dir_miou'] = miou(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
         wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_gt, self.num_classes)
-        wrap_dict['direction_tiou'] = tiou(clean_direction_logit, clean_dir_gt, self.num_angles + 1)
+        wrap_dict['dir_tiou'] = tiou(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
         # metric calculate
         mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
@@ -315,21 +305,20 @@ class CDNetSegmentor(BaseSegmentor):
         return wrap_dict
 
     @classmethod
-    def _ddm_enhencement(self, mask_logit, direction_logit, point_logit):
+    def _ddm_enhencement(self, mask_logit, dir_logit, point_logit):
         # make direction differential map
-        direction_map = torch.argmax(direction_logit, dim=1)
-        direction_differential_map = generate_direction_differential_map(direction_map, 9)
+        dir_map = torch.argmax(dir_logit, dim=1)
+        dir_differential_map = generate_direction_differential_map(dir_map, 9)
 
         # using point map to remove center point direction differential map
         point_logit = point_logit[:, 0, :, :]
         point_logit = point_logit - torch.min(point_logit) / (torch.max(point_logit) - torch.min(point_logit))
 
         # mask out some redundant direction differential
-        direction_differential_map[point_logit > 0.2] = 0
+        dir_differential_map[point_logit > 0.2] = 0
 
         # using direction differential map to enhance edge
         mask_logit = F.softmax(mask_logit, dim=1)
-        mask_logit[:, -1, :, :] = (mask_logit[:, -1, :, :] +
-                                   direction_differential_map) * (1 + 2 * direction_differential_map)
+        mask_logit[:, -1, :, :] = (mask_logit[:, -1, :, :] + dir_differential_map) * (1 + 2 * dir_differential_map)
 
         return mask_logit

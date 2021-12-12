@@ -1,4 +1,4 @@
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 
 import torch
@@ -47,12 +47,12 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
 
     For example (CDNet):
         Data: image;
-        Label: semantic_map, semantic_map_with_edge, direction_map, point_map;
-
-    EncoderDecoder typically consists of backbone, decode_head, auxiliary_head.
-    Note that auxiliary_head is only used for deep supervision during training,
-    which could be dumped during inference.
+        Label: sem_gt, dir_gt, point_gt;
     """
+
+    @abstractmethod
+    def calculate(self, img):
+        pass
 
     def train_step(self, data_batch, optimizer, **kwargs):
         """The iteration step during training.
@@ -98,6 +98,7 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         return output
 
     def split_axes(self, window_size, overlap_size, height, width):
+        """Calculate patch coordinates of split inference."""
         ws = window_size
         os = overlap_size
 
@@ -126,8 +127,24 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         return i_axes, j_axes
 
     def split_inference(self, img, meta, rescale):
+        """Split inference: split img into several patches for network inference. Then merge them with a overlap.
+
+        How does this function split the img? For example:
+            img (torch.Tensor): (1, 3, 1000, 1000) -> H = 1000, W = 1000
+            crop_size (int): 256
+            overlap_size (int): 80
+
+        H dimension:
+            patch 0: (0, 216)
+            patch 1: (216, 392)  overlap 0-1: (176, 256)
+            patch 2: (392, 568)  overlap 1-2: (352, 432)
+            patch 3: (568, 744)  overlap 2-3: (528, 608)
+            patch 4: (744, 920)  overlap 3-4: (704, 784)
+            patch 5: (920, 1136) overlap 4-5: (880, 960)
+        W dimension is same.
+        """
         ws = self.test_cfg.crop_size[0]
-        os = (self.test_cfg.crop_size[0] - self.test_cfg.stride[0])
+        os = self.test_cfg.overlap_size[0]
 
         B, C, H, W = img.shape
 
@@ -257,59 +274,80 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
     def whole_inference(self, img, meta, rescale):
         """Inference with full image."""
 
-        seg_logit = self.calculate(img)
+        sem_logit = self.calculate(img)
         if rescale:
-            seg_logit = resize(seg_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
 
-        return seg_logit
+        return sem_logit
 
     def inference(self, img, meta, rescale):
-        """Inference with slide/whole style.
+        """Inference with split/whole style.
 
         Args:
             img (Tensor): The input image of shape (N, 3, H, W).
-            meta (dict): Image info dict where each dict has: 'img_info',
-                'ann_info'
+            meta (dict): Image info dict.
             rescale (bool): Whether rescale back to original shape.
 
         Returns:
             Tensor: The output segmentation map.
         """
-        raw_img = img
         assert self.test_cfg.mode in ['slide', 'whole']
 
         self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
-        seg_logit_list = []
+        sem_logit_list = []
         for rotate_degree in self.rotate_degrees:
             for flip_direction in self.flip_directions:
-                rotate_num = (rotate_degree // 90) % 4
-                img = torch.rot90(raw_img, k=rotate_num, dims=(-2, -1))
+                img = self.tta_transform(img, rotate_degree, flip_direction)
 
-                if flip_direction == 'horizontal':
-                    img = torch.flip(img, dims=[-1])
-                if flip_direction == 'vertical':
-                    img = torch.flip(img, dims=[-2])
-                if flip_direction == 'diagonal':
-                    img = torch.flip(img, dims=[-2, -1])
-
+                # inference patch or whole img
                 if self.test_cfg.mode == 'slide':
-                    seg_logit = self.split_inference(img, meta, rescale)
+                    sem_logit = self.split_inference(img, meta, rescale)
                 else:
-                    seg_logit = self.whole_inference(img, meta, rescale)
+                    sem_logit = self.whole_inference(img, meta, rescale)
 
-                if flip_direction == 'horizontal':
-                    seg_logit = torch.flip(seg_logit, dims=[-1])
-                if flip_direction == 'vertical':
-                    seg_logit = torch.flip(seg_logit, dims=[-2])
-                if flip_direction == 'diagonal':
-                    seg_logit = torch.flip(seg_logit, dims=[-2, -1])
+                sem_logit_list.append(sem_logit)
 
-                rotate_num = 4 - rotate_num
-                seg_logit = torch.rot90(seg_logit, k=rotate_num, dims=(-2, -1))
+        sem_logit = sum(sem_logit_list) / len(sem_logit_list)
 
-                seg_logit_list.append(seg_logit)
+        return sem_logit
 
-        seg_logit = sum(seg_logit_list) / len(seg_logit_list)
+    @classmethod
+    def tta_transform(self, img, rotate_degree, flip_direction):
+        """TTA transform function.
 
-        return seg_logit
+        Support transform:
+            rotation: 0, 90, 180, 270
+            flip: horizontal, vertical, diagonal
+        """
+        rotate_num = (rotate_degree // 90) % 4
+        img = torch.rot90(img, k=rotate_num, dims=(-2, -1))
+
+        if flip_direction == 'horizontal':
+            img = torch.flip(img, dims=[-1])
+        if flip_direction == 'vertical':
+            img = torch.flip(img, dims=[-2])
+        if flip_direction == 'diagonal':
+            img = torch.flip(img, dims=[-2, -1])
+
+        return img
+
+    @classmethod
+    def reverse_tta_transform(img, rotate_degree, flip_direction):
+        """reverse TTA transform function.
+
+        Support transform:
+            rotation: 0, 90, 180, 270
+            flip: horizontal, vertical, diagonal
+        """
+        rotate_num = 4 - (rotate_degree // 90) % 4
+        if flip_direction == 'horizontal':
+            img = torch.flip(img, dims=[-1])
+        if flip_direction == 'vertical':
+            img = torch.flip(img, dims=[-2])
+        if flip_direction == 'diagonal':
+            img = torch.flip(img, dims=[-2, -1])
+
+        img = torch.rot90(img, k=rotate_num, dims=(-2, -1))
+
+        return img
