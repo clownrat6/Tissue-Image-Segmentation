@@ -244,8 +244,6 @@ class NucleiCustomDataset(Dataset):
             sem_file_name = self.data_infos[index]['sem_file_name']
             # semantic level label make
             sem_seg = mmcv.imread(sem_file_name, flag='unchanged', backend='pillow')
-            sem_seg_in = (sem_seg == 1).astype(np.uint8)
-            seg_map_edge = (sem_seg == 2).astype(np.uint8)
             # instance level label make
             inst_file_name = self.data_infos[index]['inst_file_name']
             inst_seg = np.load(inst_file_name)
@@ -255,32 +253,24 @@ class NucleiCustomDataset(Dataset):
 
             # metric calculation post process codes:
             # extract inside
-            pred_seg = pred
-            pred_seg_in = (pred == 1).astype(np.uint8)
-            pred_seg_edge = (pred == 2).astype(np.uint8)
+            pred_sem_seg = pred
+            pred_sem_seg_in = (pred == 1).astype(np.uint8)
 
             # model-agnostic post process operations
-            pred_seg_in, pred_inst_seg = self.model_agnostic_postprocess(pred_seg_in)
+            pred_sem_seg_in, pred_inst_seg = self.model_agnostic_postprocess(pred_sem_seg_in)
 
             # TODO: (Important issue about post process)
             # This may be the dice metric calculation trick (Need be
             # considering carefully)
             # convert instance map (after postprocess) to semantic level
-            pred_seg_in = (pred_inst_seg > 0).astype(np.uint8)
-            sem_seg_in = (inst_seg > 0).astype(np.uint8)
+            pred_sem_seg = (pred_inst_seg > 0).astype(np.uint8)
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
-            precision_metric, recall_metric = precision_recall(pred_seg_in, sem_seg_in, 2)
+            precision_metric, recall_metric = precision_recall(pred_sem_seg, sem_seg, 2)
             precision_metric = precision_metric[1]
             recall_metric = recall_metric[1]
-            dice_metric = dice_similarity_coefficient(pred_seg_in, sem_seg_in, 2)[1]
-
-            edge_precision_metric, edge_recall_metric = \
-                precision_recall(pred_seg_edge, seg_map_edge, 2)
-            edge_precision_metric = edge_precision_metric[1]
-            edge_recall_metric = edge_recall_metric[1]
-            edge_dice_metric = dice_similarity_coefficient(pred_seg_edge, seg_map_edge, 2)[1]
+            dice_metric = dice_similarity_coefficient(pred_sem_seg, sem_seg, 2)[1]
 
             # instance metric calculation
             aji_metric = aggregated_jaccard_index(pred_inst_seg, inst_seg, is_semantic=False)
@@ -291,16 +281,13 @@ class NucleiCustomDataset(Dataset):
                 Dice=dice_metric,
                 Recall=recall_metric,
                 Precision=precision_metric,
-                edge_Dice=edge_dice_metric,
-                edge_Recall=edge_recall_metric,
-                edge_Precision=edge_precision_metric)
+            )
             pre_eval_results.append(single_loop_results)
 
             # illustrating semantic level results
             if show_semantic:
                 data_info = self.data_infos[index]
-                image_path = osp.join(self.img_dir, data_info['img_name'])
-                draw_semantic(show_folder, data_id, image_path, pred_seg, sem_seg, single_loop_results)
+                draw_semantic(show_folder, data_id, data_info['file_name'], pred_sem_seg, sem_seg, single_loop_results)
 
             # illustrating instance level results
             if show_instance:
@@ -366,9 +353,7 @@ class NucleiCustomDataset(Dataset):
             # XXX: Using average value may have lower metric value than using
             # confused matrix.
             # average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-            if 'edge' in key:
-                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-            elif key in metric:
+            if key in metric:
                 average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
             elif key == 'Aji':
                 average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
@@ -404,12 +389,6 @@ class NucleiCustomDataset(Dataset):
             eval_results['Recall'] = ret_metrics['Recall'][-1]
         if 'Precision' in ret_metrics:
             eval_results['Precision'] = ret_metrics['Precision'][-1]
-        if 'edge_Dice' in ret_metrics:
-            eval_results['edge_Dice'] = ret_metrics['edge_Dice'][-1]
-        if 'edge_Recall' in ret_metrics:
-            eval_results['edge_Recall'] = ret_metrics['edge_Recall'][-1]
-        if 'edge_Precision' in ret_metrics:
-            eval_results['edge_Precision'] = ret_metrics['edge_Precision'][-1]
 
         ret_metrics_items.pop('name', None)
         for key, value in ret_metrics_items.items():
