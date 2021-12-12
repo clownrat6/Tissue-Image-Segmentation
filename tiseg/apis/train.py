@@ -5,10 +5,10 @@ import numpy as np
 import torch
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import HOOKS, build_optimizer, build_runner
-from mmcv.utils import build_from_cfg
+from mmcv.utils import build_from_cfg, get_logger
 
 from tiseg.datasets import build_dataloader, build_dataset
-from tiseg.utils import DistEvalHook, EvalHook, get_root_logger
+from tiseg.utils import DistEvalHook, EvalHook
 
 
 def set_random_seed(seed, deterministic=False):
@@ -32,7 +32,7 @@ def set_random_seed(seed, deterministic=False):
 
 def train_segmentor(model, dataset, cfg, distributed=False, validate=False, timestamp=None, meta=None):
     """Launch segmentor training."""
-    logger = get_root_logger(cfg.log_level)
+    logger = get_logger(name='TorchImageSeg', log_level=cfg.log_level)
 
     # prepare data loaders
     dataset = dataset if isinstance(dataset, (list, tuple)) else [dataset]
