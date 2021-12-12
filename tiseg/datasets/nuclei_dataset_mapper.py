@@ -30,21 +30,22 @@ class NucleiDatasetMapper(object):
 
         # training argument
         self.if_flip = process_cfg['if_flip']
+        self.if_jitter = process_cfg['if_jitter']
+        self.if_elastic = process_cfg['if_elastic']
+        self.if_crop = process_cfg['if_crop']
+        self.with_dir = process_cfg['with_dir']
+
         self.min_size = process_cfg['min_size']
         self.max_size = process_cfg['max_size']
         self.resize_mode = process_cfg['resize_mode']
-        # self.size_div = process_cfg['size_div']
         self.with_dir = process_cfg['with_dir']
         self.edge_id = process_cfg['edge_id']
 
-        self.color_jitter = ColorJitter()
+        self.color_jitter = ColorJitter() if self.if_jitter else Identity()
         self.flipper = RandomFlip(prob=0.5) if self.if_flip else Identity()
-        # self.rotater = RandomRotate()
-        # self.resizer = Resize(self.min_size, self.max_size, self.resize_mode)
-        self.deformer = RandomElasticDeform(prob=0.8)
-        self.cropper = RandomCrop((self.min_size, self.min_size))
-        self.dir_label_maker = DirectionLabelMake(edge_id=self.edge_id)
-        self.re_edge = ReEdge(edge_id=self.edge_id)
+        self.deformer = RandomElasticDeform(prob=0.8) if self.if_elastic else Identity()
+        self.cropper = RandomCrop((self.min_size, self.min_size)) if self.if_crop else Identity()
+        self.label_maker = DirectionLabelMake(edge_id=self.edge_id) if self.with_dir else ReEdge(edge_id=self.edge_id)
 
     def __call__(self, data_info):
         data_info = copy.deepcopy(data_info)
@@ -69,7 +70,6 @@ class NucleiDatasetMapper(object):
             img, segs = self.flipper(img, segs)
             img, segs = self.deformer(img, segs)
             img, segs = self.cropper(img, segs)
-            # img, segs = self.resizer(img, segs)
 
             sem_seg = segs[0]
             inst_seg = segs[1]
@@ -94,7 +94,7 @@ class NucleiDatasetMapper(object):
         }
 
         if self.with_dir and not self.test_mode:
-            res = self.dir_label_maker(sem_seg, inst_seg)
+            res = self.label_maker(sem_seg, inst_seg)
             sem_seg = res['gt_sem_map']
             point_reg = res['gt_point_map']
             dir_seg = res['gt_direction_map']
@@ -102,7 +102,7 @@ class NucleiDatasetMapper(object):
             ret['label']['point_gt'] = format_reg(point_reg)
             ret['label']['dir_gt'] = format_seg(dir_seg)
         else:
-            res = self.re_edge(sem_seg)
+            res = self.label_maker(sem_seg)
             sem_seg = res['gt_sem_map']
             ret['label']['sem_gt'] = format_seg(sem_seg)
 
