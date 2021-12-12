@@ -6,8 +6,8 @@ import torch.nn.functional as F
 from tiseg.utils import resize
 from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..backbones import TorchVGG16BN
-from ..builder import SEGMENTORS
 from ..heads.cd_head import CDHead
+from ..builder import SEGMENTORS
 from ..losses import MultiClassDiceLoss, miou, tiou
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
@@ -54,7 +54,7 @@ class CDNetSegmentor(BaseSegmentor):
             mask_logit, dir_logit, point_logit = self.calculate(data['img'])
 
             assert label is not None
-            mask_gt = label['sem_gt']
+            mask_gt = label['sem_gt_w_bound']
             point_gt = label['point_gt']
             dir_gt = label['dir_gt']
 
@@ -103,7 +103,7 @@ class CDNetSegmentor(BaseSegmentor):
         Returns:
             Tensor: The output segmentation map.
         """
-        assert self.test_cfg.mode in ['slide', 'whole']
+        assert self.test_cfg.mode in ['split', 'whole']
 
         self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
@@ -188,7 +188,7 @@ class CDNetSegmentor(BaseSegmentor):
 
         _, _, H1, W1 = img_canvas.shape
         sem_logit = torch.zeros((B, self.num_classes, H1, W1), dtype=img.dtype, device=img.device)
-        dir_logit = torch.zeros((B, self.num_angles, H1, W1), dtype=img.dtype, device=img.device)
+        dir_logit = torch.zeros((B, self.num_angles + 1, H1, W1), dtype=img.dtype, device=img.device)
         point_logit = torch.zeros((B, 1, H1, W1), dtype=img.dtype, device=img.device)
 
         i_axes, j_axes = self.split_axes(ws, os, H1, W1)

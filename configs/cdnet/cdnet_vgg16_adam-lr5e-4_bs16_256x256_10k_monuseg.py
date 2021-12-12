@@ -21,8 +21,12 @@ checkpoint_config = dict(
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
 optimizer_config = dict()
 
-lr_config = dict(
-    policy='poly', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, power=1.0, min_lr=0.0, by_epoch=False)
+# NOTE: poly learning rate decay
+# lr_config = dict(
+#     policy='poly', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, power=1.0, min_lr=0.0, by_epoch=False)
+
+# NOTE: fixed learning rate decay
+lr_config = dict(policy='fixed', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, by_epoch=False)
 
 # model settings
 model = dict(

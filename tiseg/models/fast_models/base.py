@@ -291,20 +291,23 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         Returns:
             Tensor: The output segmentation map.
         """
-        assert self.test_cfg.mode in ['slide', 'whole']
+        assert self.test_cfg.mode in ['split', 'whole']
 
         self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
         sem_logit_list = []
+        img_ = img
         for rotate_degree in self.rotate_degrees:
             for flip_direction in self.flip_directions:
-                img = self.tta_transform(img, rotate_degree, flip_direction)
+                img = self.tta_transform(img_, rotate_degree, flip_direction)
 
                 # inference patch or whole img
-                if self.test_cfg.mode == 'slide':
+                if self.test_cfg.mode == 'split':
                     sem_logit = self.split_inference(img, meta, rescale)
                 else:
                     sem_logit = self.whole_inference(img, meta, rescale)
+
+                sem_logit = self.reverse_tta_transform(sem_logit, rotate_degree, flip_direction)
 
                 sem_logit_list.append(sem_logit)
 
@@ -333,7 +336,7 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         return img
 
     @classmethod
-    def reverse_tta_transform(img, rotate_degree, flip_direction):
+    def reverse_tta_transform(self, img, rotate_degree, flip_direction):
         """reverse TTA transform function.
 
         Support transform:

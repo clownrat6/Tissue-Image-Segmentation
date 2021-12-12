@@ -46,7 +46,7 @@ class UNetSegmentor(BaseSegmentor):
         if self.training:
             mask_logit = self.calculate(data['img'])
             assert label is not None
-            mask_label = label['sem_gt']
+            mask_label = label['sem_gt_w_bound']
             loss = dict()
             mask_logit = resize(input=mask_logit, size=mask_label.shape[2:])
             mask_label = mask_label.squeeze(1)
