@@ -35,6 +35,6 @@ model = dict(
         crop_size=(256, 256),
         stride=(176, 176),
         rotate_degrees=[0, 90],
-        flip_directions=['none', 'horizontal'],
+        flip_directions=['none', 'horizontal', 'vertical'],
     ),
 )
