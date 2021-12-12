@@ -33,7 +33,7 @@ model = dict(
     test_cfg=dict(
         mode='slide',
         crop_size=(256, 256),
-        stride=(216, 216),
+        stride=(176, 176),
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal'],
     ),
