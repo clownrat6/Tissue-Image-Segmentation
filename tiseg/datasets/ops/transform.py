@@ -339,5 +339,5 @@ class RandomCrop(object):
 class Identity(object):
     """The placeholder of transform."""
 
-    def __call__(self, x):
-        return x
+    def __call__(self, *args):
+        return args
