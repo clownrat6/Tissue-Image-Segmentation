@@ -10,8 +10,8 @@ MODEL_DICT = {
     'vgg19_bn': models.vgg19_bn,
 }
 OUTPUT_NAMES = {
-    'vgg16_bn': ('6', '13', '23', '33', '43'),
-    'vgg19_bn': ('6', '13', '26', '39', '52'),
+    'vgg16_bn': ('5', '12', '22', '32', '42', '43'),
+    'vgg19_bn': ('5', '12', '25', '38', '52', '53'),
 }
 
 
@@ -23,7 +23,7 @@ class TorchVGG(BaseModule):
     def __init__(self,
                  model_name,
                  in_channels=3,
-                 out_indices=(0, 1, 2, 3, 4),
+                 out_indices=(0, 1, 2, 3, 4, 5),
                  pretrained=True,
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU')):
@@ -36,13 +36,10 @@ class TorchVGG(BaseModule):
 
         assert len(self.out_indices) <= len(self.output_names)
 
-        self.stages = self.get_stages(
-            MODEL_DICT[model_name](pretrained=pretrained).features,
-            len(out_indices))
+        self.stages = self.get_stages(MODEL_DICT[model_name](pretrained=pretrained).features, len(out_indices))
 
         if self.in_channels != 3:
-            self.input_stem = ConvModule(
-                self.in_channels, 3, 1, norm_cfg=norm_cfg, act_cfg=act_cfg)
+            self.input_stem = ConvModule(self.in_channels, 3, 1, norm_cfg=norm_cfg, act_cfg=act_cfg)
 
     def get_stages(self, model, depth):
         stages = nn.ModuleList()
@@ -77,23 +74,15 @@ class TorchVGG(BaseModule):
 @BACKBONES.register_module()
 class TorchVGG16BN(TorchVGG):
 
-    output_names = ('6', '13', '23', '33', '43')
+    output_names = ('5', '12', '22', '32', '42', '43')
 
     def __init__(self, **kwargs):
-        super().__init__(
-            model_name='vgg16_bn',
-            norm_cfg=dict(type='BN'),
-            act_cfg=dict(type='ReLU'),
-            **kwargs)
+        super().__init__(model_name='vgg16_bn', norm_cfg=dict(type='BN'), act_cfg=dict(type='ReLU'), **kwargs)
 
 
 class TorchVGG19BN(TorchVGG):
 
-    output_names = ('6', '13', '26', '39', '52')
+    output_names = ('5', '12', '25', '38', '52', '53')
 
     def __init__(self, **kwargs):
-        super().__init__(
-            model_name='vgg19_bn',
-            norm_cfg=dict(type='BN'),
-            act_cfg=dict(type='ReLU'),
-            **kwargs)
+        super().__init__(model_name='vgg19_bn', norm_cfg=dict(type='BN'), act_cfg=dict(type='ReLU'), **kwargs)
