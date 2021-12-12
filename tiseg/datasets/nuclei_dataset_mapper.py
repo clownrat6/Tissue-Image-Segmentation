@@ -5,8 +5,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from .ops import (ColorJitter, DirectionLabelMake, Identity, ReEdge, RandomFlip, RandomElasticDeform, RandomCrop,
-                  format_img, format_info, format_reg, format_seg)
+from .ops import (ColorJitter, DirectionLabelMake, Identity, ReEdge, RandomBlur, RandomFlip, RandomElasticDeform,
+                  RandomCrop, format_img, format_info, format_reg, format_seg)
 
 
 def read_image(path):
@@ -32,6 +32,7 @@ class NucleiDatasetMapper(object):
         self.if_flip = process_cfg['if_flip']
         self.if_jitter = process_cfg['if_jitter']
         self.if_elastic = process_cfg['if_elastic']
+        self.if_blur = process_cfg['if_blur']
         self.if_crop = process_cfg['if_crop']
         self.with_dir = process_cfg['with_dir']
 
@@ -43,7 +44,8 @@ class NucleiDatasetMapper(object):
 
         self.color_jitter = ColorJitter() if self.if_jitter else Identity()
         self.flipper = RandomFlip(prob=0.5) if self.if_flip else Identity()
-        self.deformer = RandomElasticDeform(prob=0.8) if self.if_elastic else Identity()
+        self.deformer = RandomElasticDeform(prob=0.5) if self.if_elastic else Identity()
+        self.bluer = RandomBlur(prob=0.5) if self.if_blur else Identity()
         self.cropper = RandomCrop((self.min_size, self.min_size)) if self.if_crop else Identity()
         self.label_maker = DirectionLabelMake(edge_id=self.edge_id) if self.with_dir else ReEdge(edge_id=self.edge_id)
 
@@ -69,6 +71,7 @@ class NucleiDatasetMapper(object):
             img = self.color_jitter(img)
             img, segs = self.flipper(img, segs)
             img, segs = self.deformer(img, segs)
+            img = self.bluer(img)
             img, segs = self.cropper(img, segs)
 
             sem_seg = segs[0]

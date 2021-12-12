@@ -28,7 +28,8 @@ class CDNetSegmentor(BaseSegmentor):
         self.head = CDHead(
             num_classes=self.num_classes,
             num_angles=self.num_angles,
-            in_dims=(64, 128, 256, 512, 512),
+            bottom_in_dim=512,
+            skip_in_dims=(64, 128, 256, 512, 512),
             stage_dims=[16, 32, 64, 128, 256],
             dropout_rate=0.1,
             act_cfg=dict(type='ReLU'),

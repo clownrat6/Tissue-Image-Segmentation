@@ -1,5 +1,4 @@
 from .builder import DATASETS, PIPELINES, build_dataloader, build_dataset
-from .carton_oscd import CartonOSCDDataset
 from .nuclei_consep import NucleiCoNSePDataset
 from .nuclei_cpm17 import NucleiCPM17Dataset
 from .nuclei_custom import NucleiCustomDataset
@@ -14,5 +13,4 @@ __all__ = [
     'NucleiCPM17Dataset',
     'NucleiCoNSePDataset',
     'NucleiCustomDataset',
-    'CartonOSCDDataset',
 ]

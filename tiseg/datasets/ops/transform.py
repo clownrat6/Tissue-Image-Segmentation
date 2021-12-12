@@ -375,7 +375,7 @@ class RandomBlur(object):
 
     def __call__(self, img):
         if np.random.rand() < self.prob:
-            index = random.randint(0, len(self.trans))
+            index = random.randint(0, len(self.trans) - 1)
             img = self.trans[index](img)
 
         return img
