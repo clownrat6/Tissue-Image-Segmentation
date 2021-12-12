@@ -7,9 +7,12 @@ from ..utils import (angle_to_vector, calculate_centerpoint, calculate_gradient,
 
 
 class GenBound:
-    """Generate high quality boundary labels."""
+    """Generate high quality boundary labels.
 
-    def __init__(self, edge_id):
+    The return is fixed to a three-class map (background, foreground, boundary).
+    """
+
+    def __init__(self, edge_id=2):
         self.edge_id = edge_id
 
     def __call__(self, sem_map, inst_map):
@@ -26,6 +29,11 @@ class GenBound:
             1: instance 1
             2: instance 2
             ...
+
+        sem_map_w_bound:
+            0: background
+            1: foreground
+            2: boundary
 
         Args:
             sem_map: two-class or multi-class semantic map without edge which is
@@ -79,6 +87,11 @@ class DirectionLabelMake(object):
             1: instance 1
             2: instance 2
             ...
+
+        sem_map_w_bound:
+            0: background
+            1: foreground
+            2: boundary
 
         Args:
             sem_map: two-class or multi-class semantic map without edge which is

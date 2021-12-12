@@ -110,9 +110,10 @@ class CDNetSegmentor(BaseSegmentor):
         sem_logit_list = []
         dir_logit_list = []
         point_logit_list = []
+        img_ = img
         for rotate_degree in self.rotate_degrees:
             for flip_direction in self.flip_directions:
-                img = self.tta_transform(img, rotate_degree, flip_direction)
+                img = self.tta_transform(img_, rotate_degree, flip_direction)
 
                 # inference
                 if self.test_cfg.mode == 'split':

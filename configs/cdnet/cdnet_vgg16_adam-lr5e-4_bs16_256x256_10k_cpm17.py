@@ -7,7 +7,7 @@ _base_ = [
 runner = dict(type='IterBasedRunner', max_iters=10000)
 
 evaluation = dict(
-    interval=500,
+    interval=1000,
     metric='all',
     save_best='Aji',
     rule='greater',
