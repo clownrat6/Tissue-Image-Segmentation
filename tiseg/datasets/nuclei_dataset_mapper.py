@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from .ops import (ColorJitter, DirectionLabelMake, Identity, ReEdge, RandomBlur, RandomFlip, RandomElasticDeform,
+from .ops import (ColorJitter, DirectionLabelMake, Identity, GenBound, RandomBlur, RandomFlip, RandomElasticDeform,
                   RandomCrop, format_img, format_info, format_reg, format_seg)
 
 
@@ -47,7 +47,7 @@ class NucleiDatasetMapper(object):
         self.deformer = RandomElasticDeform(prob=0.5) if self.if_elastic else Identity()
         self.bluer = RandomBlur(prob=0.5) if self.if_blur else Identity()
         self.cropper = RandomCrop((self.min_size, self.min_size)) if self.if_crop else Identity()
-        self.label_maker = DirectionLabelMake(edge_id=self.edge_id) if self.with_dir else ReEdge(edge_id=self.edge_id)
+        self.label_maker = DirectionLabelMake(edge_id=self.edge_id) if self.with_dir else GenBound(edge_id=self.edge_id)
 
     def __call__(self, data_info):
         data_info = copy.deepcopy(data_info)
@@ -99,15 +99,15 @@ class NucleiDatasetMapper(object):
         if not self.test_mode:
             if self.with_dir:
                 res = self.label_maker(sem_seg, inst_seg)
-                sem_seg = res['gt_sem_map']
-                point_reg = res['gt_point_map']
-                dir_seg = res['gt_direction_map']
-                ret['label']['sem_gt'] = format_seg(sem_seg)
+                sem_seg_w_bound = res['sem_gt_w_bound']
+                point_reg = res['point_gt']
+                dir_seg = res['dir_gt']
+                ret['label']['sem_gt_w_bound'] = format_seg(sem_seg_w_bound)
                 ret['label']['point_gt'] = format_reg(point_reg)
                 ret['label']['dir_gt'] = format_seg(dir_seg)
             else:
                 res = self.label_maker(sem_seg, inst_seg)
-                sem_seg = res['gt_sem_map']
-                ret['label']['sem_gt'] = format_seg(sem_seg)
+                sem_seg_w_bound = res['sem_gt_w_bound']
+                ret['label']['sem_gt_w_bound'] = format_seg(sem_seg_w_bound)
 
         return ret

@@ -19,25 +19,22 @@ def circshift(matrix, shift_vertical, shift_horizontal):
         shift_horizontal (int): The shift distance of horizontal direction.
     """
     # upper left
-    moved_matrix = torch.roll(
-        matrix, shifts=(shift_vertical, shift_horizontal), dims=(-2, -1))
+    moved_matrix = torch.roll(matrix, shifts=(shift_vertical, shift_horizontal), dims=(-2, -1))
 
     return moved_matrix
 
 
 # TODO: regularize variable name and add doc string
-def generate_direction_differential_map(direction_map, direction_classes=9):
+def generate_direction_differential_map(dir_map, direction_classes=9):
     # label_to_vector requires NxHxW (torch.Tensor) or HxW (numpy.ndarry)
-    vector_map = label_to_vector(direction_map, direction_classes)
+    vector_map = label_to_vector(dir_map, direction_classes)
     # Only support batch size == 1
     # Nx2xHxW (2: vertical and horizontal)
     vector_anchor = vector_map.float()
 
     N, _, H, W = vector_anchor.shape
     # Cosine Similarity Map
-    cos_sim_map = torch.zeros((N, H, W),
-                              dtype=torch.float32,
-                              device=direction_map.device)
+    cos_sim_map = torch.zeros((N, H, W), dtype=torch.float32, device=dir_map.device)
 
     feature_list = []
     # Only support 8 direction now
@@ -68,37 +65,30 @@ def generate_direction_differential_map(direction_map, direction_classes=9):
         feature_list.append(left)
         feature_list.append(lower_left)
 
-    cos_sim_map_single_direction = torch.zeros(
-        (N, direction_classes - 1, H, W),
-        dtype=torch.float32,
-        device=direction_map.device)
+    cos_sim_map_single_direction = torch.zeros((N, direction_classes - 1, H, W),
+                                               dtype=torch.float32,
+                                               device=dir_map.device)
     for k, feature_item in enumerate(feature_list):
         numerator = (
-            vector_anchor[:, 0, :, :] * feature_item[:, 0, :, :] +
-            vector_anchor[:, 1, :, :] * feature_item[:, 1, :, :])
+            vector_anchor[:, 0, :, :] * feature_item[:, 0, :, :] + vector_anchor[:, 1, :, :] * feature_item[:, 1, :, :])
         denominator = (
-            torch.sqrt(
-                pow(vector_anchor[:, 0, :, :], 2) +
-                pow(vector_anchor[:, 1, :, :], 2)) * torch.sqrt(
-                    pow(feature_item[:, 0, :, :], 2) +
-                    pow(feature_item[:, 1, :, :], 2)) + 0.000001)
+            torch.sqrt(pow(vector_anchor[:, 0, :, :], 2) + pow(vector_anchor[:, 1, :, :], 2)) *
+            torch.sqrt(pow(feature_item[:, 0, :, :], 2) + pow(feature_item[:, 1, :, :], 2)) + 0.000001)
         cos_sim_map_single_direction[:, k, :, :] = numerator / denominator
 
-    cos_sim_map, cos_sim_indices = torch.min(
-        cos_sim_map_single_direction, dim=1)
+    cos_sim_map, cos_sim_indices = torch.min(cos_sim_map_single_direction, dim=1)
 
-    cos_sim_map[direction_map == 0] = 1
+    cos_sim_map[dir_map == 0] = 1
 
     cos_sim_map = (1 - torch.round(cos_sim_map))
     cos_sim_map_max = torch.max(cos_sim_map)
     cos_sim_map_min = torch.min(cos_sim_map)
 
-    # when direction_map is zero map, the direction differential map is also
+    # when dir_map is zero map, the direction differential map is also
     # zero map.
     if cos_sim_map_max == 0:
         return cos_sim_map
 
-    cos_sim_map_normal = (cos_sim_map - cos_sim_map_min) / (
-        cos_sim_map_max - cos_sim_map_min)
+    cos_sim_map_normal = (cos_sim_map - cos_sim_map_min) / (cos_sim_map_max - cos_sim_map_min)
 
     return cos_sim_map_normal

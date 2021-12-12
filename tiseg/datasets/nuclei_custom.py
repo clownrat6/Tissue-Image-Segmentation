@@ -14,9 +14,7 @@ from skimage import measure, morphology
 from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
-from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index,
-                                            dice_similarity_coefficient,
-                                            precision_recall)
+from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index, dice_similarity_coefficient, precision_recall)
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
 from .utils import colorize_seg_map, re_instance
@@ -99,19 +97,19 @@ class NucleiCustomDataset(Dataset):
     """Nuclei Custom Foundation Segmentation Dataset.
 
     Although, this dataset is a instance segmentation task, this dataset also
-    support a three class semantic segmentation task (Background, Nuclei,
-    Edge).
+    support a multiple class semantic segmentation task (Background, Nuclei1, Nuclei2, ...).
+    The basic settings only supports two-class nuclei segmentation task.
 
     related suffix:
         "_semantic_with_edge.png": three class semantic map with edge.
-        "_semantic_map.png": raw semantic map (two class semantic map without
-            edge).
+        "_semantic.png": raw semantic map (two class semantic map without
+            boundary).
         "_instance.npy": instance level map.
     """
 
-    CLASSES = ('background', 'nuclei', 'edge')
+    CLASSES = ('background', 'nuclei')
 
-    PALETTE = [[0, 0, 0], [255, 2, 255], [2, 255, 255]]
+    PALETTE = [[0, 0, 0], [255, 2, 255]]
 
     def __init__(self,
                  process_cfg,
@@ -119,7 +117,7 @@ class NucleiCustomDataset(Dataset):
                  ann_dir,
                  data_root=None,
                  img_suffix='.tif',
-                 sem_suffix='_semantic_with_edge.png',
+                 sem_suffix='_semantic.png',
                  inst_suffix='_instance.npy',
                  test_mode=False,
                  split=None):
@@ -146,9 +144,7 @@ class NucleiCustomDataset(Dataset):
             if not (self.split is None or osp.isabs(self.split)):
                 self.split = osp.join(self.data_root, self.split)
 
-        self.data_infos = self.load_annotations(self.img_dir, self.ann_dir,
-                                                self.img_suffix,
-                                                self.sem_suffix,
+        self.data_infos = self.load_annotations(self.img_dir, self.ann_dir, self.img_suffix, self.sem_suffix,
                                                 self.inst_suffix, self.split)
 
     def __len__(self):
@@ -168,13 +164,7 @@ class NucleiCustomDataset(Dataset):
         data_info = self.data_infos[index]
         return self.mapper(data_info)
 
-    def load_annotations(self,
-                         img_dir,
-                         ann_dir,
-                         img_suffix,
-                         sem_suffix,
-                         inst_suffix,
-                         split=None):
+    def load_annotations(self, img_dir, ann_dir, img_suffix, sem_suffix, inst_suffix, split=None):
         """Load annotation from directory.
 
         Args:
@@ -201,9 +191,7 @@ class NucleiCustomDataset(Dataset):
                     sem_file_name = osp.join(ann_dir, sem_name)
                     inst_file_name = osp.join(ann_dir, inst_name)
                     data_info = dict(
-                        file_name=img_file_name,
-                        sem_file_name=sem_file_name,
-                        inst_file_name=inst_file_name)
+                        file_name=img_file_name, sem_file_name=sem_file_name, inst_file_name=inst_file_name)
                     data_infos.append(data_info)
         else:
             for img_name in mmcv.scandir(img_dir, img_suffix, recursive=True):
@@ -212,20 +200,12 @@ class NucleiCustomDataset(Dataset):
                 img_file_name = osp.join(img_dir, img_name)
                 sem_file_name = osp.join(ann_dir, sem_name)
                 inst_file_name = osp.join(ann_dir, inst_name)
-                data_info = dict(
-                    file_name=img_file_name,
-                    sem_file_name=sem_file_name,
-                    inst_file_name=inst_file_name)
+                data_info = dict(file_name=img_file_name, sem_file_name=sem_file_name, inst_file_name=inst_file_name)
                 data_infos.append(data_info)
 
         return data_infos
 
-    def pre_eval(self,
-                 preds,
-                 indices,
-                 show_semantic=False,
-                 show_instance=False,
-                 show_folder=None):
+    def pre_eval(self, preds, indices, show_semantic=False, show_instance=False, show_folder=None):
         """Collect eval result from each iteration.
 
         Args:
@@ -251,10 +231,9 @@ class NucleiCustomDataset(Dataset):
             preds = [preds]
 
         if show_folder is None and (show_semantic or show_instance):
-            warnings.warn(
-                'show_semantic or show_instance is set to True, but the '
-                'show_folder is None. We will use default show_folder: '
-                '.nuclei_show')
+            warnings.warn('show_semantic or show_instance is set to True, but the '
+                          'show_folder is None. We will use default show_folder: '
+                          '.nuclei_show')
             show_folder = '.nuclei_show'
             if not osp.exists(show_folder):
                 os.makedirs(show_folder, 0o775)
@@ -264,8 +243,7 @@ class NucleiCustomDataset(Dataset):
         for pred, index in zip(preds, indices):
             sem_file_name = self.data_infos[index]['sem_file_name']
             # semantic level label make
-            sem_seg = mmcv.imread(
-                sem_file_name, flag='unchanged', backend='pillow')
+            sem_seg = mmcv.imread(sem_file_name, flag='unchanged', backend='pillow')
             sem_seg_in = (sem_seg == 1).astype(np.uint8)
             seg_map_edge = (sem_seg == 2).astype(np.uint8)
             # instance level label make
@@ -273,9 +251,7 @@ class NucleiCustomDataset(Dataset):
             inst_seg = np.load(inst_file_name)
             inst_seg = re_instance(inst_seg)
 
-            data_id = osp.basename(
-                self.data_infos[index]['sem_file_name']).replace(
-                    self.sem_suffix, '')
+            data_id = osp.basename(self.data_infos[index]['sem_file_name']).replace(self.sem_suffix, '')
 
             # metric calculation post process codes:
             # extract inside
@@ -284,8 +260,7 @@ class NucleiCustomDataset(Dataset):
             pred_seg_edge = (pred == 2).astype(np.uint8)
 
             # model-agnostic post process operations
-            pred_seg_in, pred_inst_seg = self.model_agnostic_postprocess(
-                pred_seg_in)
+            pred_seg_in, pred_inst_seg = self.model_agnostic_postprocess(pred_seg_in)
 
             # TODO: (Important issue about post process)
             # This may be the dice metric calculation trick (Need be
@@ -296,23 +271,19 @@ class NucleiCustomDataset(Dataset):
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
-            precision_metric, recall_metric = precision_recall(
-                pred_seg_in, sem_seg_in, 2)
+            precision_metric, recall_metric = precision_recall(pred_seg_in, sem_seg_in, 2)
             precision_metric = precision_metric[1]
             recall_metric = recall_metric[1]
-            dice_metric = dice_similarity_coefficient(pred_seg_in, sem_seg_in,
-                                                      2)[1]
+            dice_metric = dice_similarity_coefficient(pred_seg_in, sem_seg_in, 2)[1]
 
             edge_precision_metric, edge_recall_metric = \
                 precision_recall(pred_seg_edge, seg_map_edge, 2)
             edge_precision_metric = edge_precision_metric[1]
             edge_recall_metric = edge_recall_metric[1]
-            edge_dice_metric = dice_similarity_coefficient(
-                pred_seg_edge, seg_map_edge, 2)[1]
+            edge_dice_metric = dice_similarity_coefficient(pred_seg_edge, seg_map_edge, 2)[1]
 
             # instance metric calculation
-            aji_metric = aggregated_jaccard_index(
-                pred_inst_seg, inst_seg, is_semantic=False)
+            aji_metric = aggregated_jaccard_index(pred_inst_seg, inst_seg, is_semantic=False)
 
             single_loop_results = dict(
                 name=data_id,
@@ -329,8 +300,7 @@ class NucleiCustomDataset(Dataset):
             if show_semantic:
                 data_info = self.data_infos[index]
                 image_path = osp.join(self.img_dir, data_info['img_name'])
-                draw_semantic(show_folder, data_id, image_path, pred_seg,
-                              sem_seg, single_loop_results)
+                draw_semantic(show_folder, data_id, image_path, pred_seg, sem_seg, single_loop_results)
 
             # illustrating instance level results
             if show_instance:
@@ -351,17 +321,11 @@ class NucleiCustomDataset(Dataset):
         pred = pred.copy()
         pred_instance = measure.label(pred)
         # if re_edge=True, dilation pixel length should be 2
-        pred_instance = morphology.dilation(
-            pred_instance, selem=morphology.disk(2))
+        pred_instance = morphology.dilation(pred_instance, selem=morphology.disk(2))
 
         return pred_semantic, pred_instance
 
-    def evaluate(self,
-                 results,
-                 metric='all',
-                 logger=None,
-                 dump_path=None,
-                 **kwargs):
+    def evaluate(self, results, metric='all', logger=None, dump_path=None, **kwargs):
         """Evaluate the dataset.
 
         Args:
@@ -413,10 +377,9 @@ class NucleiCustomDataset(Dataset):
             ret_metrics[key] = np.array(ret_metrics[key])
 
         # for logger
-        ret_metrics_items = OrderedDict({
-            ret_metric: np.round(ret_metric_value * 100, 2)
-            for ret_metric, ret_metric_value in ret_metrics.items()
-        })
+        ret_metrics_items = OrderedDict(
+            {ret_metric: np.round(ret_metric_value * 100, 2)
+             for ret_metric, ret_metric_value in ret_metrics.items()})
         ret_metrics_items.update({'name': name_list})
         ret_metrics_items.move_to_end('name', last=False)
         items_table_data = PrettyTable()
@@ -450,10 +413,7 @@ class NucleiCustomDataset(Dataset):
 
         ret_metrics_items.pop('name', None)
         for key, value in ret_metrics_items.items():
-            eval_results.update({
-                key + '.' + str(name): f'{value[idx]:.3f}'
-                for idx, name in enumerate(name_list)
-            })
+            eval_results.update({key + '.' + str(name): f'{value[idx]:.3f}' for idx, name in enumerate(name_list)})
 
         # This ret value is used for eval hook. Eval hook will add these
         # evaluation info to runner.log_buffer.output. Then when the

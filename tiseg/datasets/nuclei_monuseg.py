@@ -7,16 +7,12 @@ class NucleiMoNuSegDataset(NucleiCustomDataset):
     """MoNuSeg Nuclei Segmentation Dataset.
 
     MoNuSeg is actually instance segmentation task dataset. However, it can
-    seem as a three class semantic segmentation task (Background, Nuclei, Edge)
+    seem as a two class semantic segmentation task (Background, Nuclei)
     """
 
-    CLASSES = ('background', 'nuclei', 'edge')
+    CLASSES = ('background', 'nuclei')
 
-    PALETTE = [[0, 0, 0], [255, 2, 255], [2, 255, 255]]
+    PALETTE = [[0, 0, 0], [255, 2, 255]]
 
     def __init__(self, **kwargs):
-        super().__init__(
-            img_suffix='.tif',
-            sem_suffix='_semantic_with_edge.png',
-            inst_suffix='_instance.npy',
-            **kwargs)
+        super().__init__(img_suffix='.tif', sem_suffix='_semantic.png', inst_suffix='_instance.npy', **kwargs)

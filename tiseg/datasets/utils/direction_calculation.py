@@ -122,22 +122,22 @@ def vector_to_label(vector_map, num_classes=8):
     return angle_to_direction_label(angle_map, num_classes=num_classes)
 
 
-def label_to_vector(direction_map, num_classes=8):
+def label_to_vector(dir_map, num_classes=8):
 
-    assert isinstance(direction_map, torch.Tensor)
+    assert isinstance(dir_map, torch.Tensor)
 
     mapping = label_to_vector_mapping[num_classes]
-    offset_h = torch.zeros_like(direction_map)
-    offset_w = torch.zeros_like(direction_map)
+    offset_h = torch.zeros_like(dir_map)
+    offset_w = torch.zeros_like(dir_map)
 
     for idx, (hdir, wdir) in enumerate(mapping):
-        mask = direction_map == idx
+        mask = dir_map == idx
         offset_h[mask] = hdir
         offset_w[mask] = wdir
 
     # vertical, horizontal direction concat
     vector_map = torch.stack([offset_h, offset_w], dim=-1)
     # NHWC -> NCHW
-    vector_map = vector_map.permute(0, 3, 1, 2).to(direction_map.device)
+    vector_map = vector_map.permute(0, 3, 1, 2).to(dir_map.device)
 
     return vector_map

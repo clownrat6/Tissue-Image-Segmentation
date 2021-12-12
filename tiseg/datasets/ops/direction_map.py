@@ -6,34 +6,51 @@ from skimage import morphology
 from ..utils import (angle_to_vector, calculate_centerpoint, calculate_gradient, vector_to_label)
 
 
-class ReEdge:
-    """Re-generate high quality edge labels."""
+class GenBound:
+    """Generate high quality boundary labels."""
 
     def __init__(self, edge_id):
         self.edge_id = edge_id
 
     def __call__(self, sem_map, inst_map):
-        sem_map_w_edge = np.zeros_like(sem_map)
-        id_list = list(np.unique(sem_map))
-        for id in id_list:
-            if id == self.edge_id or id == 0:
-                continue
-            id_mask = sem_map == id
+        """generate boundary label from instance map and pure semantic map.
 
-            bound = morphology.dilation(
-                id_mask,
-                selem=morphology.selem.disk(1)) & (~morphology.erosion(id_mask, selem=morphology.selem.disk(1)))
-            sem_map_w_edge[id_mask > 0] = id
-            sem_map_w_edge[bound > 0] = self.edge_id
+        sem_map:
+            0: background
+            1: semantic_class 1
+            2: semantic class 2
+            ...
 
-        sem_map_in = sem_map_w_edge.copy()
-        sem_map_in[sem_map_in == self.edge_id] = 0
+        inst_map:
+            0: background
+            1: instance 1
+            2: instance 2
+            ...
+
+        Args:
+            sem_map: two-class or multi-class semantic map without edge which is
+                the raw semantic map.
+            inst_map: instance map with each instance id. Use inst_map = inst_id
+                to extrach each instance.
+        """
+
+        sem_map_w_bound = np.zeros_like(sem_map)
+        sem_map_w_bound += sem_map > 0
+
+        # NOTE: sem_map must match inst_map
+        assert np.allclose(sem_map > 0, inst_map > 0)
+        inst_id_list = list(np.unique(inst_map))
+        for inst_id in inst_id_list:
+            inst_id_mask = inst_map == inst_id
+            bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(1)))
+            sem_map_w_bound[bound > 0] = self.edge_id
 
         results = {}
 
-        results['gt_sem_map'] = sem_map_w_edge
-        results['gt_sem_map_in'] = sem_map_in
-        results['gt_sem_map_w_edge'] = sem_map_w_edge
+        # NOTE: sem_map is raw semantic map (two-class or multi-class without boundary)
+        # NOTE: sem_map_w_bound is always a three-class map (background, foreground, edge)
+        results['sem_gt'] = sem_map
+        results['sem_gt_w_bound'] = sem_map_w_bound
 
         return results
 
@@ -41,67 +58,76 @@ class ReEdge:
 class DirectionLabelMake(object):
     """build direction label & point label for any dataset."""
 
-    def __init__(self, edge_id, re_edge=True, num_angle_types=8):
+    def __init__(self, edge_id, num_angle_types=8):
         # If input with edge, re_edge can be set to False.
         # However, in order to generate better boundary, we will re-generate
         # edge.
         self.edge_id = edge_id
-        self.re_edge = re_edge
         self.num_angle_types = num_angle_types
 
     def __call__(self, sem_map, inst_map):
+        """generate boundary label & direction from instance map and pure semantic map.
+
+        sem_map:
+            0: background
+            1: semantic_class 1
+            2: semantic class 2
+            ...
+
+        inst_map:
+            0: background
+            1: instance 1
+            2: instance 2
+            ...
+
+        Args:
+            sem_map: two-class or multi-class semantic map without edge which is
+                the raw semantic map.
+            inst_map: instance map with each instance id. Use inst_map = inst_id
+                to extrach each instance.
+        """
         results = {}
 
-        if self.re_edge:
-            sem_map_w_edge = np.zeros_like(sem_map)
-            id_list = list(np.unique(sem_map))
-            for id in id_list:
-                if id == self.edge_id or id == 0:
-                    continue
-                id_mask = sem_map == id
-                bound = morphology.dilation(
-                    id_mask,
-                    selem=morphology.selem.disk(1)) & (~morphology.erosion(id_mask, selem=morphology.selem.disk(1)))
-                sem_map_w_edge[id_mask > 0] = id
-                sem_map_w_edge[bound > 0] = self.edge_id
+        sem_map_w_bound = np.zeros_like(sem_map)
+        sem_map_w_bound += sem_map > 0
 
-            sem_map_in = sem_map_w_edge.copy()
-            sem_map_in[sem_map_in == self.edge_id] = 0
-            results['gt_sem_map'] = sem_map_w_edge
-        else:
-            sem_map_in = sem_map.copy()
-            sem_map_in[sem_map_in == self.edge_id] = 0
-            sem_map_w_edge = sem_map
+        # NOTE: sem_map must match inst_map
+        assert np.allclose(sem_map > 0, inst_map > 0)
+        inst_id_list = list(np.unique(inst_map))
+        for inst_id in inst_id_list:
+            inst_id_mask = inst_map == inst_id
+            bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(1)))
+            sem_map_w_bound[bound > 0] = self.edge_id
 
-        results['gt_sem_map_in'] = sem_map_in
-        results['gt_sem_map_w_edge'] = sem_map_w_edge
-
-        instance_map = inst_map
+        # NOTE: sem_map is raw semantic map (two-class or multi-class without boundary)
+        # NOTE: sem_map_w_bound is always a three-class map (background, foreground, edge)
+        results['sem_gt'] = sem_map
+        results['sem_gt_w_bound'] = sem_map_w_bound
 
         # point map calculation & gradient map calculation
-        point_map, gradient_map = self.calculate_point_map(instance_map)
+        point_map, gradient_map = self.calculate_point_map(inst_map)
 
         # direction map calculation
-        direction_map = self.calculate_direction_map(instance_map, gradient_map)
+        dir_map = self.calculate_dir_map(inst_map, gradient_map)
 
-        results['gt_point_map'] = point_map
-        results['gt_direction_map'] = direction_map
+        results['point_gt'] = point_map
+        results['dir_gt'] = dir_map
 
         return results
 
-    def calculate_direction_map(self, instance_map, gradient_map):
+    def calculate_dir_map(self, instance_map, gradient_map):
         # Prepare for gradient map & direction map calculation
         # continue angle calculation
         angle_map = np.degrees(np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
         angle_map[instance_map == 0] = 0
         vector_map = angle_to_vector(angle_map, self.num_angle_types)
         # angle type judgement
-        direction_map = vector_to_label(vector_map, self.num_angle_types)
+        dir_map = vector_to_label(vector_map, self.num_angle_types)
 
-        direction_map[instance_map == 0] = -1
-        direction_map = direction_map + 1
+        dir_map[instance_map == 0] = -1
+        dir_map = dir_map + 1
 
-        return direction_map
+        return dir_map
 
     def calculate_point_map(self, instance_map):
         H, W = instance_map.shape[:2]
