@@ -382,3 +382,17 @@ class RandomBlur(object):
             img = self.trans[index](img)
 
         return img
+
+
+class Normalize(object):
+    """z-score standardization."""
+
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, img):
+        img = img / 255.
+        img = (img - self.mean) / (self.std)
+
+        return img
