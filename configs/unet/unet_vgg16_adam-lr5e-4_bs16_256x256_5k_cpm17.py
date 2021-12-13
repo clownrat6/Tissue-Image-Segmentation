@@ -4,17 +4,17 @@ _base_ = [
 ]
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=10000)
+runner = dict(type='IterBasedRunner', max_iters=5000)
 
 evaluation = dict(
-    interval=1000,
+    interval=500,
     metric='all',
     save_best='Aji',
     rule='greater',
 )
 checkpoint_config = dict(
     by_epoch=False,
-    interval=1000,
+    interval=500,
     max_keep_ckpts=1,
 )
 

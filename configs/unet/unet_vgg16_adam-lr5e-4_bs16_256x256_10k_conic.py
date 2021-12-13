@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/datasets/monuseg_w_dir.py',
+    '../_base_/datasets/conic.py',
     '../_base_/default_runtime.py',
 ]
 
@@ -30,16 +30,14 @@ lr_config = dict(policy='fixed', warmup='linear', warmup_iters=100, warmup_ratio
 
 # model settings
 model = dict(
-    type='CDNetSegmentor',
+    type='UNetSegmentor',
     # model training and testing settings
-    num_classes=3,
+    num_classes=8,
     train_cfg=dict(),
     test_cfg=dict(
         mode='split',
-        plane_size=(256, 256),
         crop_size=(256, 256),
         overlap_size=(80, 80),
-        use_ddm=True,
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
