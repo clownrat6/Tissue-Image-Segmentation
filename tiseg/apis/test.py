@@ -4,12 +4,7 @@ from mmcv.engine import collect_results_cpu, collect_results_gpu
 from mmcv.runner import get_dist_info
 
 
-def single_gpu_test(model,
-                    data_loader,
-                    pre_eval=False,
-                    format_only=False,
-                    format_args={},
-                    pre_eval_args={}):
+def single_gpu_test(model, data_loader, pre_eval=False, format_only=False, format_args={}, pre_eval_args={}):
     """Test with single GPU by progressive mode.
 
     Args:
@@ -42,13 +37,11 @@ def single_gpu_test(model,
             result = model(**data)
 
         if format_only:
-            result = dataset.format_results(
-                result, indices=batch_indices, **format_args)
+            result = dataset.format_results(result, indices=batch_indices, **format_args)
         if pre_eval:
             # TODO: adapt samples_per_gpu > 1.
             # only samples_per_gpu=1 valid now
-            result = dataset.pre_eval(
-                result, indices=batch_indices, **pre_eval_args)
+            result = dataset.pre_eval(result, indices=batch_indices, **pre_eval_args)
 
         results.extend(result)
 
@@ -119,13 +112,11 @@ def multi_gpu_test(model,
             result = model(return_loss=False, rescale=True, **data)
 
         if format_only:
-            result = dataset.format_results(
-                result, indices=batch_indices, **format_args)
+            result = dataset.format_results(result, indices=batch_indices, **format_args)
         if pre_eval:
             # TODO: adapt samples_per_gpu > 1.
             # only samples_per_gpu=1 valid now
-            result = dataset.pre_eval(
-                result, indices=batch_indices, **pre_eval_args)
+            result = dataset.pre_eval(result, indices=batch_indices, **pre_eval_args)
 
         results.extend(result)
 
