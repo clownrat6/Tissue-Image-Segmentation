@@ -59,9 +59,6 @@ class CDNetSegmentor(BaseSegmentor):
             dir_gt = label['dir_gt']
 
             loss = dict()
-            mask_logit = resize(input=mask_logit, size=mask_gt.shape[2:])
-            dir_logit = resize(input=dir_logit, size=dir_gt.shape[2:])
-            point_logit = resize(input=point_logit, size=point_gt.shape[2:])
 
             mask_gt = mask_gt.squeeze(1)
             dir_gt = dir_gt.squeeze(1)

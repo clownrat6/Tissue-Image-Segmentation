@@ -44,7 +44,7 @@ class NucleiDatasetMapper(object):
         self.edge_id = process_cfg['edge_id']
 
         self.color_jitter = ColorJitter() if self.if_jitter else Identity()
-        self.flipper = RandomFlip(prob=0.5) if self.if_flip else Identity()
+        self.flipper = RandomFlip(prob=0.5, direction=['horizontal', 'vertical']) if self.if_flip else Identity()
         self.deformer = RandomElasticDeform(prob=0.5) if self.if_elastic else Identity()
         self.bluer = RandomBlur(prob=0.5) if self.if_blur else Identity()
         self.cropper = RandomCrop((self.min_size, self.min_size)) if self.if_crop else Identity()
@@ -117,5 +117,18 @@ class NucleiDatasetMapper(object):
                 res = self.label_maker(sem_seg, inst_seg)
                 sem_seg_w_bound = res['sem_gt_w_bound']
                 ret['label']['sem_gt_w_bound'] = format_seg(sem_seg_w_bound)
+
+        # import matplotlib.pyplot as plt
+        # plt.figure(dpi=300)
+        # plt.subplot(221)
+        # plt.imshow(img)
+        # plt.subplot(222)
+        # plt.imshow(sem_seg)
+        # plt.subplot(223)
+        # plt.imshow(inst_seg)
+        # plt.subplot(224)
+        # plt.imshow(sem_seg_w_bound)
+        # plt.savefig('2.png')
+        # exit(0)
 
         return ret

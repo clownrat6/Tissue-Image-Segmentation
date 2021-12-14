@@ -47,7 +47,6 @@ class UNetSegmentor(BaseSegmentor):
             assert label is not None
             mask_label = label['sem_gt_w_bound']
             loss = dict()
-            mask_logit = resize(input=mask_logit, size=mask_label.shape[2:])
             mask_label = mask_label.squeeze(1)
             mask_loss = self._mask_loss(mask_logit, mask_label)
             loss.update(mask_loss)
