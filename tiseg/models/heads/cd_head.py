@@ -20,14 +20,20 @@ class RU(nn.Module):
 
     def __init__(self, in_dims, out_dims, norm_cfg=dict(type='BN'), act_cfg=dict(type='ReLU')):
         super().__init__()
-        self.act_layer = build_activation_layer(act_cfg)
+
+        # NOTE: inplace wise relu
+        real_act_cfg = dict()
+        real_act_cfg['inplace'] = True
+        real_act_cfg.update(act_cfg)
+
+        self.act_layer = build_activation_layer(real_act_cfg)
         self.residual_ops = nn.Sequential(
             conv3x3(in_dims, out_dims, norm_cfg), self.act_layer, conv3x3(out_dims, out_dims, norm_cfg))
         self.identity_ops = nn.Sequential(conv1x1(in_dims, out_dims))
 
     def forward(self, x):
-        res_value = self.residual_ops(x)
         ide_value = self.identity_ops(x)
+        res_value = self.residual_ops(x)
         out = ide_value + res_value
         return self.act_layer(out)
 

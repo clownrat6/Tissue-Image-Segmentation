@@ -35,15 +35,16 @@ class CDNetSegmentor(BaseSegmentor):
             act_cfg=dict(type='ReLU'),
             norm_cfg=dict(type='BN'))
 
-    def calculate(self, img):
+    def calculate(self, img, rescale=False):
         img_feats = self.backbone(img)
         bottom_feat = img_feats[-1]
         skip_feats = img_feats[:-1]
         mask_logit, dir_logit, point_logit = self.head(bottom_feat, skip_feats)
 
-        mask_logit = resize(input=mask_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
-        dir_logit = resize(input=dir_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
-        point_logit = resize(input=point_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
+        if rescale:
+            mask_logit = resize(input=mask_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
+            dir_logit = resize(input=dir_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
+            point_logit = resize(input=point_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
 
         return mask_logit, dir_logit, point_logit
 
