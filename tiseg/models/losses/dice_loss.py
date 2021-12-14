@@ -33,15 +33,9 @@ class GeneralizedDiceLoss(nn.Module):
         super(GeneralizedDiceLoss, self).__init__()
         self.num_classes = num_classes
 
-    def forward(self,
-                logit,
-                target,
-                smooth=1e-4,
-                spatial_weight=None,
-                channel_weight=None):
+    def forward(self, logit, target, smooth=1e-4, spatial_weight=None, channel_weight=None):
         # one-hot encoding for target
-        target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(
-            0, 3, 1, 2).contiguous()
+        target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(0, 3, 1, 2).contiguous()
         # softmax for logit
         logit = F.softmax(logit, dim=1)
 
@@ -58,8 +52,7 @@ class GeneralizedDiceLoss(nn.Module):
             intersect *= channel_weight
             addition_area *= channel_weight
 
-        generalized_dice_score = (2 * torch.sum(intersect) + smooth) / (
-            torch.sum(addition_area) + smooth)
+        generalized_dice_score = (2 * torch.sum(intersect) + smooth) / (torch.sum(addition_area) + smooth)
 
         generalized_dice_loss = 1 - generalized_dice_score
 
@@ -77,8 +70,7 @@ class MultiClassDiceLoss(nn.Module):
     def forward(self, logit, target, weights=None):
         assert target.ndim == 3
         # one-hot encoding for target
-        target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(
-            0, 3, 1, 2).contiguous()
+        target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(0, 3, 1, 2).contiguous()
         smooth = 1e-4
         # softmax for logit
         logit = F.softmax(logit, dim=1)
@@ -94,8 +86,7 @@ class MultiClassDiceLoss(nn.Module):
             intersection = logit_per_class * target_per_class
             # calculate per class dice loss
             dice_loss_per_class = 2 * (intersection.sum((-2, -1)) + smooth) / (
-                logit_per_class.sum((-2, -1)) + target_per_class.sum(
-                    (-2, -1)) + smooth)
+                logit_per_class.sum((-2, -1)) + target_per_class.sum((-2, -1)) + smooth)
             dice_loss_per_class = 1 - dice_loss_per_class.sum() / N
             if weights is not None:
                 dice_loss_per_class *= weights[i]
@@ -117,8 +108,7 @@ class DiceLoss(nn.Module):
         self.num_classes = num_classes
 
     def forward(self, logit, target):
-        target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(
-            0, 3, 1, 2).contiguous()
+        target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(0, 3, 1, 2).contiguous()
         smooth = 1e-4
         # softmax for logit
         logit = F.softmax(logit, dim=1)
@@ -128,8 +118,7 @@ class DiceLoss(nn.Module):
         target_area = torch.sum(target_one_hot, dim=(0, 2, 3))
         addition_area = logit_area + target_area
 
-        dice_score = torch.mean(
-            (2 * intersect + smooth) / (addition_area + smooth))
+        dice_score = torch.mean((2 * intersect + smooth) / (addition_area + smooth))
 
         dice_loss = 1 - dice_score
 
