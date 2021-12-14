@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 from .ops import (ColorJitter, DirectionLabelMake, Identity, GenBound, RandomBlur, RandomFlip, RandomElasticDeform,
-                  RandomCrop, format_img, format_info, format_reg, format_seg)
+                  RandomCrop, Normalize, format_img, format_info, format_reg, format_seg)
 
 
 def read_image(path):
@@ -34,6 +34,7 @@ class NucleiDatasetMapper(object):
         self.if_elastic = process_cfg['if_elastic']
         self.if_blur = process_cfg['if_blur']
         self.if_crop = process_cfg['if_crop']
+        self.if_norm = process_cfg['if_norm']
         self.with_dir = process_cfg['with_dir']
 
         self.min_size = process_cfg['min_size']
@@ -48,6 +49,10 @@ class NucleiDatasetMapper(object):
         self.bluer = RandomBlur(prob=0.5) if self.if_blur else Identity()
         self.cropper = RandomCrop((self.min_size, self.min_size)) if self.if_crop else Identity()
         self.label_maker = DirectionLabelMake(edge_id=self.edge_id) if self.with_dir else GenBound(edge_id=self.edge_id)
+        # monuseg dataset tissue image mean & std
+        nuclei_mean = [0.68861804, 0.46102882, 0.61138992]
+        nuclei_std = [0.19204499, 0.20979484, 0.1658672]
+        self.normalizer = Normalize(nuclei_mean, nuclei_std) if self.if_norm else Identity()
 
     def __call__(self, data_info):
         data_info = copy.deepcopy(data_info)
@@ -73,9 +78,12 @@ class NucleiDatasetMapper(object):
             img, segs = self.deformer(img, segs)
             img = self.bluer(img)
             img, segs = self.cropper(img, segs)
+            img = self.normalizer(img)
 
             sem_seg = segs[0]
             inst_seg = segs[1]
+        else:
+            img = self.normalizer(img)
 
         h, w = img.shape[:2]
         data_info['input_hw'] = (h, w)
