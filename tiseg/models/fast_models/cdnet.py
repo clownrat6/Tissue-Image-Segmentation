@@ -28,6 +28,7 @@ class CDNetSegmentor(BaseSegmentor):
         self.head = CDHead(
             num_classes=self.num_classes,
             num_angles=self.num_angles,
+            dgm_dims=64,
             bottom_in_dim=512,
             skip_in_dims=(64, 128, 256, 512, 512),
             stage_dims=[16, 32, 64, 128, 256],
@@ -83,13 +84,17 @@ class CDNetSegmentor(BaseSegmentor):
         else:
             assert self.test_cfg is not None
             # NOTE: only support batch size = 1 now.
-            seg_logit = self.inference(data['img'], metas[0], True)
+            seg_logit, dir_map = self.inference(data['img'], metas[0], True)
             seg_pred = seg_logit.argmax(dim=1)
-            # Extract inside class
-            seg_pred = seg_pred.cpu().numpy()
+            seg_pred = seg_pred.to('cpu').numpy()
+            dir_map = dir_map.to('cpu').numpy()
             # unravel batch dim
             seg_pred = list(seg_pred)
-            return seg_pred
+            dir_map = list(dir_map)
+            ret_list = []
+            for seg, dir in zip(seg_pred, dir_map):
+                ret_list.append({'sem_pred': seg, 'dir_pred': dir})
+            return ret_list
 
     def inference(self, img, meta, rescale):
         """Inference with split/whole style.
@@ -108,6 +113,8 @@ class CDNetSegmentor(BaseSegmentor):
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
         sem_logit_list = []
         dir_logit_list = []
+        dir_map_list = []
+        dd_map_list = []
         point_logit_list = []
         img_ = img
         for rotate_degree in self.rotate_degrees:
@@ -124,17 +131,25 @@ class CDNetSegmentor(BaseSegmentor):
                 dir_logit = self.reverse_tta_transform(dir_logit, rotate_degree, flip_direction)
                 point_logit = self.reverse_tta_transform(point_logit, rotate_degree, flip_direction)
 
+                sem_logit = F.softmax(sem_logit, dim=1)
+                dir_logit = F.softmax(dir_logit, dim=1)
+                dir_logit[:, 0] = dir_logit[:, 0] * sem_logit[:, 0]
+                dir_map = torch.argmax(dir_logit, dim=1)
+                dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
+
                 sem_logit_list.append(sem_logit)
                 dir_logit_list.append(dir_logit)
+                dir_map_list.append(dir_map)
+                dd_map_list.append(dd_map)
                 point_logit_list.append(point_logit)
 
         sem_logit = sum(sem_logit_list) / len(sem_logit_list)
-        dir_logit = sum(dir_logit_list) / len(dir_logit_list)
+        dd_map = sum(dd_map_list) / len(dd_map_list)
         point_logit = sum(point_logit_list) / len(point_logit_list)
 
-        sem_logit = self._ddm_enhencement(sem_logit, dir_logit, point_logit)
+        sem_logit = self._ddm_enhencement(sem_logit, dd_map, point_logit)
 
-        return sem_logit
+        return sem_logit, dir_map_list[0]
 
     def split_axes(self, window_size, overlap_size, height, width):
         ws = window_size
@@ -183,7 +198,7 @@ class CDNetSegmentor(BaseSegmentor):
         W1 = pad_w + W
 
         img_canvas = torch.zeros((B, C, H1, W1), dtype=img.dtype, device=img.device)
-        img_canvas.fill_(128)
+        img_canvas.fill_(0)
         img_canvas[:, :, pad_h // 2:pad_h // 2 + H, pad_w // 2:pad_w // 2 + W] = img
 
         _, _, H1, W1 = img_canvas.shape
@@ -306,20 +321,16 @@ class CDNetSegmentor(BaseSegmentor):
         return wrap_dict
 
     @classmethod
-    def _ddm_enhencement(self, mask_logit, dir_logit, point_logit):
-        # make direction differential map
-        dir_map = torch.argmax(dir_logit, dim=1)
-        dir_differential_map = generate_direction_differential_map(dir_map, 9)
-
+    def _ddm_enhencement(self, mask_logit, dd_map, point_logit):
         # using point map to remove center point direction differential map
         point_logit = point_logit[:, 0, :, :]
-        point_logit = point_logit - torch.min(point_logit) / (torch.max(point_logit) - torch.min(point_logit))
+        point_map = (point_logit / torch.max(point_logit)) > 0.2
+        # point_logit = point_logit - torch.min(point_logit) / (torch.max(point_logit) - torch.min(point_logit))
 
         # mask out some redundant direction differential
-        dir_differential_map[point_logit > 0.2] = 0
+        dd_map = dd_map - (dd_map * point_map)
 
         # using direction differential map to enhance edge
-        mask_logit = F.softmax(mask_logit, dim=1)
-        mask_logit[:, -1, :, :] = (mask_logit[:, -1, :, :] + dir_differential_map) * (1 + 2 * dir_differential_map)
+        mask_logit[:, -1, :, :] = (mask_logit[:, -1, :, :] + dd_map) * (1 + dd_map)
 
         return mask_logit

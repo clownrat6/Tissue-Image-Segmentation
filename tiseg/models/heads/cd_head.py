@@ -49,8 +49,8 @@ class AU(nn.Module):
     def forward(self, signal, gate):
         """Using gate to generate attention map and assign the attention map to
         signal."""
-        attention_map = self.conv(gate)
-        return signal * (1 + attention_map)
+        attn_map = self.conv(gate)
+        return signal * (1 + attn_map)
 
 
 class DGM(nn.Module):
@@ -88,48 +88,48 @@ class DGM(nn.Module):
         self.num_classes = num_classes
         self.num_angles = num_angles
 
-        self.mask_pre_branch = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
-        self.direction_pre_branch = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
-        self.point_pre_branch = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
+        self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+        self.dir_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
+        self.point_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
 
         # Cross Branch Attention
-        self.point_to_direction_attention = AU(1)
-        self.direction_to_mask_attention = AU(self.num_angles + 1)
+        self.point_to_dir_attn = AU(1)
+        self.dir_to_mask_attn = AU(self.num_angles + 1)
 
         # Prediction Operations
-        self.point_pred_op = nn.Conv2d(self.feed_dims, 1, kernel_size=1)
-        self.direction_pred_op = nn.Conv2d(self.feed_dims, self.num_angles + 1, kernel_size=1)
-        self.mask_pred_op = nn.Conv2d(self.feed_dims, self.num_classes, kernel_size=1)
+        self.point_conv = nn.Conv2d(self.feed_dims, 1, kernel_size=1)
+        self.dir_conv = nn.Conv2d(self.feed_dims, self.num_angles + 1, kernel_size=1)
+        self.mask_conv = nn.Conv2d(self.feed_dims, self.num_classes, kernel_size=1)
 
     def forward(self, x):
-        mask_feature = self.mask_pre_branch(x)
-        direction_feature = self.direction_pre_branch(mask_feature)
-        point_feature = self.point_pre_branch(direction_feature)
+        mask_feature = self.mask_feats(x)
+        dir_feature = self.dir_feats(mask_feature)
+        point_feature = self.point_feats(dir_feature)
 
         # point branch
-        point_logit = self.point_pred_op(point_feature)
+        point_logit = self.point_conv(point_feature)
 
         # direction branch
-        direction_feature_with_point_logit = self.point_to_direction_attention(direction_feature, point_logit)
-        direction_logit = self.direction_pred_op(direction_feature_with_point_logit)
+        dir_feature_with_point_logit = self.point_to_dir_attn(dir_feature, point_logit)
+        dir_logit = self.dir_conv(dir_feature_with_point_logit)
 
         # mask branch
-        mask_feature_with_direction_logit = self.direction_to_mask_attention(mask_feature, direction_logit)
-        mask_logit = self.mask_pred_op(mask_feature_with_direction_logit)
+        mask_feature_with_dir_logit = self.dir_to_mask_attn(mask_feature, dir_logit)
+        mask_logit = self.mask_conv(mask_feature_with_dir_logit)
 
-        return mask_logit, direction_logit, point_logit
+        return mask_logit, dir_logit, point_logit
 
 
 class CDHead(UNetHead):
 
-    def __init__(self, num_classes, num_angles=8, **kwargs):
+    def __init__(self, num_classes, num_angles=8, dgm_dims=64, **kwargs):
         super().__init__(num_classes=num_classes, **kwargs)
         self.num_classes = num_classes
         self.num_angles = num_angles
 
         self.postprocess = DGM(
             self.stage_dims[0],
-            self.stage_dims[0],
+            dgm_dims,
             num_classes=self.num_classes,
             num_angles=self.num_angles,
             norm_cfg=self.norm_cfg,
