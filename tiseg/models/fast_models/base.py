@@ -2,6 +2,7 @@ from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 
 import torch
+import torch.nn.functional as F
 import torch.distributed as dist
 from mmcv.runner import BaseModule
 
@@ -161,7 +162,7 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
         W1 = pad_w + W
 
         img_canvas = torch.zeros((B, C, H1, W1), dtype=img.dtype, device=img.device)
-        img_canvas.fill_(128)
+        img_canvas.fill_(0)
         img_canvas[:, :, pad_h // 2:pad_h // 2 + H, pad_w // 2:pad_w // 2 + W] = img
 
         _, _, H1, W1 = img_canvas.shape
@@ -229,7 +230,7 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
     # def split_inference(self, img, meta, rescale):
     #     """using half-and-half strategy to slide inference."""
     #     window_size = self.test_cfg.crop_size[0]
-    #     overlap_size = (self.test_cfg.crop_size[0] - self.test_cfg.stride[0])
+    #     overlap_size = self.test_cfg.overlap_size[0]
 
     #     N, C, H, W = img.shape
 
@@ -308,6 +309,7 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
                     sem_logit = self.whole_inference(img, meta, rescale)
 
                 sem_logit = self.reverse_tta_transform(sem_logit, rotate_degree, flip_direction)
+                sem_logit = F.softmax(sem_logit, dim=1)
 
                 sem_logit_list.append(sem_logit)
 

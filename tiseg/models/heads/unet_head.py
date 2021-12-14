@@ -12,34 +12,39 @@ def conv3x3(in_dims, out_dims, norm_cfg=None, act_cfg=None):
     return ConvModule(in_dims, out_dims, 3, 1, 1, norm_cfg=norm_cfg, act_cfg=act_cfg)
 
 
+def transconv4x4(in_dims, out_dims, bn):
+    return nn.Sequential(
+        nn.ConvTranspose2d(
+            in_channels=in_dims, out_channels=out_dims, kernel_size=(4, 4), stride=2, padding=1, bias=not bn),
+        nn.BatchNorm2d(out_dims),
+        nn.ReLU(),
+    )
+
+
 class UNetLayer(nn.Module):
 
-    def __init__(self, in_dims, skip_dims, feed_dims, num_convs, norm_cfg, act_cfg):
+    def __init__(self, in_dims, skip_dims, feed_dims, num_convs=2, norm_cfg=dict(type='BN'), act_cfg=dict(type='ReLU')):
         super().__init__()
         self.in_dims = in_dims
         self.skip_dims = skip_dims
         self.feed_dims = feed_dims
 
-        if skip_dims != 0:
-            self.skip_conv = conv1x1(skip_dims, feed_dims, norm_cfg, act_cfg)
-            skip_dims = feed_dims
+        self.up_conv = transconv4x4(in_dims, feed_dims, norm_cfg is not None)
 
-        convs = [conv1x1(skip_dims + in_dims, feed_dims, norm_cfg, act_cfg)]
-        for _ in range(num_convs - 1):
+        convs = [conv3x3(skip_dims + feed_dims, feed_dims, norm_cfg, act_cfg)]
+        for _ in range(num_convs - 2):
             convs.append(conv3x3(feed_dims, feed_dims, norm_cfg, act_cfg))
         self.convs = nn.Sequential(*convs)
 
-    def forward(self, x, skip=None):
-        if x is None:
-            x = skip
-            skip = None
+    def forward(self, x, skip):
+        x = self.up_conv(x)
 
-        if skip is not None:
-            skip_shape = skip.shape[-2:]
-            skip = self.skip_conv(skip)
-            x = F.interpolate(x, size=skip_shape)
-            x = torch.cat([skip, x], dim=1)
+        if x.shape != skip.shape:
+            diff_h = skip.shape[-2] - x.shape[-2]
+            diff_w = skip.shape[-1] - x.shape[-1]
+            x = F.pad(x, (diff_h // 2, diff_h - diff_h // 2, diff_w // 2, diff_w - diff_w // 2))
 
+        x = torch.cat([x, skip], dim=1)
         out = self.convs(x)
         return out
 
@@ -59,7 +64,6 @@ class UNetHead(nn.Module):
                  bottom_in_dim=512,
                  skip_in_dims=[64, 128, 256, 512, 512],
                  stage_dims=[16, 32, 64, 128, 256],
-                 dropout_rate=0.1,
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU')):
         super().__init__()
@@ -67,33 +71,30 @@ class UNetHead(nn.Module):
         self.bottom_in_dim = bottom_in_dim
         self.skip_in_dims = skip_in_dims
         self.stage_dims = stage_dims
-        self.dropout_rate = dropout_rate
         self.norm_cfg = norm_cfg
         self.act_cfg = act_cfg
 
         num_layers = len(self.skip_in_dims)
 
-        # make channel pair
         self.decode_layers = nn.ModuleList()
-        for idx in range(num_layers):
+        for idx in range(num_layers - 1, -1, -1):
             if idx == num_layers - 1:
                 # bottom, initial layer
                 self.decode_layers.append(
-                    UNetLayer(self.bottom_in_dim, self.skip_in_dims[idx], self.stage_dims[idx], 4, norm_cfg, act_cfg))
+                    UNetLayer(self.bottom_in_dim, self.skip_in_dims[idx], self.stage_dims[idx], 2, norm_cfg, act_cfg))
             else:
                 self.decode_layers.append(
-                    UNetLayer(self.stage_dims[idx + 1], self.skip_in_dims[idx], self.stage_dims[idx], 4, norm_cfg,
+                    UNetLayer(self.stage_dims[idx + 1], self.skip_in_dims[idx], self.stage_dims[idx], 2, norm_cfg,
                               act_cfg))
 
-        self.postprocess = nn.Sequential(
-            nn.Dropout2d(self.dropout_rate), nn.Conv2d(self.stage_dims[0], self.num_classes, kernel_size=1, stride=1))
+        self.postprocess = nn.Conv2d(self.stage_dims[0], self.num_classes, kernel_size=1, stride=1)
 
     def forward(self, bottom_input, skip_inputs):
         # decode stage feed forward
         x = bottom_input
         skips = skip_inputs[::-1]
 
-        decode_layers = self.decode_layers[::-1]
+        decode_layers = self.decode_layers
         for skip, decode_stage in zip(skips, decode_layers):
             x = decode_stage(x, skip)
 

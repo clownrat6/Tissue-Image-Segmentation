@@ -27,7 +27,6 @@ class UNetSegmentor(BaseSegmentor):
             bottom_in_dim=512,
             skip_in_dims=(64, 128, 256, 512, 512),
             stage_dims=[16, 32, 64, 128, 256],
-            dropout_rate=0.1,
             act_cfg=dict(type='ReLU'),
             norm_cfg=dict(type='BN'))
 
@@ -65,7 +64,10 @@ class UNetSegmentor(BaseSegmentor):
             seg_pred = seg_pred.cpu().numpy()
             # unravel batch dim
             seg_pred = list(seg_pred)
-            return seg_pred
+            ret_list = []
+            for seg in seg_pred:
+                ret_list.append({'sem_pred': seg})
+            return ret_list
 
     def _mask_loss(self, mask_logit, mask_label):
         """calculate mask branch loss."""

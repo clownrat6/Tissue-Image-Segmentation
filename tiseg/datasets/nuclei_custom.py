@@ -17,7 +17,7 @@ from torch.utils.data import Dataset
 from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index, dice_similarity_coefficient, precision_recall)
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
-from .utils import colorize_seg_map, re_instance
+from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground
 
 
 def draw_semantic(save_folder, data_id, image, pred, label, edge_id=2):
@@ -253,27 +253,33 @@ class NucleiCustomDataset(Dataset):
 
             # metric calculation post process codes:
             # extract inside
-            pred_sem_seg = pred
-            pred_sem_seg_in = (pred == 1).astype(np.uint8)
+            sem_pred = pred['sem_pred']
+            fore_pred = (sem_pred > 0).astype(np.uint8)
+            sem_pred_in = (sem_pred == 1).astype(np.uint8)
 
-            # model-agnostic post process operations
-            pred_sem_seg_in, pred_inst_seg = self.model_agnostic_postprocess(pred_sem_seg_in)
+            if 'dir_pred' in pred:
+                dir_pred = pred['dir_pred']
+
+                # model-agnostic post process operations
+                sem_pred, inst_pred, fore_pred = self.model_agnostic_postprocess_w_dir(sem_pred_in, fore_pred, dir_pred)
+            else:
+                sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred_in)
 
             # TODO: (Important issue about post process)
             # This may be the dice metric calculation trick (Need be
             # considering carefully)
             # convert instance map (after postprocess) to semantic level
-            pred_sem_seg = (pred_inst_seg > 0).astype(np.uint8)
+            sem_pred = (inst_pred > 0).astype(np.uint8)
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
-            precision_metric, recall_metric = precision_recall(pred_sem_seg, sem_seg, 2)
+            precision_metric, recall_metric = precision_recall(sem_pred, sem_seg, 2)
             precision_metric = precision_metric[1]
             recall_metric = recall_metric[1]
-            dice_metric = dice_similarity_coefficient(pred_sem_seg, sem_seg, 2)[1]
+            dice_metric = dice_similarity_coefficient(sem_pred, sem_seg, 2)[1]
 
             # instance metric calculation
-            aji_metric = aggregated_jaccard_index(pred_inst_seg, inst_seg, is_semantic=False)
+            aji_metric = aggregated_jaccard_index(inst_pred, inst_seg, is_semantic=False)
 
             single_loop_results = dict(
                 name=data_id,
@@ -287,30 +293,53 @@ class NucleiCustomDataset(Dataset):
             # illustrating semantic level results
             if show_semantic:
                 data_info = self.data_infos[index]
-                draw_semantic(show_folder, data_id, data_info['file_name'], pred_sem_seg, sem_seg, single_loop_results)
+                draw_semantic(show_folder, data_id, data_info['file_name'], sem_pred, sem_seg, single_loop_results)
 
             # illustrating instance level results
             if show_instance:
-                draw_instance(show_folder, data_id, pred_inst_seg, inst_seg)
+                draw_instance(show_folder, data_id, inst_pred, inst_seg)
 
         return pre_eval_results
 
-    def model_agnostic_postprocess(self, pred):
+    def model_agnostic_postprocess(self, sem_pred_in):
         """model free post-process for both instance-level & semantic-level."""
         # fill instance holes
-        pred = binary_fill_holes(pred)
+        sem_pred = binary_fill_holes(sem_pred_in)
         # remove small instance
-        pred = remove_small_objects(pred, 20)
-        pred = pred.astype(np.uint8)
-        pred_semantic = pred.copy()
+        sem_pred = remove_small_objects(sem_pred, 20)
+        sem_pred = sem_pred.astype(np.uint8)
 
         # instance process & dilation
-        pred = pred.copy()
-        pred_instance = measure.label(pred)
+        inst_pred = measure.label(sem_pred, connectivity=1)
         # if re_edge=True, dilation pixel length should be 2
-        pred_instance = morphology.dilation(pred_instance, selem=morphology.disk(2))
+        inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(2))
 
-        return pred_semantic, pred_instance
+        return sem_pred, inst_pred
+
+    def model_agnostic_postprocess_w_dir(self, sem_pred_in, fore_pred, dir_pred):
+        """model free post-process for both instance-level & semantic-level."""
+        raw_fore_pred = fore_pred
+        # fill instance holes
+        sem_pred = binary_fill_holes(sem_pred_in)
+        # remove small instance
+        sem_pred = remove_small_objects(sem_pred, 20)
+        sem_pred = sem_pred.astype(np.uint8)
+
+        # instance process & dilation
+        fore_pred = measure.label(sem_pred, connectivity=1)
+        # if re_edge=True, dilation pixel length should be 2
+        fore_pred = morphology.dilation(fore_pred, selem=morphology.selem.disk(2))
+
+        raw_fore_pred = binary_fill_holes(raw_fore_pred)  # 孔洞填充 hhl20200414
+        raw_fore_pred = remove_small_objects(raw_fore_pred, 20)  # remove small object
+
+        sem_pred, bound = mudslide_watershed(sem_pred, dir_pred, raw_fore_pred)
+
+        sem_pred = remove_small_objects(sem_pred, 20)
+        inst_pred = measure.label(sem_pred, connectivity=1)
+        inst_pred = align_foreground(inst_pred, fore_pred, 20)
+
+        return sem_pred, inst_pred, fore_pred
 
     def evaluate(self, results, metric='all', logger=None, dump_path=None, **kwargs):
         """Evaluate the dataset.
