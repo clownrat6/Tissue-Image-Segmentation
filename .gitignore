@@ -46,16 +46,20 @@ wheels/
 *.egg
 MANIFEST
 
-# Work dir
+# work dir
 work_dirs*/
 collect*/
 
 # compressed files
 *.zip
 *.rar
+*.tar
 
 # visualization files
 .*_show
 
 # pickle sequence file
 *.p
+
+# root folder txt files
+/*.txt
