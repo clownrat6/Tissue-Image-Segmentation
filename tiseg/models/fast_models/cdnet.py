@@ -31,7 +31,6 @@ class CDNetSegmentor(BaseSegmentor):
             bottom_in_dim=512,
             skip_in_dims=(64, 128, 256, 512, 512),
             stage_dims=[16, 32, 64, 128, 256],
-            dropout_rate=0.1,
             act_cfg=dict(type='ReLU'),
             norm_cfg=dict(type='BN'))
 
