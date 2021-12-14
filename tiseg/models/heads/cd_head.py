@@ -80,7 +80,6 @@ class DGM(nn.Module):
                  feed_dims,
                  num_classes,
                  num_angles=8,
-                 dropout_rate=0.1,
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU')):
         super().__init__()
@@ -88,7 +87,6 @@ class DGM(nn.Module):
         self.feed_dims = feed_dims
         self.num_classes = num_classes
         self.num_angles = num_angles
-        self.dropout_rate = dropout_rate
 
         self.mask_pre_branch = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
         self.direction_pre_branch = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
@@ -99,8 +97,6 @@ class DGM(nn.Module):
         self.direction_to_mask_attention = AU(self.num_angles + 1)
 
         # Prediction Operations
-        # dropout will be closed automatically when .eval()
-        self.dropout = nn.Dropout2d(self.dropout_rate)
         self.point_pred_op = nn.Conv2d(self.feed_dims, 1, kernel_size=1)
         self.direction_pred_op = nn.Conv2d(self.feed_dims, self.num_angles + 1, kernel_size=1)
         self.mask_pred_op = nn.Conv2d(self.feed_dims, self.num_classes, kernel_size=1)
@@ -111,17 +107,14 @@ class DGM(nn.Module):
         point_feature = self.point_pre_branch(direction_feature)
 
         # point branch
-        point_feature = self.dropout(point_feature)
         point_logit = self.point_pred_op(point_feature)
 
         # direction branch
         direction_feature_with_point_logit = self.point_to_direction_attention(direction_feature, point_logit)
-        direction_feature_with_point_logit = self.dropout(direction_feature_with_point_logit)
         direction_logit = self.direction_pred_op(direction_feature_with_point_logit)
 
         # mask branch
         mask_feature_with_direction_logit = self.direction_to_mask_attention(mask_feature, direction_logit)
-        mask_feature_with_direction_logit = self.dropout(mask_feature_with_direction_logit)
         mask_logit = self.mask_pred_op(mask_feature_with_direction_logit)
 
         return mask_logit, direction_logit, point_logit
@@ -139,6 +132,5 @@ class CDHead(UNetHead):
             self.stage_dims[0],
             num_classes=self.num_classes,
             num_angles=self.num_angles,
-            dropout_rate=self.dropout_rate,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
