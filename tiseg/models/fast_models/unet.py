@@ -1,9 +1,7 @@
-import numpy as np
 import torch
 import torch.nn as nn
 
 from tiseg.utils import resize
-from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads import UNetHead
@@ -96,20 +94,20 @@ class UNetSegmentor(BaseSegmentor):
         wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label, self.num_classes)
         wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label, self.num_classes)
 
-        # metric calculate (the edge id is set `self.num_classes - 1` in
-        # default)
-        mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
-        mask_pred[mask_pred == (self.num_classes - 1)] = 0
-        mask_target = mask_label.cpu().numpy().astype(np.uint8)
-        mask_target[mask_target == (self.num_classes - 1)] = 0
+        # NOTE: training aji calculation metric calculate (This will be deprecated.)
+        # (the edge id is set `self.num_classes - 1` in default)
+        # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
+        # mask_pred[mask_pred == (self.num_classes - 1)] = 0
+        # mask_target = mask_label.cpu().numpy().astype(np.uint8)
+        # mask_target[mask_target == (self.num_classes - 1)] = 0
 
-        N = mask_pred.shape[0]
-        wrap_dict['aji'] = 0.
-        for i in range(N):
-            aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
-            wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
-        # distributed environment requires cuda tensor
-        wrap_dict['aji'] /= N
-        wrap_dict['aji'] = wrap_dict['aji'].cuda()
+        # N = mask_pred.shape[0]
+        # wrap_dict['aji'] = 0.
+        # for i in range(N):
+        #     aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
+        #     wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
+        # # distributed environment requires cuda tensor
+        # wrap_dict['aji'] /= N
+        # wrap_dict['aji'] = wrap_dict['aji'].cuda()
 
         return wrap_dict

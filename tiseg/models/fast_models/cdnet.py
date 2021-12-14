@@ -1,10 +1,8 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from tiseg.utils import resize
-from tiseg.utils.evaluation.metrics import aggregated_jaccard_index
 from ..backbones import TorchVGG16BN
 from ..heads.cd_head import CDHead
 from ..builder import SEGMENTORS
@@ -301,20 +299,20 @@ class CDNetSegmentor(BaseSegmentor):
         wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_gt, self.num_classes)
         wrap_dict['dir_tiou'] = tiou(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
-        # metric calculate
-        mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
-        mask_pred[mask_pred == (self.num_classes - 1)] = 0
-        mask_target = mask_gt.cpu().numpy().astype(np.uint8)
-        mask_target[mask_target == (self.num_classes - 1)] = 0
+        # NOTE: training aji calculation metric calculate (This will be deprecated.)
+        # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
+        # mask_pred[mask_pred == (self.num_classes - 1)] = 0
+        # mask_target = mask_gt.cpu().numpy().astype(np.uint8)
+        # mask_target[mask_target == (self.num_classes - 1)] = 0
 
-        N = mask_pred.shape[0]
-        wrap_dict['aji'] = 0.
-        for i in range(N):
-            aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
-            wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
-        # distributed environment requires cuda tensor
-        wrap_dict['aji'] /= N
-        wrap_dict['aji'] = wrap_dict['aji'].cuda()
+        # N = mask_pred.shape[0]
+        # wrap_dict['aji'] = 0.
+        # for i in range(N):
+        #     aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
+        #     wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
+        # # distributed environment requires cuda tensor
+        # wrap_dict['aji'] /= N
+        # wrap_dict['aji'] = wrap_dict['aji'].cuda()
 
         return wrap_dict
 
