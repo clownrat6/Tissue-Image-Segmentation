@@ -21,7 +21,7 @@ class RU(nn.Module):
     def __init__(self, in_dims, out_dims, norm_cfg=dict(type='BN'), act_cfg=dict(type='ReLU')):
         super().__init__()
 
-        # NOTE: inplace wise relu
+        # NOTE: inplace wise relu can largely save gpu memory cost.
         real_act_cfg = dict()
         real_act_cfg['inplace'] = True
         real_act_cfg.update(act_cfg)
