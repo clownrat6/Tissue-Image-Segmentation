@@ -1,6 +1,70 @@
 import torch
 
-from ...datasets.utils import label_to_vector
+label_to_vector_mapping = {
+    4: [[-1, -1], [-1, 1], [1, 1], [1, -1]],
+    5: [[0, 0], [-1, -1], [-1, 1], [1, 1], [1, -1]],
+    8: [[0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1]],
+    9: [[0, 0], [0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1]],
+    16: [[0, -2], [-1, -2], [-2, -2], [-2, -1], [-2, 0], [-2, 1], [-2, 2], [-1, 2], [0, 2], [1, 2], [2, 2], [2, 1],
+         [2, 0], [2, -1], [2, -2], [1, -2]],
+    17: [[0, 0], [0, -2], [-1, -2], [-2, -2], [-2, -1], [-2, 0], [-2, 1], [-2, 2], [-1, 2], [0, 2], [1, 2], [2, 2],
+         [2, 1], [2, 0], [2, -1], [2, -2], [1, -2]],
+    32: [
+        [0, -4],
+        [-1, -4],
+        [-2, -4],
+        [-3, -4],
+        [-4, -4],
+        [-4, -3],
+        [-4, -2],
+        [-4, -1],
+        [-4, 0],
+        [-4, 1],
+        [-4, 2],
+        [-4, 3],
+        [-4, 4],
+        [-3, 4],
+        [-2, 4],
+        [-1, 4],
+        [0, 4],
+        [1, 4],
+        [2, 4],
+        [3, 4],
+        [4, 4],
+        [4, 3],
+        [4, 2],
+        [4, 1],
+        [4, 0],
+        [4, -1],
+        [4, -2],
+        [4, -3],
+        [4, -4],
+        [3, -4],
+        [2, -4],
+        [1, -4],
+    ]
+}
+
+
+def label_to_vector(dir_map, num_classes=8):
+
+    assert isinstance(dir_map, torch.Tensor)
+
+    mapping = label_to_vector_mapping[num_classes]
+    offset_h = torch.zeros_like(dir_map)
+    offset_w = torch.zeros_like(dir_map)
+
+    for idx, (hdir, wdir) in enumerate(mapping):
+        mask = dir_map == idx
+        offset_h[mask] = hdir
+        offset_w[mask] = wdir
+
+    # vertical, horizontal direction concat
+    vector_map = torch.stack([offset_h, offset_w], dim=-1)
+    # NHWC -> NCHW
+    vector_map = vector_map.permute(0, 3, 1, 2).to(dir_map.device)
+
+    return vector_map
 
 
 def circshift(matrix, shift_vertical, shift_horizontal):

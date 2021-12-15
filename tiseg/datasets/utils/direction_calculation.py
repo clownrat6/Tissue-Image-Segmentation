@@ -1,18 +1,14 @@
 import numpy as np
-import torch
 
 label_to_vector_mapping = {
     4: [[-1, -1], [-1, 1], [1, 1], [1, -1]],
     5: [[0, 0], [-1, -1], [-1, 1], [1, 1], [1, -1]],
     8: [[0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1]],
-    9: [[0, 0], [0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0],
-        [1, -1]],
-    16: [[0, -2], [-1, -2], [-2, -2], [-2, -1], [-2, 0], [-2, 1], [-2, 2],
-         [-1, 2], [0, 2], [1, 2], [2, 2], [2, 1], [2, 0], [2, -1], [2, -2],
-         [1, -2]],
-    17: [[0, 0], [0, -2], [-1, -2], [-2, -2], [-2, -1], [-2, 0], [-2, 1],
-         [-2, 2], [-1, 2], [0, 2], [1, 2], [2, 2], [2, 1], [2, 0], [2, -1],
-         [2, -2], [1, -2]],
+    9: [[0, 0], [0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1]],
+    16: [[0, -2], [-1, -2], [-2, -2], [-2, -1], [-2, 0], [-2, 1], [-2, 2], [-1, 2], [0, 2], [1, 2], [2, 2], [2, 1],
+         [2, 0], [2, -1], [2, -2], [1, -2]],
+    17: [[0, 0], [0, -2], [-1, -2], [-2, -2], [-2, -1], [-2, 0], [-2, 1], [-2, 2], [-1, 2], [0, 2], [1, 2], [2, 2],
+         [2, 1], [2, 0], [2, -1], [2, -2], [1, -2]],
     32: [
         [0, -4],
         [-1, -4],
@@ -64,8 +60,7 @@ def align_angle(angle_map, num_classes=8):
 
     for i in range(1, num_classes):
         middle = -180 + step * i
-        mask = (angle_map > (middle - step / 2)) & (
-            angle_map <= (middle + step / 2))
+        mask = (angle_map > (middle - step / 2)) & (angle_map <= (middle + step / 2))
         new_angle_map[mask] = middle
         angle_index_map[mask] = i
 
@@ -73,6 +68,7 @@ def align_angle(angle_map, num_classes=8):
 
 
 def angle_to_vector(angle_map, num_classes=8):
+
     assert isinstance(angle_map, np.ndarray)
 
     vector_map = np.zeros((*angle_map.shape, 2), dtype=np.float)
@@ -89,10 +85,8 @@ def angle_to_vector(angle_map, num_classes=8):
     return vector_map
 
 
-def angle_to_direction_label(angle_map,
-                             seg_label_map=None,
-                             num_classes=8,
-                             extra_ignore_mask=None):
+def angle_to_direction_label(angle_map, seg_label_map=None, num_classes=8, extra_ignore_mask=None):
+
     assert isinstance(angle_map, np.ndarray)
     assert isinstance(seg_label_map, np.ndarray) or seg_label_map is None
 
@@ -124,11 +118,11 @@ def vector_to_label(vector_map, num_classes=8):
 
 def label_to_vector(dir_map, num_classes=8):
 
-    assert isinstance(dir_map, torch.Tensor)
+    assert isinstance(dir_map, np.ndarray)
 
     mapping = label_to_vector_mapping[num_classes]
-    offset_h = torch.zeros_like(dir_map)
-    offset_w = torch.zeros_like(dir_map)
+    offset_h = np.zeros_like(dir_map)
+    offset_w = np.zeros_like(dir_map)
 
     for idx, (hdir, wdir) in enumerate(mapping):
         mask = dir_map == idx
@@ -136,8 +130,8 @@ def label_to_vector(dir_map, num_classes=8):
         offset_w[mask] = wdir
 
     # vertical, horizontal direction concat
-    vector_map = torch.stack([offset_h, offset_w], dim=-1)
+    vector_map = np.stack([offset_h, offset_w], axis=-1)
     # NHWC -> NCHW
-    vector_map = vector_map.permute(0, 3, 1, 2).to(dir_map.device)
+    vector_map = vector_map.transpose(0, 3, 1, 2)
 
     return vector_map
