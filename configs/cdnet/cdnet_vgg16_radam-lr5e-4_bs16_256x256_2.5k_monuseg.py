@@ -34,13 +34,14 @@ model = dict(
     type='CDNetSegmentor',
     # model training and testing settings
     num_classes=3,
-    train_cfg=dict(if_weighted_loss=True, if_ddm=True, if_mudslide=True),
+    train_cfg=dict(if_weighted_loss=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
         crop_size=(256, 256),
         overlap_size=(80, 80),
-        use_ddm=True,
+        if_ddm=True,
+        if_mudslide=True,
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),

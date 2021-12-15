@@ -72,8 +72,7 @@ def main():
         init_dist(args.launcher, **cfg.dist_params)
 
     # build the model and load checkpoint
-    cfg.model.train_cfg = None
-    model = build_segmentor(cfg.model, test_cfg=cfg.get('test_cfg'))
+    model = build_segmentor(cfg.model, train_cfg=cfg.get('train_cfg'), test_cfg=cfg.get('test_cfg'))
     _ = load_checkpoint(model, args.checkpoint, map_location='cpu')
 
     if not isinstance(cfg.data.test, list):
