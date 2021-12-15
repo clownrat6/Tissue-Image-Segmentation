@@ -256,7 +256,7 @@ class CDNetSegmentor(BaseSegmentor):
         # Assign weight map for each pixel position
         mask_ce_loss = mask_ce_loss_calculator(mask_logit, mask_gt)
         if weight_map is not None:
-            mask_ce_loss *= weight_map
+            mask_ce_loss *= weight_map[:, 0]
         mask_ce_loss = torch.mean(mask_ce_loss)
         mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_gt)
         # loss weight
@@ -274,7 +274,7 @@ class CDNetSegmentor(BaseSegmentor):
         # Assign weight map for each pixel position
         dir_ce_loss = dir_ce_loss_calculator(dir_logit, dir_gt)
         if weight_map is not None:
-            dir_ce_loss *= weight_map
+            dir_ce_loss *= weight_map[:, 0]
         dir_ce_loss = torch.mean(dir_ce_loss)
         dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
         # loss weight

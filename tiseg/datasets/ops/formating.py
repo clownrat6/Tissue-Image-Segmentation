@@ -57,6 +57,12 @@ def format_reg(reg):
     return reg
 
 
+def format_(map_):
+    map_ = DC(to_tensor(map_), stack=True)
+
+    return map_
+
+
 def format_info(info):
     info = DC(info, cpu_only=True)
 
