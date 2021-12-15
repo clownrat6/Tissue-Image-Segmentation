@@ -22,6 +22,9 @@ class CDNetSegmentor(BaseSegmentor):
         self.num_classes = num_classes
         self.num_angles = 8
 
+        # argument
+        self.if_weighted_loss = self.train_cfg.get('if_weighted_loss', False)
+
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = CDHead(
             num_classes=self.num_classes,
@@ -56,6 +59,7 @@ class CDNetSegmentor(BaseSegmentor):
             mask_gt = label['sem_gt_w_bound']
             point_gt = label['point_gt']
             dir_gt = label['dir_gt']
+            weight_map = label['loss_weight_map'] if self.if_weighted_loss else None
 
             loss = dict()
 
@@ -64,10 +68,10 @@ class CDNetSegmentor(BaseSegmentor):
 
             # TODO: Conside to remove some edge loss value.
             # mask branch loss calculation
-            mask_loss = self._mask_loss(mask_logit, mask_gt)
+            mask_loss = self._mask_loss(mask_logit, mask_gt, weight_map)
             loss.update(mask_loss)
             # direction branch loss calculation
-            dir_loss = self._dir_loss(dir_logit, dir_gt)
+            dir_loss = self._dir_loss(dir_logit, dir_gt, weight_map)
             loss.update(dir_loss)
             # point branch loss calculation
             point_loss = self._point_loss(point_logit, point_gt)
@@ -245,13 +249,15 @@ class CDNetSegmentor(BaseSegmentor):
 
         return sem_logit, dir_logit, point_logit
 
-    def _mask_loss(self, mask_logit, mask_gt):
+    def _mask_loss(self, mask_logit, mask_gt, weight_map=None):
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
         mask_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_classes)
         # Assign weight map for each pixel position
-        # mask_loss *= weight_map
-        mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_gt))
+        mask_ce_loss = mask_ce_loss_calculator(mask_logit, mask_gt)
+        if weight_map is not None:
+            mask_ce_loss *= weight_map
+        mask_ce_loss = torch.mean(mask_ce_loss)
         mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_gt)
         # loss weight
         alpha = 1
@@ -261,11 +267,15 @@ class CDNetSegmentor(BaseSegmentor):
 
         return mask_loss
 
-    def _dir_loss(self, dir_logit, dir_gt):
+    def _dir_loss(self, dir_logit, dir_gt, weight_map=None):
         dir_loss = {}
         dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
         dir_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_angles + 1)
-        dir_ce_loss = torch.mean(dir_ce_loss_calculator(dir_logit, dir_gt))
+        # Assign weight map for each pixel position
+        dir_ce_loss = dir_ce_loss_calculator(dir_logit, dir_gt)
+        if weight_map is not None:
+            dir_ce_loss *= weight_map
+        dir_ce_loss = torch.mean(dir_ce_loss)
         dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
         # loss weight
         alpha = 1

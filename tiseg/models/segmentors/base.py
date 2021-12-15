@@ -53,6 +53,14 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
 
     @abstractmethod
     def calculate(self, img):
+        """Calculate the semantic logit result."""
+        pass
+
+    @abstractmethod
+    def forward(self, **kwargs):
+        """When training, the module is required to return loss dict. When
+        evaluation, the module is required to return instance-level or
+        semantic-level results."""
         pass
 
     def train_step(self, data_batch, optimizer, **kwargs):

@@ -4,6 +4,7 @@ from scipy.ndimage.morphology import distance_transform_edt
 from skimage import morphology
 
 from ..utils import (angle_to_vector, calculate_centerpoint, calculate_gradient, vector_to_label)
+from ...models.utils import generate_direction_differential_map
 
 
 class GenBound:
@@ -118,15 +119,27 @@ class DirectionLabelMake(object):
         results['sem_gt_w_bound'] = sem_map_w_bound
 
         # point map calculation & gradient map calculation
-        point_map, gradient_map = self.calculate_point_map(inst_map)
+        point_map, gradient_map, dist_map = self.calculate_point_map(inst_map)
 
         # direction map calculation
         dir_map = self.calculate_dir_map(inst_map, gradient_map)
+        weight_map = self.calculate_weight_map(dir_map, dist_map)
+        weight_map = weight_map * 10
 
         results['point_gt'] = point_map
         results['dir_gt'] = dir_map
+        results['loss_weight_map'] = weight_map
 
         return results
+
+    def calculate_weight_map(self, dir_map, dist_map):
+        # torch style api
+        dd_map = generate_direction_differential_map(dir_map, self.num_angle_types + 1)
+        dd_map = dd_map[0].numpy()
+        weight_map = dd_map * (1 - dist_map)
+        weight_map = morphology.dilation(dd_map, selem=morphology.selem.disk(1))
+
+        return weight_map
 
     def calculate_dir_map(self, instance_map, gradient_map):
         # Prepare for gradient map & direction map calculation
@@ -177,7 +190,7 @@ class DirectionLabelMake(object):
         # Use gaussian filter to process center point map
         point_map_gaussian = gaussian_filter(point_map * 255, sigma=2, order=0).astype(np.float32)
 
-        return point_map_gaussian, gradient_map
+        return point_map_gaussian, gradient_map, distance_to_center_map
 
     def calculate_distance_to_center(self, single_instance_map, center):
         H, W = single_instance_map.shape[:2]

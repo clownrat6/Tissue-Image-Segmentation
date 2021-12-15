@@ -48,6 +48,9 @@ label_to_vector_mapping = {
 
 def label_to_vector(dir_map, num_classes=8):
 
+    if not isinstance(dir_map, torch.Tensor):
+        dir_map = torch.tensor(dir_map[None, ...])
+
     assert isinstance(dir_map, torch.Tensor)
 
     mapping = label_to_vector_mapping[num_classes]
@@ -64,7 +67,7 @@ def label_to_vector(dir_map, num_classes=8):
     # NHWC -> NCHW
     vector_map = vector_map.permute(0, 3, 1, 2).to(dir_map.device)
 
-    return vector_map
+    return vector_map, dir_map
 
 
 def circshift(matrix, shift_vertical, shift_horizontal):
@@ -91,14 +94,14 @@ def circshift(matrix, shift_vertical, shift_horizontal):
 # TODO: regularize variable name and add doc string
 def generate_direction_differential_map(dir_map, direction_classes=9):
     # label_to_vector requires NxHxW (torch.Tensor) or HxW (numpy.ndarry)
-    vector_map = label_to_vector(dir_map, direction_classes)
+    vector_map, dir_map = label_to_vector(dir_map, direction_classes)
     # Only support batch size == 1
     # Nx2xHxW (2: vertical and horizontal)
     vector_anchor = vector_map.float()
 
     N, _, H, W = vector_anchor.shape
     # Cosine Similarity Map
-    cos_sim_map = torch.zeros((N, H, W), dtype=torch.float32, device=dir_map.device)
+    cos_sim_map = torch.zeros((N, H, W), dtype=torch.float32, device=vector_map.device)
 
     feature_list = []
     # Only support 8 direction now
@@ -131,7 +134,7 @@ def generate_direction_differential_map(dir_map, direction_classes=9):
 
     cos_sim_map_single_direction = torch.zeros((N, direction_classes - 1, H, W),
                                                dtype=torch.float32,
-                                               device=dir_map.device)
+                                               device=vector_map.device)
     for k, feature_item in enumerate(feature_list):
         numerator = (
             vector_anchor[:, 0, :, :] * feature_item[:, 0, :, :] + vector_anchor[:, 1, :, :] * feature_item[:, 1, :, :])
