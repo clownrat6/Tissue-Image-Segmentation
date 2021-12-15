@@ -24,8 +24,8 @@ class CDNetSegmentor(BaseSegmentor):
 
         # argument
         self.if_weighted_loss = self.train_cfg.get('if_weighted_loss', False)
-        self.if_ddm = self.train_cfg.get('if_ddm', False)
-        self.if_mudslide = self.train_cfg.get('if_mudslide', False)
+        self.if_ddm = self.test_cfg.get('if_ddm', False)
+        self.if_mudslide = self.test_cfg.get('if_mudslide', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = CDHead(
