@@ -24,6 +24,8 @@ class CDNetSegmentor(BaseSegmentor):
 
         # argument
         self.if_weighted_loss = self.train_cfg.get('if_weighted_loss', False)
+        self.if_ddm = self.train_cfg.get('if_ddm', False)
+        self.if_mudslide = self.train_cfg.get('if_mudslide', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = CDHead(
@@ -93,7 +95,10 @@ class CDNetSegmentor(BaseSegmentor):
             dir_map = list(dir_map)
             ret_list = []
             for seg, dir in zip(seg_pred, dir_map):
-                ret_list.append({'sem_pred': seg, 'dir_pred': dir})
+                ret_dict = {'sem_pred': seg}
+                if self.if_mudslide:
+                    ret_dict['dir_pred'] = dir
+                ret_list.append(ret_dict)
             return ret_list
 
     def inference(self, img, meta, rescale):
@@ -147,7 +152,8 @@ class CDNetSegmentor(BaseSegmentor):
         dd_map = sum(dd_map_list) / len(dd_map_list)
         point_logit = sum(point_logit_list) / len(point_logit_list)
 
-        sem_logit = self._ddm_enhencement(sem_logit, dd_map, point_logit)
+        if self.if_ddm:
+            sem_logit = self._ddm_enhencement(sem_logit, dd_map, point_logit)
 
         return sem_logit, dir_map_list[0]
 

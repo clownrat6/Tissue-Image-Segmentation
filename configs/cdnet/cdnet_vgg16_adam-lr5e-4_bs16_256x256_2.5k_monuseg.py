@@ -34,7 +34,7 @@ model = dict(
     type='CDNetSegmentor',
     # model training and testing settings
     num_classes=3,
-    train_cfg=dict(if_weighted_loss=True, ),
+    train_cfg=dict(if_weighted_loss=True, if_ddm=True, if_mudslide=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
