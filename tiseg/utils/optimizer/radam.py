@@ -48,7 +48,7 @@ class RAdam(Optimizer):
                 beta1, beta2 = group['betas']
 
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-                exp_avg.mul_(beta1).add_(grad, value=1 - beta1)
+                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
 
                 state['step'] += 1
                 buffered = self.buffer[int(state['step'] % 10)]
@@ -140,7 +140,7 @@ class RAdam_4step(Optimizer):
                 state['step'] += 1
 
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-                exp_avg.mul_(beta1).add_(grad, value=1 - beta1)
+                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
 
                 if state['step'] > 0:
                     # since this exp requires exactly 4 step, it is hard coded
