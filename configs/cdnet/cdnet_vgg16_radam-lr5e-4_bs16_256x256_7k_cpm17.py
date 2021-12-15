@@ -3,19 +3,21 @@ _base_ = [
     '../_base_/default_runtime.py',
 ]
 
+log_config = dict(interval=30)
+
 # runtime settings
 runner = dict(type='IterBasedRunner', max_iters=7000)
 
 evaluation = dict(
-    interval=50,
-    eval_start=6000,
+    interval=30,
+    eval_start=6700,
     metric='all',
     save_best='Aji',
     rule='greater',
 )
 checkpoint_config = dict(
     by_epoch=False,
-    interval=50,
+    interval=500,
     max_keep_ckpts=1,
 )
 

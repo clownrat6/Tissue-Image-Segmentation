@@ -7,15 +7,15 @@ _base_ = [
 runner = dict(type='IterBasedRunner', max_iters=2500)
 
 evaluation = dict(
-    interval=50,
-    eval_start=2000,
+    interval=10,
+    eval_start=2400,
     metric='all',
     save_best='Aji',
     rule='greater',
 )
 checkpoint_config = dict(
     by_epoch=False,
-    interval=50,
+    interval=500,
     max_keep_ckpts=1,
 )
 
