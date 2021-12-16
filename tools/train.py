@@ -34,7 +34,7 @@ def parse_args():
         '--gpu-ids', type=int, nargs='+', help='ids of gpus to use '
         '(only applicable to non-distributed training)')
     # Set pytorch initial seed and cudnn op selection
-    parser.add_argument('--seed', type=int, default=2021, help='random seed')
+    parser.add_argument('--seed', type=int, help='random seed')
     # parser.add_argument(
     #     '--deterministic', action='store_true', help='whether to set deterministic options for CUDNN backend.')
     # Manual set some config option
@@ -107,14 +107,17 @@ def main():
 
     # set random seeds
     if args.seed is not None:
-        torch.manual_seed(args.seed)
-        torch.cuda.manual_seed_all(args.seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
         logger.info(f'Set random seed to {args.seed}, deterministic: True')
         # If seed is fixed and deterministic is False, the training
         # results is surely reproducibility
         # set_random_seed(args.seed, deterministic=args.deterministic)
+    else:
+        args.seed = 2021
+        torch.manual_seed(args.seed)
+        torch.cuda.manual_seed_all(args.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
     cfg.seed = args.seed
     meta['seed'] = args.seed
     meta['exp_name'] = osp.basename(args.config)
