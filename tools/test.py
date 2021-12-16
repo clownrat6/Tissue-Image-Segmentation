@@ -16,12 +16,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description='test (and eval) a model')
     parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
-    parser.add_argument(
-        '--eval',
-        type=str,
-        nargs='+',
-        help='evaluation metrics, which depends on the dataset, e.g., "mIoU"'
-        ' for generic datasets, and "cityscapes" for Cityscapes')
     parser.add_argument('--eval-options', nargs='+', action=DictAction, help='custom options for evaluation')
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], default='none', help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
@@ -74,16 +68,15 @@ def main():
 
         if not distributed:
             model = MMDataParallel(model, device_ids=[0])
-            results = single_gpu_test(model, data_loader, pre_eval=args.eval is not None)
+            results = single_gpu_test(model, data_loader, pre_eval=True)
         else:
             model = MMDistributedDataParallel(
                 model.cuda(), device_ids=[torch.cuda.current_device()], broadcast_buffers=False)
-            results = multi_gpu_test(model, data_loader, args.gpu_collect, pre_eval=args.eval is not None)
+            results = multi_gpu_test(model, data_loader, pre_eval=True)
 
         rank, _ = get_dist_info()
         if rank == 0:
-            if args.eval:
-                dataset.evaluate(results, args.eval, **eval_kwargs)
+            dataset.evaluate(results, **eval_kwargs)
 
 
 if __name__ == '__main__':

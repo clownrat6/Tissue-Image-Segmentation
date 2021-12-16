@@ -29,7 +29,11 @@ def single_gpu_test(model, data_loader, pre_eval=False, pre_eval_args={}):
     prog_bar = mmcv.ProgressBar(len(dataset))
     loader_indices = data_loader.batch_sampler
 
+    count = 0
     for batch_indices, data in zip(loader_indices, data_loader):
+        count += 1
+        if count > 20:
+            break
         with torch.no_grad():
             result = model(**data)
 
@@ -47,27 +51,15 @@ def single_gpu_test(model, data_loader, pre_eval=False, pre_eval_args={}):
     return results
 
 
-def multi_gpu_test(model, data_loader, gpu_collect=False, pre_eval=False, pre_eval_args={}):
+def multi_gpu_test(model, data_loader, pre_eval=False, pre_eval_args={}):
     """Test model with multiple gpus by progressive mode.
-
-    This method tests model with multiple gpus and collects the results
-    under two different modes: gpu and cpu modes. By setting 'gpu_collect=True'
-    it encodes results to gpu tensors and use gpu communication for results
-    collection. On cpu mode it saves the results on different gpus to 'tmpdir'
-    and collects them by the rank 0 worker.
 
     Args:
         model (nn.Module): Model to be tested.
         data_loader (utils.data.Dataloader): Pytorch data loader.
-        gpu_collect (bool): Option to use either gpu or cpu to collect results.
-            Default: False.
         pre_eval (bool): Use dataset.pre_eval() function to generate
             pre_results for metric evaluation. Mutually exclusive with
             efficient_test and format_results. Default: False.
-        format_only (bool): Only format result for results commit.
-            Mutually exclusive with pre_eval and efficient_test.
-            Default: False.
-        format_args (dict): The args for format_results. Default: {}.
 
     Returns:
         list: list of evaluation pre-results or list of save file names.
@@ -110,6 +102,8 @@ def multi_gpu_test(model, data_loader, gpu_collect=False, pre_eval=False, pre_ev
                 prog_bar.update()
 
     # collect results from all ranks
+    # NOTE: GPU memory is really expensive
+    gpu_collect = False
     if gpu_collect:
         results = collect_results_gpu(results, len(dataset))
     else:

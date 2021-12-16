@@ -43,7 +43,7 @@ model = dict(
         crop_size=(256, 256),
         overlap_size=(80, 80),
         if_ddm=True,
-        if_mudslide=False,
+        if_mudslide=True,
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),

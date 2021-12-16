@@ -175,17 +175,19 @@ class NucleiCoNICDataset(Dataset):
             inst_gt = re_instance(inst_gt)
 
             # metric calculation post process codes:
-            sem_pred = pred
+            sem_pred = pred['sem_pred']
             # remove edge
-            sem_pred[sem_pred == (len(self.CLASSES) - 1)] = 0
-
+            sem_pred[sem_pred == len(self.CLASSES)] = 0
             # model-agnostic post process operations
             sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
-            precision_metric, recall_metric = precision_recall(sem_pred, sem_gt, len(self.CLASSES))[1:]
-            dice_metric = dice_similarity_coefficient(sem_pred, sem_gt, 2)[1:]
+            precision_metric, recall_metric = precision_recall(sem_pred, sem_gt, len(self.CLASSES))
+            precision_metric = precision_metric[1:]
+            recall_metric = recall_metric[1:]
+            dice_metric = dice_similarity_coefficient(sem_pred, sem_gt, len(self.CLASSES))
+            dice_metric = dice_metric[1:]
 
             # instance metric calculation
             aji_metric = aggregated_jaccard_index(inst_pred, inst_gt, is_semantic=False)
@@ -221,7 +223,7 @@ class NucleiCoNICDataset(Dataset):
 
         return sem_pred, inst_pred
 
-    def evaluate(self, results, metric='all', logger=None, dump_path=None, **kwargs):
+    def evaluate(self, results, logger=None, **kwargs):
         """Evaluate the dataset.
 
         Args:
@@ -237,14 +239,6 @@ class NucleiCoNICDataset(Dataset):
             dict[str, float]: Default metrics.
         """
 
-        if isinstance(metric, str):
-            metric = [metric]
-        if 'all' in metric:
-            metric = ['IoU', 'Dice', 'Precision', 'Recall']
-        allowed_metrics = ['IoU', 'Dice', 'Precision', 'Recall']
-        if not set(metric).issubset(set(allowed_metrics)):
-            raise KeyError('metric {} is not supported'.format(metric))
-
         ret_metrics = {}
         # list to dict
         for result in results:
@@ -254,54 +248,63 @@ class NucleiCoNICDataset(Dataset):
                 else:
                     ret_metrics[key].append(value)
 
+        inst_eval = ['Aji']
+        sem_eval = ['IoU', 'Dice', 'Precision', 'Recall']
+        inst_metrics = {}
+        sem_metrics = {}
         # calculate average metric
-        assert 'name' in ret_metrics
-        name_list = ret_metrics.pop('name')
-        name_list.append('Average')
         for key in ret_metrics.keys():
             # XXX: Using average value may have lower metric value than using
             # confused matrix.
-            # average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-            if key in metric:
-                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-            elif key == 'Aji':
-                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+            average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+            if key in inst_eval:
+                inst_metrics[key] = average_value
+            elif key in sem_eval:
+                sem_metrics[key] = average_value
 
-            ret_metrics[key].append(average_value)
-            ret_metrics[key] = np.array(ret_metrics[key])
+        # semantic table
+        classes_metrics = OrderedDict()
+        classes_sem_metrics = OrderedDict({sem_key: np.round(value * 100, 2) for sem_key, value in sem_metrics.items()})
+        classes_inst_metrics = OrderedDict()
 
-        # for logger
-        ret_metrics_items = OrderedDict(
-            {ret_metric: np.round(ret_metric_value * 100, 2)
-             for ret_metric, ret_metric_value in ret_metrics.items()})
-        ret_metrics_items.update({'name': name_list})
-        ret_metrics_items.move_to_end('name', last=False)
-        items_table_data = PrettyTable()
-        for key, val in ret_metrics_items.items():
-            items_table_data.add_column(key, val)
+        classes_metrics.update(classes_sem_metrics)
+        classes_metrics.update(classes_inst_metrics)
+        classes_metrics.update({'classes': self.CLASSES[1:]})
+        classes_metrics.move_to_end('classes', last=False)
 
-        print_log('Per samples:', logger)
-        print_log('\n' + items_table_data.get_string(), logger=logger)
+        classes_table_data = PrettyTable()
+        for key, val in classes_metrics.items():
+            classes_table_data.add_column(key, val)
 
-        # dump to txt
-        if dump_path is not None:
-            fp = open(f'{dump_path}', 'w')
-            fp.write(items_table_data.get_string())
+        # total table
+        total_metrics = OrderedDict()
+        sem_total_metrics = OrderedDict(
+            {sem_key: np.round(np.mean(value) * 100, 2)
+             for sem_key, value in sem_metrics.items()})
+        inst_total_metrics = OrderedDict(
+            {inst_key: np.round(value * 100, 2)
+             for inst_key, value in inst_metrics.items()})
+
+        total_metrics.update(sem_total_metrics)
+        total_metrics.update(inst_total_metrics)
+
+        total_table_data = PrettyTable()
+        for key, val in total_metrics.items():
+            total_table_data.add_column(key, [val])
+
+        print_log('Per classes:', logger)
+        print_log('\n' + classes_table_data.get_string(), logger=logger)
+        print_log('Total:', logger)
+        print_log('\n' + total_table_data.get_string(), logger=logger)
 
         eval_results = {}
         # average results
-        if 'Aji' in ret_metrics:
-            eval_results['Aji'] = ret_metrics['Aji'][-1]
-        if 'Dice' in ret_metrics:
-            eval_results['Dice'] = ret_metrics['Dice'][-1]
-        if 'Recall' in ret_metrics:
-            eval_results['Recall'] = ret_metrics['Recall'][-1]
-        if 'Precision' in ret_metrics:
-            eval_results['Precision'] = ret_metrics['Precision'][-1]
+        for k, v in total_metrics.items():
+            eval_results['m' + k] = v
 
-        ret_metrics_items.pop('name', None)
-        for key, value in ret_metrics_items.items():
-            eval_results.update({key + '.' + str(name): f'{value[idx]:.3f}' for idx, name in enumerate(name_list)})
+        classes = classes_metrics.pop('classes', None)
+        for key, value in classes_metrics.items():
+            eval_results.update({key + '.' + str(name): f'{value[idx]:.3f}' for idx, name in enumerate(classes)})
 
         # This ret value is used for eval hook. Eval hook will add these
         # evaluation info to runner.log_buffer.output. Then when the
