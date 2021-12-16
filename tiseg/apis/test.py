@@ -29,11 +29,7 @@ def single_gpu_test(model, data_loader, pre_eval=False, pre_eval_args={}):
     prog_bar = mmcv.ProgressBar(len(dataset))
     loader_indices = data_loader.batch_sampler
 
-    count = 0
     for batch_indices, data in zip(loader_indices, data_loader):
-        count += 1
-        if count > 20:
-            break
         with torch.no_grad():
             result = model(**data)
 
