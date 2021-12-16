@@ -29,7 +29,7 @@ def analysis_func(labels):
     cell_count = 0
     slice_cell_area = []
     slice_count = 0
-    class_idx = 6
+    class_idx = 1
     for j in range(labels.shape[0]):
         inst = labels[j, :, :, 0]
         sem = labels[j, :, :, 1]
@@ -44,9 +44,9 @@ def analysis_func(labels):
             cell_area.append(np.sum(inst == cell_id))
         # calculate cell average area in a slice.
         sum_val = np.sum(sem == class_idx)
-        slice_cell_area.append(sum_val)
         if sum_val > 0:
             slice_count += 1
+            slice_cell_area.append(sum_val)
 
     print('single average cell area:', sum(cell_area) / len(cell_area))
     print('single average slice cell area:', sum(slice_cell_area) / len(slice_cell_area))
@@ -68,6 +68,9 @@ def main():
 
     print('Images Shape:', images.shape)
     print('Labels Shape:', labels.shape)
+
+    analysis_func(labels)
+    exit(0)
 
     total_indices = list(range(images.shape[0]))
     random.shuffle(total_indices)
