@@ -2,7 +2,7 @@
 
 ## Dataset Prepare
 
-Please check [this doc](docs/dataset_prepare.md)
+Please check [this doc](docs/data_prepare.md)
 
 Supported Dataset:
 
@@ -10,7 +10,7 @@ Supported Dataset:
 - [x] CoNSeP;
 - [x] CPM17;
 - [x] OSCD;
-- [x] COCO;
+- [x] CoNIC;
 
 ## Installation
 
@@ -37,9 +37,8 @@ python tools/train.py configs/cdnet/cdnet_vgg16_adam-lr1e-3_8x1_256x256_80k_cart
 Support Model:
 
 - [x] UNet
-- [x] UPerNet
 - [x] CDNet
 
 ## Thanks
 
-This repo follow the design mode of [mmsegmentation](https://github.com/open-mmlab/mmsegmentation). You see this repo as the son of [mmsegmentation](https://github.com/open-mmlab/mmsegmentation).
+This repo follow the design mode of [mmsegmentation](https://github.com/open-mmlab/mmsegmentation) & [detectron2](https://github.com/facebookresearch/detectron2).
