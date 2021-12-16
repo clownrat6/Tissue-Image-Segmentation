@@ -14,7 +14,7 @@ from skimage import measure, morphology
 from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
-from tiseg.utils.evaluation.metrics import (aggregated_jaccard_index, dice_similarity_coefficient, precision_recall)
+from tiseg.utils import (aggregated_jaccard_index, dice_similarity_coefficient, precision_recall)
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
 from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground
