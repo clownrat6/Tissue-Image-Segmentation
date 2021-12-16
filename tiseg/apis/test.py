@@ -4,7 +4,7 @@ from mmcv.engine import collect_results_cpu, collect_results_gpu
 from mmcv.runner import get_dist_info
 
 
-def single_gpu_test(model, data_loader, pre_eval=False, format_only=False, format_args={}, pre_eval_args={}):
+def single_gpu_test(model, data_loader, pre_eval=False, pre_eval_args={}):
     """Test with single GPU by progressive mode.
 
     Args:
@@ -21,9 +21,6 @@ def single_gpu_test(model, data_loader, pre_eval=False, format_only=False, forma
     """
     # when none of them is set true, return segmentation results as
     # a list of np.array.
-    assert [pre_eval, format_only].count(True) <= 1, \
-        '``pre_eval`` and ``format_only`` are mutually ' \
-        'exclusive, only one of them could be true .'
 
     model.eval()
     results = []
@@ -36,8 +33,6 @@ def single_gpu_test(model, data_loader, pre_eval=False, format_only=False, forma
         with torch.no_grad():
             result = model(**data)
 
-        if format_only:
-            result = dataset.format_results(result, indices=batch_indices, **format_args)
         if pre_eval:
             # TODO: adapt samples_per_gpu > 1.
             # only samples_per_gpu=1 valid now
@@ -52,13 +47,7 @@ def single_gpu_test(model, data_loader, pre_eval=False, format_only=False, forma
     return results
 
 
-def multi_gpu_test(model,
-                   data_loader,
-                   gpu_collect=False,
-                   pre_eval=False,
-                   format_only=False,
-                   format_args={},
-                   pre_eval_args={}):
+def multi_gpu_test(model, data_loader, gpu_collect=False, pre_eval=False, pre_eval_args={}):
     """Test model with multiple gpus by progressive mode.
 
     This method tests model with multiple gpus and collects the results
@@ -86,9 +75,6 @@ def multi_gpu_test(model,
 
     # when none of them is set true, return segmentation results as
     # a list of np.array.
-    assert [pre_eval, format_only].count(True) <= 1, \
-        '``pre_eval`` and ``format_only`` are mutually ' \
-        'exclusive, only one of them could be true .'
 
     model.eval()
     results = []
@@ -111,8 +97,6 @@ def multi_gpu_test(model,
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **data)
 
-        if format_only:
-            result = dataset.format_results(result, indices=batch_indices, **format_args)
         if pre_eval:
             # TODO: adapt samples_per_gpu > 1.
             # only samples_per_gpu=1 valid now

@@ -341,7 +341,7 @@ class NucleiCustomDataset(Dataset):
 
         return sem_pred, inst_pred, fore_pred
 
-    def evaluate(self, results, metric='all', logger=None, dump_path=None, **kwargs):
+    def evaluate(self, results, metric='all', logger=None, **kwargs):
         """Evaluate the dataset.
 
         Args:
@@ -350,8 +350,6 @@ class NucleiCustomDataset(Dataset):
                 'Dice' are supported.
             logger (logging.Logger | None | str): Logger used for printing
                 related information during evaluation. Default: None.
-            dump_path (str | None, optional): The dump path of each item
-                evaluation results. Default: None
 
         Returns:
             dict[str, float]: Default metrics.
@@ -402,11 +400,6 @@ class NucleiCustomDataset(Dataset):
 
         print_log('Per samples:', logger)
         print_log('\n' + items_table_data.get_string(), logger=logger)
-
-        # dump to txt
-        if dump_path is not None:
-            fp = open(f'{dump_path}', 'w')
-            fp.write(items_table_data.get_string())
 
         eval_results = {}
         # average results

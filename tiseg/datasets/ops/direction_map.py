@@ -44,7 +44,7 @@ class GenBound:
         """
 
         sem_map_w_bound = np.zeros_like(sem_map)
-        sem_map_w_bound += sem_map > 0
+        sem_map_w_bound += sem_map
 
         # NOTE: sem_map must match inst_map
         assert np.allclose(sem_map > 0, inst_map > 0)
@@ -103,7 +103,7 @@ class DirectionLabelMake(object):
         results = {}
 
         sem_map_w_bound = np.zeros_like(sem_map)
-        sem_map_w_bound += sem_map > 0
+        sem_map_w_bound += sem_map
 
         # NOTE: sem_map must match inst_map
         assert np.allclose(sem_map > 0, inst_map > 0)
