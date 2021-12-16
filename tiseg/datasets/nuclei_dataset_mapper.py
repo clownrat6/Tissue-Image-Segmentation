@@ -52,7 +52,7 @@ class NucleiDatasetMapper(object):
         # monuseg dataset tissue image mean & std
         nuclei_mean = [0.68861804, 0.46102882, 0.61138992]
         nuclei_std = [0.19204499, 0.20979484, 0.1658672]
-        self.normalizer = Normalize(nuclei_mean, nuclei_std) if self.if_norm else lambda x: x / 255
+        self.normalizer = Normalize(nuclei_mean, nuclei_std, self.if_norm)
 
     def __call__(self, data_info):
         data_info = copy.deepcopy(data_info)

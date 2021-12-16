@@ -387,12 +387,14 @@ class RandomBlur(object):
 class Normalize(object):
     """z-score standardization."""
 
-    def __init__(self, mean, std):
+    def __init__(self, mean, std, if_zscore=False):
         self.mean = mean
         self.std = std
+        self.if_zscore = if_zscore
 
     def __call__(self, img):
         img = img / 255.
-        img = (img - self.mean) / (self.std)
+        if self.if_zscore:
+            img = (img - self.mean) / (self.std)
 
         return img

@@ -341,7 +341,7 @@ class NucleiCustomDataset(Dataset):
 
         return sem_pred, inst_pred, fore_pred
 
-    def evaluate(self, results, metric='all', logger=None, **kwargs):
+    def evaluate(self, results, logger=None, **kwargs):
         """Evaluate the dataset.
 
         Args:
@@ -354,14 +354,6 @@ class NucleiCustomDataset(Dataset):
         Returns:
             dict[str, float]: Default metrics.
         """
-
-        if isinstance(metric, str):
-            metric = [metric]
-        if 'all' in metric:
-            metric = ['IoU', 'Dice', 'Precision', 'Recall']
-        allowed_metrics = ['IoU', 'Dice', 'Precision', 'Recall']
-        if not set(metric).issubset(set(allowed_metrics)):
-            raise KeyError('metric {} is not supported'.format(metric))
 
         ret_metrics = {}
         # list to dict
@@ -379,11 +371,7 @@ class NucleiCustomDataset(Dataset):
         for key in ret_metrics.keys():
             # XXX: Using average value may have lower metric value than using
             # confused matrix.
-            # average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-            if key in metric:
-                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-            elif key == 'Aji':
-                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+            average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
 
             ret_metrics[key].append(average_value)
             ret_metrics[key] = np.array(ret_metrics[key])
