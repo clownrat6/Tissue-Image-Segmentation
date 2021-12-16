@@ -44,7 +44,7 @@ class NucleiDatasetMapper(object):
         self.edge_id = process_cfg['edge_id']
 
         self.color_jitter = ColorJitter() if self.if_jitter else Identity()
-        self.flipper = RandomFlip(prob=0.5, direction=['horizontal', 'vertical']) if self.if_flip else Identity()
+        self.flipper = RandomFlip(prob=0.5, direction=['horizontal']) if self.if_flip else Identity()
         self.deformer = RandomElasticDeform(prob=0.5) if self.if_elastic else Identity()
         self.bluer = RandomBlur(prob=0.5) if self.if_blur else Identity()
         self.cropper = RandomCrop((self.min_size, self.min_size)) if self.if_crop else Identity()

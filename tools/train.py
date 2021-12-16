@@ -11,7 +11,7 @@ from mmcv.runner import init_dist
 from mmcv.utils import Config, DictAction, get_git_hash, collect_env, get_logger
 
 from tiseg import __version__
-from tiseg.apis import set_random_seed, train_segmentor
+from tiseg.apis import train_segmentor
 from tiseg.datasets import build_dataset
 from tiseg.models import build_segmentor
 from tiseg.models.utils import revert_sync_batchnorm
@@ -34,9 +34,9 @@ def parse_args():
         '--gpu-ids', type=int, nargs='+', help='ids of gpus to use '
         '(only applicable to non-distributed training)')
     # Set pytorch initial seed and cudnn op selection
-    parser.add_argument('--seed', type=int, default=None, help='random seed')
-    parser.add_argument(
-        '--deterministic', action='store_true', help='whether to set deterministic options for CUDNN backend.')
+    parser.add_argument('--seed', type=int, default=2021, help='random seed')
+    # parser.add_argument(
+    #     '--deterministic', action='store_true', help='whether to set deterministic options for CUDNN backend.')
     # Manual set some config option
     parser.add_argument('--options', nargs='+', action=DictAction, help='custom options')
     # Set runtime launcher. If launcher is not None, we will use MMDDP；
@@ -107,10 +107,14 @@ def main():
 
     # set random seeds
     if args.seed is not None:
-        logger.info(f'Set random seed to {args.seed}, deterministic: ' f'{args.deterministic}')
+        torch.manual_seed(args.seed)
+        torch.cuda.manual_seed_all(args.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        logger.info(f'Set random seed to {args.seed}, deterministic: True')
         # If seed is fixed and deterministic is False, the training
         # results is surely reproducibility
-        set_random_seed(args.seed, deterministic=args.deterministic)
+        # set_random_seed(args.seed, deterministic=args.deterministic)
     cfg.seed = args.seed
     meta['seed'] = args.seed
     meta['exp_name'] = osp.basename(args.config)
