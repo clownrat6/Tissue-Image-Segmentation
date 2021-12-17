@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 from .ops import (ColorJitter, DirectionLabelMake, Identity, GenBound, RandomBlur, RandomFlip, RandomElasticDeform,
-                  RandomCrop, Normalize, format_img, format_info, format_reg, format_seg)
+                  RandomCrop, Normalize, Pad, format_img, format_info, format_reg, format_seg)
 
 
 def read_image(path):
@@ -29,13 +29,13 @@ class NucleiDatasetMapper(object):
         self.test_mode = test_mode
 
         # training argument
-        self.if_flip = process_cfg['if_flip']
-        self.if_jitter = process_cfg['if_jitter']
-        self.if_elastic = process_cfg['if_elastic']
-        self.if_blur = process_cfg['if_blur']
-        self.if_crop = process_cfg['if_crop']
-        self.if_norm = process_cfg['if_norm']
-        self.with_dir = process_cfg['with_dir']
+        self.if_flip = process_cfg.get('if_flip', False)
+        self.if_jitter = process_cfg.get('if_jitter', False)
+        self.if_elastic = process_cfg.get('if_elastic', False)
+        self.if_blur = process_cfg.get('if_blur', False)
+        self.if_crop = process_cfg.get('if_crop', False)
+        self.if_pad = process_cfg.get('if_pad', False)
+        self.if_norm = process_cfg.get('if_norm', False)
 
         self.min_size = process_cfg['min_size']
         self.max_size = process_cfg['max_size']
@@ -48,6 +48,7 @@ class NucleiDatasetMapper(object):
         self.deformer = RandomElasticDeform(prob=0.5) if self.if_elastic else Identity()
         self.bluer = RandomBlur(prob=0.5) if self.if_blur else Identity()
         self.cropper = RandomCrop((self.min_size, self.min_size)) if self.if_crop else Identity()
+        self.padder = Pad(self.min_size) if self.if_pad else Identity()
         self.label_maker = DirectionLabelMake(edge_id=self.edge_id) if self.with_dir else GenBound(edge_id=self.edge_id)
         # monuseg dataset tissue image mean & std
         nuclei_mean = [0.68861804, 0.46102882, 0.61138992]
@@ -78,8 +79,8 @@ class NucleiDatasetMapper(object):
             img, segs = self.deformer(img, segs)
             img = self.bluer(img)
             img, segs = self.cropper(img, segs)
+            img, segs = self.padder(img, segs)
             img = self.normalizer(img)
-
             sem_seg = segs[0]
             inst_seg = segs[1]
         else:

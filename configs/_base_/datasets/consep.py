@@ -7,6 +7,7 @@ process_cfg = dict(
     if_elastic=True,
     if_blur=True,
     if_crop=True,
+    if_pad=True,
     if_norm=False,
     with_dir=False,
     min_size=256,

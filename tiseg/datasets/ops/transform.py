@@ -398,3 +398,33 @@ class Normalize(object):
             img = (img - self.mean) / (self.std)
 
         return img
+
+
+class Pad(object):
+    """Pad image."""
+
+    def __init__(self, pad_size):
+
+        if isinstance(pad_size, int):
+            self.pad_size = (pad_size, pad_size)
+        else:
+            self.pad_size = pad_size
+
+    def __call__(self, img, segs):
+        h, w = img.shape[:2]
+
+        pad_h = max(self.pad_size[0], h) - h
+        pad_w = max(self.pad_size[1], w) - w
+
+        img_canvas = np.zeros((h + pad_h, w + pad_w, 3), dtype=img.dtype)
+        img_canvas[pad_h // 2:pad_h // 2 + h, pad_w // 2:pad_w // 2 + w, :] = img
+        img = img_canvas
+
+        new_segs = []
+        for seg in segs:
+            seg_canvas = np.zeros((h + pad_h, w + pad_w), dtype=seg.dtype)
+            seg_canvas[pad_h // 2:pad_h // 2 + h, pad_w // 2:pad_w // 2 + w] = seg
+
+            new_segs.append(seg_canvas)
+
+        return img, new_segs
