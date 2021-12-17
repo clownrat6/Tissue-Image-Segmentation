@@ -157,83 +157,50 @@ class CDNetSegmentor(BaseSegmentor):
 
         return sem_logit, dir_map_list[0]
 
-    def split_axes(self, window_size, overlap_size, height, width):
-        ws = window_size
-        os = overlap_size
-
-        i_axes = [0]
-        j_axes = [0]
-        cur = 0
-        edge_base = ws - os // 2
-        middle_base = ws - os
-        while True:
-            if cur == 0:
-                cur += edge_base
-            else:
-                cur += middle_base
-
-            i_axes.append(cur)
-            j_axes.append(cur)
-
-            if cur + edge_base == height:
-                i_axes.append(cur + edge_base)
-            if cur + edge_base == width:
-                j_axes.append(cur + edge_base)
-
-            if i_axes[-1] == height and j_axes[-1] == width:
-                break
-
-        return i_axes, j_axes
-
     def split_inference(self, img, meta, rescale):
-        ws = self.test_cfg.crop_size[0]
-        os = self.test_cfg.overlap_size[0]
+        """using half-and-half strategy to slide inference."""
+        window_size = self.test_cfg.crop_size[0]
+        overlap_size = self.test_cfg.overlap_size[0]
 
         B, C, H, W = img.shape
 
         # zero pad for border patches
         pad_h = 0
-        pad_w = 0
-        if H - ws > 0:
-            pad_h = (ws - os) - (H - ws) % (ws - os)
+        if H - window_size > 0:
+            pad_h = (window_size - overlap_size) - (H - window_size) % (window_size - overlap_size)
+        else:
+            pad_h = window_size - H
 
-        if W - ws > 0:
-            pad_w = (ws - os) - (W - ws) % (ws - os)
+        if W - window_size > 0:
+            pad_w = (window_size - overlap_size) - (W - window_size) % (window_size - overlap_size)
+        else:
+            pad_w = window_size - W
 
-        H1 = pad_h + H
-        W1 = pad_w + W
-
+        H1, W1 = pad_h + H, pad_w + W
         img_canvas = torch.zeros((B, C, H1, W1), dtype=img.dtype, device=img.device)
-        img_canvas.fill_(0)
         img_canvas[:, :, pad_h // 2:pad_h // 2 + H, pad_w // 2:pad_w // 2 + W] = img
 
-        _, _, H1, W1 = img_canvas.shape
         sem_logit = torch.zeros((B, self.num_classes, H1, W1), dtype=img.dtype, device=img.device)
         dir_logit = torch.zeros((B, self.num_angles + 1, H1, W1), dtype=img.dtype, device=img.device)
         point_logit = torch.zeros((B, 1, H1, W1), dtype=img.dtype, device=img.device)
+        for i in range(0, H1 - overlap_size, window_size - overlap_size):
+            r_end = i + window_size if i + window_size < H1 else H1
+            ind1_s = i + overlap_size // 2 if i > 0 else 0
+            ind1_e = (i + window_size - overlap_size // 2 if i + window_size < H1 else H1)
+            for j in range(0, W1 - overlap_size, window_size - overlap_size):
+                c_end = j + window_size if j + window_size < W1 else W1
 
-        i_axes, j_axes = self.split_axes(ws, os, H1, W1)
-
-        for i in range(len(i_axes) - 1):
-            for j in range(len(j_axes) - 1):
-                r_patch_s = i_axes[i] if i == 0 else i_axes[i] - os // 2
-                r_patch_e = r_patch_s + ws
-                c_patch_s = j_axes[j] if j == 0 else j_axes[j] - os // 2
-                c_patch_e = c_patch_s + ws
-                img_patch = img_canvas[:, :, r_patch_s:r_patch_e, c_patch_s:c_patch_e]
+                img_patch = img_canvas[:, :, i:r_end, j:c_end]
                 sem_patch, dir_patch, point_patch = self.calculate(img_patch)
 
-                # patch overlap remove
-                r_valid_s = i_axes[i] - r_patch_s
-                r_valid_e = i_axes[i + 1] - r_patch_s
-                c_valid_s = j_axes[j] - c_patch_s
-                c_valid_e = j_axes[j + 1] - c_patch_s
-                sem_patch = sem_patch[:, :, r_valid_s:r_valid_e, c_valid_s:c_valid_e]
-                dir_patch = dir_patch[:, :, r_valid_s:r_valid_e, c_valid_s:c_valid_e]
-                point_patch = point_patch[:, :, r_valid_s:r_valid_e, c_valid_s:c_valid_e]
-                sem_logit[:, :, i_axes[i]:i_axes[i + 1], j_axes[j]:j_axes[j + 1]] = sem_patch
-                dir_logit[:, :, i_axes[i]:i_axes[i + 1], j_axes[j]:j_axes[j + 1]] = dir_patch
-                point_logit[:, :, i_axes[i]:i_axes[i + 1], j_axes[j]:j_axes[j + 1]] = point_patch
+                ind2_s = j + overlap_size // 2 if j > 0 else 0
+                ind2_e = (j + window_size - overlap_size // 2 if j + window_size < W1 else W1)
+                sem_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = sem_patch[:, :, ind1_s - i:ind1_e - i,
+                                                                          ind2_s - j:ind2_e - j]
+                dir_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = dir_patch[:, :, ind1_s - i:ind1_e - i,
+                                                                          ind2_s - j:ind2_e - j]
+                point_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = point_patch[:, :, ind1_s - i:ind1_e - i,
+                                                                              ind2_s - j:ind2_e - j]
 
         sem_logit = sem_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
         dir_logit = dir_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
