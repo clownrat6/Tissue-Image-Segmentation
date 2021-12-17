@@ -1,6 +1,6 @@
-"""# image w/o instance annotations.
+"""# img w/o instance annotations.
 
-| image_id | split | image_filename |
+| img_id | split | img_filename |
 | :--  | :-- | :-- |
 | 161  | train | net (13004).jpg |
 | 293  | train | net (6405).jpg  |
@@ -29,16 +29,16 @@
 | 603  | val   | net (2001).jpg  |
 | 984  | val   | net (16065).jpg |
 
-# image has error polygon
+# img has error polygon
 
-| image_id | split | image_filename |
+| img_id | split | img_filename |
 | :--  | :--   | :--            |
 | 4858 | train | net (2941).jpg |
 | 5356 | train | net (1909).jpg |
 
-image json has error height, width
+img json has error height, width
 
-| image id | split | image_filename |
+| img id | split | img_filename |
 | :--  | :--   | :--             |
 | 4361 | train | net (957).jpg   |
 | 4781 | train | net (2954).jpg  |
@@ -49,18 +49,16 @@ image json has error height, width
 """
 
 import argparse
-import json
 import os
 import os.path as osp
+import math
 import random
-import shutil
 from functools import partial
 
 import mmcv
 import numpy as np
 from PIL import Image
-from pycocotools import _mask as mask
-from skimage import morphology
+from pycocotools import mask, coco
 
 cyan_color_list = [
     (0, 0, 0),
@@ -97,116 +95,126 @@ def polygon_to_mask(polygon, height, width, path=None):
     return ann_mask
 
 
-def pillow_save(image, path=None, palette=None):
-    image = Image.fromarray(image)
+def pillow_save(img, path=None, palette=None):
+    img = Image.fromarray(img)
 
     if palette is not None:
-        image = image.convert('P')
-        image.putpalette(palette)
+        img = img.convert('P')
+        img.putpalette(palette)
 
     if path is not None:
-        image.save(path)
+        img.save(path)
 
-    return image
+    return img
 
 
-def convert_single_image(task, src_image_folder, image_folder, ann_folder):
-    image_item, instance_items = task
+def crop_patches(image, c_size):
+    h, w = image.shape[:2]
+    patches = []
 
-    image_filename = image_item['file_name']
-    image_name = osp.splitext(image_filename)[0]
-    # read real image data from image_path to correct error image height &
-    # width
-    image_path = osp.join(src_image_folder, image_filename)
-    image = Image.open(image_path)
-    iheight, iwidth = image.height, image.width
-    height, width = image_item['height'], image_item['width']
+    if h % c_size == 0:
+        h_overlap = 0
+    else:
+        div = h // c_size
+        h_overlap = math.ceil(((div + 1) * c_size - h) / div)
+
+    if w % c_size == 0:
+        w_overlap = 0
+    else:
+        div = w // c_size
+        w_overlap = math.ceil(((div + 1) * c_size - w) / div)
+
+    for i in range(0, h - c_size + 1, c_size - h_overlap):
+        for j in range(0, w - c_size + 1, c_size - w_overlap):
+            patch = image[i:i + c_size, j:j + c_size]
+            patches.append(patch)
+
+    return patches
+
+
+def convert_single_img(task, src_img_folder, img_folder, ann_folder, c_size):
+    if not osp.exists(img_folder):
+        os.makedirs(img_folder, 0o775)
+
+    if not osp.exists(ann_folder):
+        os.makedirs(ann_folder, 0o775)
+
+    imgs, anns = task
+
+    img_filename = imgs['file_name']
+    img_name = osp.splitext(img_filename)[0]
+    # read real img data from img_path to correct error img height & width
+    img_path = osp.join(src_img_folder, img_filename)
+    img = Image.open(img_path)
+    iheight, iwidth = img.height, img.width
+    height, width = imgs['height'], imgs['width']
 
     if iheight != height or iwidth != width:
         height = iheight
         width = iwidth
-
-    instances_json = {
-        'imgHeight': height,
-        'imgWidth': width,
-        'imgName': image_name,
-        'objects': []
-    }
+    img = np.array(img)
 
     instance_canvas = np.zeros((height, width), dtype=np.int64)
     semantic_canvas = np.zeros((height, width), dtype=np.uint8)
-    semantic_edge_canvas = np.zeros((height, width), dtype=np.uint8)
-    for idx, instance_item in enumerate(instance_items):
-        cat_id = instance_item['category_id']
+    for idx, ann in enumerate(anns):
+        cat_id = ann['category_id']
         # extract polygons & bounding boxes
         object_json = {}
-        object_json['label'] = CLASSES[instance_item['category_id']]
-        object_json['polygon'] = instance_item['segmentation']
-        object_json['bbox'] = instance_item['bbox']
+        object_json['label'] = CLASSES[ann['category_id']]
+        object_json['polygon'] = ann['segmentation']
+        object_json['bbox'] = ann['bbox']
         # polygon may have error format.
         if len(object_json['polygon'][0]) == 4:
             continue
-        instances_json['objects'].append(object_json)
 
         # instance mask conversion
-        instance_mask = np.array(
-            polygon_to_mask(instance_item['segmentation'], height, width))
+        instance_mask = np.array(polygon_to_mask(ann['segmentation'], height, width))
 
-        instance_canvas[instance_mask > 0] = cat_id * 1000 + idx + 1
+        instance_canvas[instance_mask > 0] = idx + 1
         semantic_canvas[instance_mask > 0] = cat_id
-        semantic_edge_canvas[instance_mask > 0] = cat_id
-        bound = morphology.dilation(
-            instance_mask, morphology.selem.disk(1)) & (
-                ~morphology.erosion(instance_mask, morphology.selem.disk(1)))
-        semantic_edge_canvas[bound > 0] = EDGE_ID
 
     # save instance label & semantic label & polygon
-    instance_ann_filename = image_name + '_instance.npy'
-    semantic_ann_filename = image_name + '_semantic.png'
-    semantic_edge_ann_filename = image_name + '_semantic_with_edge.png'
-    polygon_ann_filename = image_name + '_polygon.json'
-    semantic_palette = np.array([(0, 0, 0), (255, 2, 255), (2, 255, 255)],
-                                dtype=np.uint8)
+    semantic_palette = np.array([(0, 0, 0), (255, 2, 255), (2, 255, 255)], dtype=np.uint8)
 
-    # instance label storage
-    np.save(osp.join(ann_folder, instance_ann_filename), instance_canvas)
+    # split map into patches
+    if c_size != 0:
+        image_patches = crop_patches(img, c_size)
+        instance_patches = crop_patches(instance_canvas, c_size)
+        semantic_patches = crop_patches(semantic_canvas, c_size)
 
-    # semantic label storage
-    pillow_save(
-        semantic_canvas,
-        path=osp.join(ann_folder, semantic_ann_filename),
-        palette=semantic_palette)
-    pillow_save(
-        semantic_edge_canvas,
-        path=osp.join(ann_folder, semantic_edge_ann_filename),
-        palette=semantic_palette)
+        assert len(image_patches) == len(instance_patches) == len(semantic_patches)
 
-    with open(osp.join(ann_folder, polygon_ann_filename), 'w') as fp:
-        fp.write(json.dumps(instances_json, indent=4))
+        item_len = len(image_patches)
+        # record patch item name
+        sub_name_list = [f'{img_name}_{i}' for i in range(item_len)]
+    else:
+        image_patches = [img]
+        instance_patches = [instance_canvas]
+        semantic_patches = [semantic_canvas]
+        # record patch item name
+        sub_name_list = [img_name]
 
-    # save image
-    src_image_path = osp.join(src_image_folder, image_filename)
-    image_path = osp.join(image_folder, image_filename)
-    shutil.copy(src_image_path, image_path)
+    # patch storage
+    patch_batches = zip(image_patches, instance_patches, semantic_patches)
+    for patch, sub_item in zip(patch_batches, sub_name_list):
+        # jump when exists
+        if osp.exists(osp.join(img_folder, sub_item + '.png')):
+            continue
+        # save image
+        pillow_save(patch[0], osp.join(img_folder, sub_item + '.png'))
+        # save instance level label
+        np.save(osp.join(ann_folder, sub_item + '_instance.npy'), patch[1])
+        # save semantic level label
+        pillow_save(patch[2], osp.join(ann_folder, sub_item + '_semantic.png'), semantic_palette)
 
-    return image_name
+    return sub_name_list
 
 
 def parse_args():
     parser = argparse.ArgumentParser('SCD dataset conversion')
     parser.add_argument('dataset_root', help='The root path of dataset.')
     parser.add_argument(
-        '-r',
-        '--re-generate',
-        action='store_true',
-        help='restart a dataset conversion.')
-    parser.add_argument(
-        '-a',
-        '--ann-folder',
-        default=None,
-        help='The annotation save folder path')
-    parser.add_argument(
-        '-n', '--nproc', default=1, type=int, help='The number of process.')
+        '-c', '--crop-size', type=int, default=0, help='the crop size of fix crop in dataset convertion operation')
 
     return parser.parse_args()
 
@@ -214,100 +222,59 @@ def parse_args():
 def main():
     args = parse_args()
     dataset_root = args.dataset_root
+    crop_size = args.crop_size
+
+    img_base_folder = osp.join(dataset_root, 'images')
+    ann_base_folder = osp.join(dataset_root, 'annotations')
 
     split_list = ['train', 'val']
 
     for split in split_list:
-        # image source & annotation source
-        src_image_folder = osp.join(
-            dataset_root,
-            f'OSCD/coco_carton/oneclass_carton/images/{split}2017/')
-        src_ann_json = osp.join(
-            dataset_root, ('OSCD/coco_carton/oneclass_carton/annotations/'
-                           f'instances_{split}2017.json'))
+        # img source & annotation source
+        src_img_folder = osp.join(dataset_root, f'coco_carton/oneclass_carton/images/{split}2017/')
+        src_ann_json = osp.join(dataset_root, ('coco_carton/oneclass_carton/annotations/'
+                                               f'instances_{split}2017.json'))
 
-        image_folder = osp.join(dataset_root, 'images')
-        ann_folder = args.ann_folder or osp.join(dataset_root, 'annotations')
+        src_ann_json = coco.COCO(src_ann_json)
 
-        if not osp.exists(image_folder):
-            os.makedirs(image_folder, 0o775)
+        img_ids = src_ann_json.getImgIds()
+        imgs = src_ann_json.loadImgs(img_ids)
+        anns = [src_ann_json.loadAnns(src_ann_json.getAnnIds(imgIds=[img_id])) for img_id in img_ids]
 
-        if not osp.exists(ann_folder):
-            os.makedirs(ann_folder, 0o775)
-
-        src_ann_json = json.load(open(src_ann_json, 'r'))
-
-        images = src_ann_json['images']
-        instances = src_ann_json['annotations']
-
-        # make hash map between image and instances
-        image_dict = {}
-        for image in images:
-            image_dict[image['id']] = image
-        instance_dict = {}
-        image_to_instances_dict = {}
-        for instance in instances:
-            instance_id = instance['id']
-            related_image_id = instance['image_id']
-
-            instance_dict[instance_id] = instance
-            if related_image_id not in image_to_instances_dict:
-                image_to_instances_dict[related_image_id] = [instance_id]
-            else:
-                image_to_instances_dict[related_image_id].append(instance_id)
-
-        # define single loop job
-        loop_job = partial(
-            convert_single_image,
-            src_image_folder=src_image_folder,
-            image_folder=image_folder,
-            ann_folder=ann_folder,
-        )
-
-        image_ids = image_dict.keys()
-        # Whether re-generate whole dataset or not.
-        if args.re_generate:
-            miss_ids = image_ids
-            image_names = []
+        if split == 'train':
+            img_folder = osp.join(img_base_folder, f'c{crop_size}')
+            ann_folder = osp.join(ann_base_folder, f'c{crop_size}')
+            # define single loop job
+            loop_job = partial(
+                convert_single_img,
+                src_img_folder=src_img_folder,
+                img_folder=img_folder,
+                ann_folder=ann_folder,
+                c_size=crop_size,
+            )
         else:
-            miss_ids = []
-            image_names = []
-            # check existed images
-            for image_id in image_ids:
-                image_item = image_dict[image_id]
-                image_filename = image_item['file_name']
-                image_name = osp.splitext(image_filename)[0]
-                image_path = osp.join(image_folder, image_filename)
-                if not osp.exists(image_path):
-                    miss_ids.append(image_id)
-                else:
-                    image_names.append(image_name)
+            img_folder = osp.join(img_base_folder, 'c0')
+            ann_folder = osp.join(ann_base_folder, 'c0')
+            # define single loop job
+            loop_job = partial(
+                convert_single_img,
+                src_img_folder=src_img_folder,
+                img_folder=img_folder,
+                ann_folder=ann_folder,
+                c_size=0,
+            )
 
-        # make multi-threads loop tasks
-        images = [image_dict[image_id] for image_id in miss_ids]
-        image_related_instances = []
-        for image_id in miss_ids:
-            if image_id in image_to_instances_dict:
-                image_related_instances.append([
-                    instance_dict[instance_id]
-                    for instance_id in image_to_instances_dict[image_id]
-                ])
-            else:
-                image_related_instances.append([])
+        tasks = list(zip(imgs, anns))
 
-        tasks = list(zip(images, image_related_instances))
+        # only build miss imgs & labels
+        records = mmcv.track_parallel_progress(loop_job, tasks, 4)
 
-        # only build miss images & labels
-        if args.nproc > 1:
-            records = mmcv.track_parallel_progress(loop_job, tasks, args.nproc)
-        else:
-            records = mmcv.track_progress(loop_job, tasks)
-
-        image_names.extend(records)
-
-        with open(f'{dataset_root}/{split}.txt', 'w') as fp:
-            for image_name in image_names:
-                fp.write(image_name + '\n')
+        img_names = []
+        [img_names.extend(names) for names in records]
+        real_crop_size = crop_size if split == 'train' else 0
+        with open(f'{dataset_root}/{split}_c{real_crop_size}.txt', 'w') as fp:
+            for img_name in img_names:
+                fp.write(img_name + '\n')
 
 
 if __name__ == '__main__':

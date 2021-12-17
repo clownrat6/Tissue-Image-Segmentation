@@ -4,6 +4,7 @@ from .nuclei_cpm17 import NucleiCPM17Dataset
 from .nuclei_custom import NucleiCustomDataset
 from .nuclei_monuseg import NucleiMoNuSegDataset
 from .nuclei_conic import NucleiCoNICDataset
+from .carton_oscd import CartonOSCDDataset
 
 __all__ = [
     'DATASETS',
@@ -15,4 +16,5 @@ __all__ = [
     'NucleiCoNSePDataset',
     'NucleiCustomDataset',
     'NucleiCoNICDataset',
+    'CartonOSCDDataset',
 ]
