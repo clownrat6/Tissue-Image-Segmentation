@@ -63,3 +63,6 @@ collect*/
 
 # root folder txt files
 /*.txt
+
+# jupyter notebook files
+.ipynb_checkpoint/
