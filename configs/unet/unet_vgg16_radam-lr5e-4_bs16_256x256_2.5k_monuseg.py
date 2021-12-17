@@ -7,8 +7,8 @@ _base_ = [
 runner = dict(type='IterBasedRunner', max_iters=2500)
 
 evaluation = dict(
-    interval=10,
-    eval_start=2400,
+    interval=100,
+    eval_start=1000,
     metric='all',
     save_best='Aji',
     rule='greater',
@@ -38,7 +38,7 @@ model = dict(
     test_cfg=dict(
         mode='split',
         crop_size=(256, 256),
-        overlap_size=(80, 80),
+        overlap_size=(40, 40),
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),

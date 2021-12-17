@@ -40,7 +40,7 @@ model = dict(
     test_cfg=dict(
         mode='split',
         crop_size=(256, 256),
-        overlap_size=(80, 80),
+        overlap_size=(40, 40),
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
