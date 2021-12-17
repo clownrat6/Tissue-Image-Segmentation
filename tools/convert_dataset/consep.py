@@ -56,7 +56,7 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path, crop_s
     label_path = osp.join(raw_label_folder, item + '.mat')
 
     # image & label extraction
-    image = np.array(Image.open(image_path))
+    image = np.array(Image.open(image_path))[:, :, :3]
     instance_label = convert_mat_to_array(label_path)
     semantic_label = (instance_label > 0).astype(np.uint8)
 
