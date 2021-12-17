@@ -8,7 +8,6 @@ import mmcv
 import numpy as np
 from PIL import Image
 from scipy.io import loadmat
-from skimage import morphology
 
 from tiseg.datasets.utils import colorize_seg_map
 
@@ -24,35 +23,6 @@ def convert_mat_to_array(mat, array_key='inst_map', save_path=None):
         pass
 
     return mat
-
-
-def convert_instance_to_semantic(instance_map, with_edge=True):
-    """Convert instance mask to semantic mask.
-
-    Args:
-        instances (numpy.ndarray): The mask contains each instances with
-            different label value.
-        with_edge (bool): Convertion with edge class label.
-
-    Returns:
-        mask (numpy.ndarray): mask contains two or three classes label
-            (background, nuclei)
-    """
-    H, W = instance_map.shape
-    semantic_map = np.zeros([H, W], dtype=np.uint8)
-    instance_id_list = list(np.unique(instance_map))
-    for id in instance_id_list:
-        if id == 0:
-            continue
-        single_instance_map = instance_map == id
-        if with_edge:
-            boundary = morphology.dilation(single_instance_map) & (~morphology.erosion(single_instance_map))
-            semantic_map += single_instance_map
-            semantic_map[boundary > 0] = 2
-        else:
-            semantic_map += single_instance_map
-
-    return semantic_map
 
 
 def pillow_save(save_path, array, palette=None):
@@ -119,17 +89,15 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path, crop_s
     # image & label extraction
     image = np.array(Image.open(image_path))
     instance_label = convert_mat_to_array(label_path)
-    semantic_label = convert_instance_to_semantic(instance_label, with_edge=False)
-    semantic_label_edge = convert_instance_to_semantic(instance_label, with_edge=True)
+    semantic_label = (instance_label > 0).astype(np.uint8)
 
     # split map into patches
     if crop_size != 0:
         image_patches = crop_patches(image, crop_size)
         instance_patches = crop_patches(instance_label, crop_size)
         semantic_patches = crop_patches(semantic_label, crop_size)
-        semantic_edge_patches = crop_patches(semantic_label_edge, crop_size)
 
-        assert len(image_patches) == len(instance_patches) == len(semantic_patches) == len(semantic_edge_patches)
+        assert len(image_patches) == len(instance_patches) == len(semantic_patches)
 
         item_len = len(image_patches)
         # record patch item name
@@ -138,12 +106,11 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path, crop_s
         image_patches = [image]
         instance_patches = [instance_label]
         semantic_patches = [semantic_label]
-        semantic_edge_patches = [semantic_label_edge]
         # record patch item name
         sub_item_list = [item]
 
     # patch storage
-    patch_batches = zip(image_patches, instance_patches, semantic_patches, semantic_edge_patches)
+    patch_batches = zip(image_patches, instance_patches, semantic_patches)
     for patch, sub_item in zip(patch_batches, sub_item_list):
         # jump when exists
         if osp.exists(osp.join(new_path, sub_item + '.png')):
@@ -158,11 +125,6 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path, crop_s
         palette[0, :] = (0, 0, 0)
         palette[1, :] = (255, 255, 2)
         pillow_save(osp.join(new_path, sub_item + '_semantic.png'), patch[2], palette)
-        palette = np.zeros((3, 3), dtype=np.uint8)
-        palette[0, :] = (0, 0, 0)
-        palette[1, :] = (255, 0, 0)
-        palette[2, :] = (0, 255, 0)
-        pillow_save(osp.join(new_path, sub_item + '_semantic_with_edge.png'), patch[3], palette)
 
     return {item: sub_item_list}
 

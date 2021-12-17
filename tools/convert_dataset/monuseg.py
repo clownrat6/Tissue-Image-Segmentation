@@ -9,31 +9,21 @@ import mmcv
 import numpy as np
 from lxml import etree
 from PIL import Image
-from skimage import morphology
 
 # dataset split
 split_dict = {
     'train': [
-        'TCGA-A7-A13E-01Z-00-DX1', 'TCGA-A7-A13F-01Z-00-DX1',
-        'TCGA-AR-A1AK-01Z-00-DX1', 'TCGA-B0-5711-01Z-00-DX1',
-        'TCGA-HE-7128-01Z-00-DX1', 'TCGA-HE-7129-01Z-00-DX1',
-        'TCGA-18-5592-01Z-00-DX1', 'TCGA-38-6178-01Z-00-DX1',
-        'TCGA-49-4488-01Z-00-DX1', 'TCGA-G9-6336-01Z-00-DX1',
-        'TCGA-G9-6348-01Z-00-DX1', 'TCGA-G9-6356-01Z-00-DX1'
+        'TCGA-A7-A13E-01Z-00-DX1', 'TCGA-A7-A13F-01Z-00-DX1', 'TCGA-AR-A1AK-01Z-00-DX1', 'TCGA-B0-5711-01Z-00-DX1',
+        'TCGA-HE-7128-01Z-00-DX1', 'TCGA-HE-7129-01Z-00-DX1', 'TCGA-18-5592-01Z-00-DX1', 'TCGA-38-6178-01Z-00-DX1',
+        'TCGA-49-4488-01Z-00-DX1', 'TCGA-G9-6336-01Z-00-DX1', 'TCGA-G9-6348-01Z-00-DX1', 'TCGA-G9-6356-01Z-00-DX1'
     ],
-    'val': [
-        'TCGA-AR-A1AS-01Z-00-DX1', 'TCGA-HE-7130-01Z-00-DX1',
-        'TCGA-50-5931-01Z-00-DX1', 'TCGA-G9-6363-01Z-00-DX1'
-    ],
+    'val': ['TCGA-AR-A1AS-01Z-00-DX1', 'TCGA-HE-7130-01Z-00-DX1', 'TCGA-50-5931-01Z-00-DX1', 'TCGA-G9-6363-01Z-00-DX1'],
     'test1': [
-        'TCGA-E2-A1B5-01Z-00-DX1', 'TCGA-E2-A14V-01Z-00-DX1',
-        'TCGA-B0-5710-01Z-00-DX1', 'TCGA-B0-5698-01Z-00-DX1',
-        'TCGA-21-5784-01Z-00-DX1', 'TCGA-21-5786-01Z-00-DX1',
-        'TCGA-CH-5767-01Z-00-DX1', 'TCGA-G9-6362-01Z-00-DX1'
+        'TCGA-E2-A1B5-01Z-00-DX1', 'TCGA-E2-A14V-01Z-00-DX1', 'TCGA-B0-5710-01Z-00-DX1', 'TCGA-B0-5698-01Z-00-DX1',
+        'TCGA-21-5784-01Z-00-DX1', 'TCGA-21-5786-01Z-00-DX1', 'TCGA-CH-5767-01Z-00-DX1', 'TCGA-G9-6362-01Z-00-DX1'
     ],
     'test2': [
-        'TCGA-DK-A2I6-01A-01-TS1', 'TCGA-G2-A2EK-01A-02-TSB',
-        'TCGA-AY-A8YK-01A-01-TS1', 'TCGA-NH-A8F7-01A-01-TS1',
+        'TCGA-DK-A2I6-01A-01-TS1', 'TCGA-G2-A2EK-01A-02-TSB', 'TCGA-AY-A8YK-01A-01-TS1', 'TCGA-NH-A8F7-01A-01-TS1',
         'TCGA-KB-A93J-01A-01-TS1', 'TCGA-RD-A8N9-01A-01-TS1'
     ]
 }
@@ -54,10 +44,7 @@ def extract_contours(path):
     for region in regions:
         points = []
         for point in region.xpath('Vertices/Vertex'):
-            points.append([
-                math.floor(float(point.attrib['X'])),
-                math.floor(float(point.attrib['Y']))
-            ])
+            points.append([math.floor(float(point.attrib['X'])), math.floor(float(point.attrib['Y']))])
 
         contours.append(np.array(points, dtype=np.int32))
     return contours
@@ -84,45 +71,8 @@ def convert_contour_to_instance(contours, height, width):
         # Compress value to avoid overflow
         red = 1 + index_value / 10
         red = float(f'{red:.2f}')
-        mask = cv2.drawContours(
-            mask, [contour], 0, (red, green, blue), thickness=cv2.FILLED)
+        mask = cv2.drawContours(mask, [contour], 0, (red, green, blue), thickness=cv2.FILLED)
         index_value = index_value + 1
-
-    return mask
-
-
-def convert_instance_to_semantic(instances,
-                                 height,
-                                 width,
-                                 num_contours,
-                                 with_edge=True):
-    """Convert instance mask to semantic mask.
-
-    Args:
-        instances (numpy.ndarray): The mask contains each instances with
-            different label value.
-        height (int): The height of mask.
-        width (int): The width of mask.
-        with_edge (bool): Convertion with edge class label.
-
-    Returns:
-        mask (numpy.ndarray): mask contains two or three classes label
-            (background, nuclei)
-    """
-    mask = np.zeros([height, width], dtype=np.uint8)
-    for i in range(num_contours):
-        value = 1 + i / 10
-        value = float(f'{value:.2f}')
-        single_instance_map = instances == value
-        if with_edge:
-            boundary = morphology.dilation(
-                single_instance_map,
-                morphology.selem.disk(1)) & (~morphology.erosion(
-                    single_instance_map, morphology.selem.disk(1)))
-            mask += single_instance_map
-            mask[boundary > 0] = 2
-        else:
-            mask += single_instance_map
 
     return mask
 
@@ -179,8 +129,7 @@ def crop_patches(image, c_size):
     return patches
 
 
-def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
-                      c_size):
+def parse_single_item(item, raw_image_folder, raw_label_folder, new_path, c_size):
     """meta process of single item data."""
 
     image_path = osp.join(raw_image_folder, item + '.tif')
@@ -191,20 +140,15 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
     H, W = image.shape[:2]
     contours = extract_contours(label_path)
     instance_label = convert_contour_to_instance(contours, H, W)
-    semantic_label = convert_instance_to_semantic(
-        instance_label, H, W, len(contours), with_edge=False)
-    semantic_label_edge = convert_instance_to_semantic(
-        instance_label, H, W, len(contours), with_edge=True)
+    semantic_label = (instance_label > 0).astype(np.uint8)
 
     # split map into patches
     if c_size != 0:
         image_patches = crop_patches(image, c_size)
         instance_patches = crop_patches(instance_label, c_size)
         semantic_patches = crop_patches(semantic_label, c_size)
-        semantic_edge_patches = crop_patches(semantic_label_edge, c_size)
 
-        assert len(image_patches) == len(instance_patches) == len(
-            semantic_patches) == len(semantic_edge_patches)
+        assert len(image_patches) == len(instance_patches) == len(semantic_patches)
 
         item_len = len(image_patches)
         # record patch item name
@@ -213,13 +157,11 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
         image_patches = [image]
         instance_patches = [instance_label]
         semantic_patches = [semantic_label]
-        semantic_edge_patches = [semantic_label_edge]
         # record patch item name
         sub_item_list = [item]
 
     # patch storage
-    patch_batches = zip(image_patches, instance_patches, semantic_patches,
-                        semantic_edge_patches)
+    patch_batches = zip(image_patches, instance_patches, semantic_patches)
     for patch, sub_item in zip(patch_batches, sub_item_list):
         # jump when exists
         if osp.exists(osp.join(new_path, sub_item + '.tif')):
@@ -230,17 +172,11 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path,
         np.save(osp.join(new_path, sub_item + '_instance.npy'), patch[1])
         # save semantic level label
         pillow_save(osp.join(new_path, sub_item + '_semantic.png'), patch[2])
-        pillow_save(
-            osp.join(new_path, sub_item + '_semantic_with_edge.png'), patch[3])
 
     return {item: sub_item_list}
 
 
-def convert_cohort(raw_image_folder,
-                   raw_label_folder,
-                   new_path,
-                   item_list,
-                   c_size=0):
+def convert_cohort(raw_image_folder, raw_label_folder, new_path, item_list, c_size=0):
     if not osp.exists(new_path):
         os.makedirs(new_path, 0o775)
 
@@ -264,11 +200,7 @@ def parse_args():
     parser.add_argument('root_path', help='dataset root path.')
     parser.add_argument('split', help='split mode selection.')
     parser.add_argument(
-        '-c',
-        '--crop-size',
-        type=int,
-        default=0,
-        help='the crop size of fix crop in dataset convertion operation')
+        '-c', '--crop-size', type=int, default=0, help='the crop size of fix crop in dataset convertion operation')
 
     return parser.parse_args()
 
@@ -281,8 +213,7 @@ def main():
 
     assert total_split in ['official', 'only-train_t16', 'only-train_t12_v4']
 
-    for split, name in [('train', 'MoNuSeg 2018 Training Data'),
-                        ('test', 'MoNuSegTestData')]:
+    for split, name in [('train', 'MoNuSeg 2018 Training Data'), ('test', 'MoNuSegTestData')]:
         raw_root = osp.join(root_path, 'monuseg', name)
 
         if split == 'train':
@@ -290,50 +221,33 @@ def main():
             raw_lbl_folder = osp.join(raw_root, 'Annotations')
             new_root = osp.join(root_path, split, f'c{c_size}')
 
-            item_list = [
-                x.rstrip('.tif') for x in os.listdir(raw_img_folder)
-                if '.tif' in x
-            ]
+            item_list = [x.rstrip('.tif') for x in os.listdir(raw_img_folder) if '.tif' in x]
 
-            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list,
-                           c_size)
+            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list, c_size)
             if c_size != 0:
                 new_root = osp.join(root_path, split, 'c0')
-                convert_cohort(raw_img_folder, raw_lbl_folder, new_root,
-                               item_list, 0)
+                convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list, 0)
         else:
             raw_img_folder = raw_root
             raw_lbl_folder = raw_root
             new_root = osp.join(root_path, split, 'c0')
 
-            item_list = [
-                x.rstrip('.tif') for x in os.listdir(raw_img_folder)
-                if '.tif' in x
-            ]
+            item_list = [x.rstrip('.tif') for x in os.listdir(raw_img_folder) if '.tif' in x]
 
-            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list,
-                           0)
+            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list, 0)
 
     train_img_folder = osp.join(root_path, 'train', f'c{c_size}')
     test_img_folder = osp.join(root_path, 'test', 'c0')
 
     if total_split == 'official':
-        train_item_list = [
-            x.rstrip('.tif') for x in os.listdir(train_img_folder)
-            if '.tif' in x
-        ]
+        train_item_list = [x.rstrip('.tif') for x in os.listdir(train_img_folder) if '.tif' in x]
         val_item_list = None
-        test_item_list = [
-            x.rstrip('.tif') for x in os.listdir(test_img_folder)
-            if '.tif' in x
-        ]
+        test_item_list = [x.rstrip('.tif') for x in os.listdir(test_img_folder) if '.tif' in x]
     elif total_split == 'only-train_t16':
         item_list = split_dict['train'] + split_dict['val']
         train_item_list = []
         for item in item_list:
-            name_list = [
-                x.rstrip('.tif') for x in os.listdir(train_img_folder)
-            ]
+            name_list = [x.rstrip('.tif') for x in os.listdir(train_img_folder)]
             for name in name_list:
                 if item in name and '_instance.npy' in name:
                     name = name.replace('_instance.npy', '')
@@ -344,9 +258,7 @@ def main():
         item_list = split_dict['train']
         train_item_list = []
         for item in item_list:
-            name_list = [
-                x.rstrip('.tif') for x in os.listdir(train_img_folder)
-            ]
+            name_list = [x.rstrip('.tif') for x in os.listdir(train_img_folder)]
             for name in name_list:
                 if item in name and '_instance.npy' in name:
                     name = name.replace('_instance.npy', '')
@@ -354,8 +266,7 @@ def main():
         val_item_list = split_dict['val']
         test_item_list = split_dict['test1'] + split_dict['test2']
 
-    with open(osp.join(root_path, f'{total_split}_train_c{c_size}.txt'),
-              'w') as fp:
+    with open(osp.join(root_path, f'{total_split}_train_c{c_size}.txt'), 'w') as fp:
         [fp.write(item + '\n') for item in train_item_list]
     with open(osp.join(root_path, f'{total_split}_test_c0.txt'), 'w') as fp:
         [fp.write(item + '\n') for item in test_item_list]

@@ -101,7 +101,6 @@ class NucleiCustomDataset(Dataset):
     The basic settings only supports two-class nuclei segmentation task.
 
     related suffix:
-        "_semantic_with_edge.png": three class semantic map with edge.
         "_semantic.png": raw semantic map (two class semantic map without
             boundary).
         "_instance.npy": instance level map.
