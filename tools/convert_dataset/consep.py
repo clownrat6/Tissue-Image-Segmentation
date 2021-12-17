@@ -39,8 +39,18 @@ def crop_patches(image, c_size):
     h, w = image.shape[:2]
     patches = []
 
-    h_overlap = math.ceil((4 * c_size - h) / 3)
-    w_overlap = math.ceil((4 * c_size - w) / 3)
+    if h % c_size == 0:
+        h_overlap = 0
+    else:
+        div = h // c_size
+        h_overlap = math.ceil(((div + 1) * c_size - h) / div)
+
+    if w % c_size == 0:
+        w_overlap = 0
+    else:
+        div = w // c_size
+        w_overlap = math.ceil(((div + 1) * c_size - w) / div)
+
     for i in range(0, h - c_size + 1, c_size - h_overlap):
         for j in range(0, w - c_size + 1, c_size - w_overlap):
             patch = image[i:i + c_size, j:j + c_size]
