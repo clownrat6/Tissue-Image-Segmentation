@@ -93,6 +93,8 @@ python tools/convert_dataset/monuseg.py data/monuseg only-train_t12_v4 -c 300
 
 ## CoNSeP Nuclei Segmentation Dataset
 
+***!!Attention*** part of nuclei tissue images may have 4 channels (R, G, B, Alpha)
+
 1. Download CoNSeP dataset from [homepage](https://warwick.ac.uk/fac/cross_fac/tia/data/hovernet/);
 2. Uncompress them into `data/consep`;
 3. Run convertion script: `python tools/convert_dataset/consep.py data/consep -c 300`;
