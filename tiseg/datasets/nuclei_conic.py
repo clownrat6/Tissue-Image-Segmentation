@@ -279,7 +279,7 @@ class NucleiCoNICDataset(Dataset):
         # total table
         total_metrics = OrderedDict()
         sem_total_metrics = OrderedDict(
-            {sem_key: np.round(np.mean(value) * 100, 2)
+            {'m' + sem_key: np.round(np.mean(value) * 100, 2)
              for sem_key, value in sem_metrics.items()})
         inst_total_metrics = OrderedDict(
             {inst_key: np.round(value * 100, 2)
@@ -300,7 +300,7 @@ class NucleiCoNICDataset(Dataset):
         eval_results = {}
         # average results
         for k, v in total_metrics.items():
-            eval_results['m' + k] = v
+            eval_results[k] = v
 
         classes = classes_metrics.pop('classes', None)
         for key, value in classes_metrics.items():
