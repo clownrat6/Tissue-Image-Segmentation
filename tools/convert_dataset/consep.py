@@ -1,13 +1,15 @@
 import argparse
+import math
 import os
 import os.path as osp
-import shutil
+from functools import partial
 
+import mmcv
 import numpy as np
 from PIL import Image
-from rich.progress import track
 from scipy.io import loadmat
-from skimage import morphology
+
+from tiseg.datasets.utils import colorize_seg_map
 
 
 def convert_mat_to_array(mat, array_key='inst_map', save_path=None):
@@ -23,107 +25,136 @@ def convert_mat_to_array(mat, array_key='inst_map', save_path=None):
     return mat
 
 
-def convert_instance_to_semantic(instance_map, with_edge=True):
-    """Convert instance mask to semantic mask.
+def pillow_save(save_path, array, palette=None):
+    """storage image array by using pillow."""
+    image = Image.fromarray(array.astype(np.uint8))
+    if palette is not None:
+        image = image.convert('P')
+        image.putpalette(palette)
+    image.save(save_path)
 
-    Args:
-        instances (numpy.ndarray): The mask contains each instances with
-            different label value.
-        with_edge (bool): Convertion with edge class label.
 
-    Returns:
-        mask (numpy.ndarray): mask contains two or three classes label
-            (background, nuclei)
-    """
-    H, W = instance_map.shape
-    semantic_map = np.zeros([H, W], dtype=np.uint8)
-    instance_id_list = list(np.unique(instance_map))
-    for id in instance_id_list:
-        if id == 0:
+# NOTE: new style patch crop.
+def crop_patches(image, c_size):
+    h, w = image.shape[:2]
+    patches = []
+
+    h_overlap = math.ceil((4 * c_size - h) / 3)
+    w_overlap = math.ceil((4 * c_size - w) / 3)
+    for i in range(0, h - c_size + 1, c_size - h_overlap):
+        for j in range(0, w - c_size + 1, c_size - w_overlap):
+            patch = image[i:i + c_size, j:j + c_size]
+            patches.append(patch)
+
+    return patches
+
+
+def parse_single_item(item, raw_image_folder, raw_label_folder, new_path, crop_size):
+    """meta process of single item data."""
+
+    image_path = osp.join(raw_image_folder, item + '.png')
+    label_path = osp.join(raw_label_folder, item + '.mat')
+
+    # image & label extraction
+    image = np.array(Image.open(image_path))
+    instance_label = convert_mat_to_array(label_path)
+    semantic_label = (instance_label > 0).astype(np.uint8)
+
+    # split map into patches
+    if crop_size != 0:
+        image_patches = crop_patches(image, crop_size)
+        instance_patches = crop_patches(instance_label, crop_size)
+        semantic_patches = crop_patches(semantic_label, crop_size)
+
+        assert len(image_patches) == len(instance_patches) == len(semantic_patches)
+
+        item_len = len(image_patches)
+        # record patch item name
+        sub_item_list = [f'{item}_{i}' for i in range(item_len)]
+    else:
+        image_patches = [image]
+        instance_patches = [instance_label]
+        semantic_patches = [semantic_label]
+        # record patch item name
+        sub_item_list = [item]
+
+    # patch storage
+    patch_batches = zip(image_patches, instance_patches, semantic_patches)
+    for patch, sub_item in zip(patch_batches, sub_item_list):
+        # jump when exists
+        if osp.exists(osp.join(new_path, sub_item + '.png')):
             continue
-        single_instance_map = instance_map == id
-        if with_edge:
-            boundary = morphology.dilation(single_instance_map) & (
-                ~morphology.erosion(single_instance_map))
-            semantic_map += single_instance_map
-            semantic_map[boundary > 0] = 2
-        else:
-            semantic_map += single_instance_map
+        # save image
+        pillow_save(osp.join(new_path, sub_item + '.png'), patch[0])
+        # save instance level label
+        np.save(osp.join(new_path, sub_item + '_instance.npy'), patch[1])
+        pillow_save(osp.join(new_path, sub_item + '_instance_colorized.png'), colorize_seg_map(patch[1]))
+        # save semantic level label
+        palette = np.zeros((2, 3), dtype=np.uint8)
+        palette[0, :] = (0, 0, 0)
+        palette[1, :] = (255, 255, 2)
+        pillow_save(osp.join(new_path, sub_item + '_semantic.png'), patch[2], palette)
 
-    return semantic_map
+    return {item: sub_item_list}
 
 
-def convert_each_cohort(raw_path, new_path):
-    if not osp.exists(new_path):
-        os.makedirs(new_path, 0o775)
+def convert_cohort(img_folder, lbl_folder, new_folder, item_list, c_size=0):
+    if not osp.exists(new_folder):
+        os.makedirs(new_folder, 0o775)
 
-    raw_image_folder = osp.join(raw_path, 'Images')
-    raw_label_folder = osp.join(raw_path, 'Labels')
+    fix_kwargs = {
+        'raw_image_folder': img_folder,
+        'raw_label_folder': lbl_folder,
+        'new_path': new_folder,
+        'crop_size': c_size,
+    }
 
-    item_list = [osp.splitext(x)[0] for x in os.listdir(raw_image_folder)]
+    meta_process = partial(parse_single_item, **fix_kwargs)
 
-    for item in track(item_list):
-        image_path = osp.join(raw_image_folder, item + '.png')
-        label_path = osp.join(raw_label_folder, item + '.mat')
+    real_item_dict = {}
+    results = mmcv.track_parallel_progress(meta_process, item_list, 4)
+    [real_item_dict.update(result) for result in results]
 
-        image = np.array(Image.open(image_path))
-        instance_label = convert_mat_to_array(label_path)
-        semantic_label = convert_instance_to_semantic(
-            instance_label, with_edge=False)
-        semantic_label_edge = convert_instance_to_semantic(
-            instance_label, with_edge=True)
-
-        assert image.shape[:2] == instance_label.shape
-
-        # Save image
-        dst_image_path = osp.join(new_path, item + '.png')
-        shutil.copy(image_path, dst_image_path)
-
-        # Save instance level label
-        dst_instance_label_path = osp.join(new_path, item + '_instance.png')
-        instance_label_png = Image.fromarray(semantic_label_edge)
-        instance_label_png.save(dst_instance_label_path)
-
-        # Save semantic level label
-        dst_semantic_edge_label_path = osp.join(
-            new_path, item + '_semantic_with_edge.png')
-        semantic_label_edge_png = Image.fromarray(semantic_label_edge)
-        semantic_label_edge_png.save(dst_semantic_edge_label_path)
-
-        dst_semantic_label_path = osp.join(new_path, item + '_semantic.png')
-        semantic_label_png = Image.fromarray(semantic_label)
-        semantic_label_png.save(dst_semantic_label_path)
-
-    return item_list
+    return real_item_dict
 
 
 def parse_args():
-    parser = argparse.ArgumentParser('Convert consep dataset.')
+    parser = argparse.ArgumentParser('Convert cpm17 dataset.')
     parser.add_argument('root_path', help='dataset root path.')
+    parser.add_argument(
+        '-c', '--crop-size', type=int, default=0, help='the crop size of fix crop in dataset convertion operation')
 
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 def main():
     args = parse_args()
     root_path = args.root_path
+    crop_size = args.crop_size
 
-    train_raw_path = osp.join(root_path, 'CoNSeP', 'Train')
-    test_raw_path = osp.join(root_path, 'CoNSeP', 'Test')
+    for split, name in [('train', 'Train'), ('test', 'Test')]:
+        raw_root = osp.join(root_path, 'consep', name)
 
-    train_new_path = osp.join(root_path, 'train')
-    test_new_path = osp.join(root_path, 'test')
+        raw_img_folder = osp.join(raw_root, 'Images')
+        raw_lbl_folder = osp.join(raw_root, 'Labels')
 
-    # make train cohort dataset
-    item_list = convert_each_cohort(train_raw_path, train_new_path)
-    with open(osp.join(root_path, 'train.txt'), 'w') as fp:
-        [fp.write(item + '\n') for item in item_list]
+        item_list = [x.rstrip('.png') for x in os.listdir(raw_img_folder) if '.png' in x]
 
-    # make test cohort dataset
-    item_list = convert_each_cohort(test_raw_path, test_new_path)
-    with open(osp.join(root_path, 'test.txt'), 'w') as fp:
-        [fp.write(item + '\n') for item in item_list]
+        if split == 'test':
+            new_root = osp.join(root_path, split, 'c0')
+            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list, 0)
+        else:
+            new_root = osp.join(root_path, split, f'c{crop_size}')
+            convert_cohort(raw_img_folder, raw_lbl_folder, new_root, item_list, c_size=crop_size)
+
+        item_list = [x.rstrip('_instance.npy') for x in os.listdir(new_root) if '_instance.npy' in x]
+
+        if split == 'train':
+            name = f'train_c{crop_size}.txt'
+        else:
+            name = 'test_c0.txt'
+        with open(osp.join(root_path, name), 'w') as fp:
+            [fp.write(item + '\n') for item in item_list]
 
 
 if __name__ == '__main__':
