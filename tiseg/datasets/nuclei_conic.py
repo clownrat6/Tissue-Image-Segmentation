@@ -176,10 +176,17 @@ class NucleiCoNICDataset(Dataset):
 
             # metric calculation post process codes:
             sem_pred = pred['sem_pred']
-            # remove edge
-            sem_pred[sem_pred == len(self.CLASSES)] = 0
-            # model-agnostic post process operations
-            sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
+
+            if 'tc_sem_pred' in pred:
+                tc_pred = pred['tc_sem_pred']
+                sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_pred, sem_pred)
+            elif 'dir_pred' in pred:
+                pass
+            else:
+                # remove edge
+                sem_pred[sem_pred == len(self.CLASSES)] = 0
+                # model-agnostic post process operations
+                sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
@@ -197,6 +204,31 @@ class NucleiCoNICDataset(Dataset):
             pre_eval_results.append(single_loop_results)
 
         return pre_eval_results
+
+    def model_agnostic_postprocess_w_tc(self, tc_pred, sem_pred):
+        """model free post-process for both instance-level & semantic-level."""
+        sem_id_list = list(np.unique(sem_pred))
+        sem_pred = np.zeros_like(sem_pred).astype(np.uint8)
+        for sem_id in sem_id_list:
+            # 0 is background semantic class.
+            if sem_id == 0:
+                continue
+            sem_id_mask = sem_pred == sem_id
+            # fill instance holes
+            sem_id_mask = binary_fill_holes(sem_id_mask)
+            # remove small instance
+            sem_id_mask = remove_small_objects(sem_id_mask, 20)
+            sem_id_mask_dila = morphology.dilation(sem_id_mask, selem=morphology.disk(2))
+            sem_pred[sem_id_mask_dila > 0] = sem_id
+
+        # instance process & dilation
+        tc_pred[tc_pred == 2] = 0
+
+        inst_pred = measure.label(tc_pred)
+        # if re_edge=True, dilation pixel length should be 2
+        inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(2))
+
+        return sem_pred, inst_pred
 
     def model_agnostic_postprocess(self, pred):
         """model free post-process for both instance-level & semantic-level."""
