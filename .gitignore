@@ -50,6 +50,9 @@ MANIFEST
 work_dirs*/
 collect*/
 
+# jupyter related files
+.ipynb_checkpoints/
+
 # compressed files
 *.zip
 *.rar
