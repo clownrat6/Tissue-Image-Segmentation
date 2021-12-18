@@ -107,8 +107,9 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
                     tc_sem_logit, sem_logit = self.whole_inference(img, meta, rescale)
 
                 tc_sem_logit = self.reverse_tta_transform(tc_sem_logit, rotate_degree, flip_direction)
-                tc_sem_logit = F.softmax(tc_sem_logit, dim=1)
                 sem_logit = self.reverse_tta_transform(sem_logit, rotate_degree, flip_direction)
+
+                tc_sem_logit = F.softmax(tc_sem_logit, dim=1)
                 sem_logit = F.softmax(sem_logit, dim=1)
 
                 tc_sem_logit_list.append(tc_sem_logit)
@@ -199,7 +200,7 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
         """calculate three-class mask branch loss."""
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_classes)
+        mask_dice_loss_calculator = MultiClassDiceLoss(num_classes=3)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         mask_ce_loss = torch.mean(mask_ce_loss_calculator(tc_mask_logit, tc_mask_label))
