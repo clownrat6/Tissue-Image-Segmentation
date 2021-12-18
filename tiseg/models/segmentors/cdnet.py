@@ -154,7 +154,7 @@ class CDNetSegmentor(BaseSegmentor):
             dd_map_list.append(dd_map)
 
         dd_map = sum(dd_map_list) / len(dd_map_list)
-        
+
         if self.if_ddm:
             sem_logit = self._ddm_enhencement(sem_logit, dd_map, point_logit)
 
