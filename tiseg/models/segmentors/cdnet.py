@@ -118,8 +118,6 @@ class CDNetSegmentor(BaseSegmentor):
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
         sem_logit_list = []
         dir_logit_list = []
-        dir_map_list = []
-        dd_map_list = []
         point_logit_list = []
         img_ = img
         for rotate_degree in self.rotate_degrees:
@@ -138,20 +136,25 @@ class CDNetSegmentor(BaseSegmentor):
 
                 sem_logit = F.softmax(sem_logit, dim=1)
                 dir_logit = F.softmax(dir_logit, dim=1)
-                dir_logit[:, 0] = dir_logit[:, 0] * sem_logit[:, 0]
-                dir_map = torch.argmax(dir_logit, dim=1)
-                dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
 
                 sem_logit_list.append(sem_logit)
                 dir_logit_list.append(dir_logit)
-                dir_map_list.append(dir_map)
-                dd_map_list.append(dd_map)
                 point_logit_list.append(point_logit)
 
         sem_logit = sum(sem_logit_list) / len(sem_logit_list)
-        dd_map = sum(dd_map_list) / len(dd_map_list)
         point_logit = sum(point_logit_list) / len(point_logit_list)
 
+        dd_map_list = []
+        dir_map_list = []
+        for dir_logit in dir_logit_list:
+            dir_logit[:, 0] = dir_logit[:, 0] * sem_logit[:, 0]
+            dir_map = torch.argmax(dir_logit, dim=1)
+            dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
+            dir_map_list.append(dir_map)
+            dd_map_list.append(dd_map)
+
+        dd_map = sum(dd_map_list) / len(dd_map_list)
+        
         if self.if_ddm:
             sem_logit = self._ddm_enhencement(sem_logit, dd_map, point_logit)
 
