@@ -155,15 +155,12 @@ def align_foreground(pred, foreground, time):
     return pred
 
 
-def mudslide_watershed(seg, dir_graph, contour):
+def mudslide_watershed(seg, dir_graph, fore):
     seg = binary_fill_holes(seg)
-    contour = binary_fill_holes(contour)
-    contour = remove_small_objects(contour, 20)
-    seg[contour == 0] = 0
-    contour = (contour > 0) ^ (seg > 0)
-    tmp = np.unique(dir_graph)
-    for i in range(1, 9):
-        dir_graph[dir_graph == tmp[i]] = i
+    fore = binary_fill_holes(fore)
+    fore = remove_small_objects(fore, 20)
+    seg[fore == 0] = 0
+    contour = (fore > 0) ^ (seg > 0)
 
     dir_graph_pos = remove_small_objects(dir_graph > 0, 20)
     dir_graph[dir_graph_pos == 0] = 0

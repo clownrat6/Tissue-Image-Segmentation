@@ -15,7 +15,7 @@ from torch.utils.data import Dataset
 from tiseg.utils import (aggregated_jaccard_index, dice_similarity_coefficient, precision_recall)
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
-from .utils import re_instance
+from .utils import re_instance, mudslide_watershed, align_foreground
 
 
 @DATASETS.register_module()
@@ -174,14 +174,16 @@ class NucleiCoNICDataset(Dataset):
             inst_gt = np.load(inst_file_name)
             inst_gt = re_instance(inst_gt)
 
-            # metric calculation post process codes:
+            # metric calculation & post process codes:
             sem_pred = pred['sem_pred']
 
-            if 'tc_sem_pred' in pred:
+            if 'dir_pred' in pred:
+                dir_pred = pred['dir_pred']
+                tc_pred = pred['tc_sem_pred']
+                sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_pred, sem_pred)
+            elif 'tc_sem_pred' in pred:
                 tc_pred = pred['tc_sem_pred']
                 sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_pred, sem_pred)
-            elif 'dir_pred' in pred:
-                pass
             else:
                 # remove edge
                 sem_pred[sem_pred == len(self.CLASSES)] = 0
@@ -205,10 +207,18 @@ class NucleiCoNICDataset(Dataset):
 
         return pre_eval_results
 
-    def model_agnostic_postprocess_w_tc(self, tc_pred, sem_pred):
+    def model_agnostic_postprocess_w_dir(self, dir_pred, tc_pred, sem_pred):
         """model free post-process for both instance-level & semantic-level."""
+        # fill instance holes
+        tc_pred[tc_pred == 2] = 0
+        tc_sem_pred = tc_pred
+        tc_sem_pred = binary_fill_holes(tc_pred)
+        # remove small instance
+        tc_sem_pred = remove_small_objects(tc_sem_pred, 20)
+        tc_sem_pred = tc_sem_pred.astype(np.uint8)
+
         sem_id_list = list(np.unique(sem_pred))
-        sem_pred = np.zeros_like(sem_pred).astype(np.uint8)
+        sem_canvas = np.zeros_like(sem_pred).astype(np.uint8)
         for sem_id in sem_id_list:
             # 0 is background semantic class.
             if sem_id == 0:
@@ -219,7 +229,33 @@ class NucleiCoNICDataset(Dataset):
             # remove small instance
             sem_id_mask = remove_small_objects(sem_id_mask, 20)
             sem_id_mask_dila = morphology.dilation(sem_id_mask, selem=morphology.disk(2))
-            sem_pred[sem_id_mask_dila > 0] = sem_id
+            sem_canvas[sem_id_mask_dila > 0] = sem_id
+        sem_pred = sem_canvas
+        fore_pred = sem_pred > 0
+
+        tc_sem_pred, bound = mudslide_watershed(tc_sem_pred, dir_pred, fore_pred)
+
+        tc_sem_pred = remove_small_objects(tc_sem_pred, 20)
+        inst_pred = measure.label(tc_sem_pred, connectivity=1)
+        inst_pred = align_foreground(inst_pred, fore_pred, 20)
+
+        return sem_pred, inst_pred
+
+    def model_agnostic_postprocess_w_tc(self, tc_pred, sem_pred):
+        """model free post-process for both instance-level & semantic-level."""
+        sem_id_list = list(np.unique(sem_pred))
+        sem_canvas = np.zeros_like(sem_pred).astype(np.uint8)
+        for sem_id in sem_id_list:
+            # 0 is background semantic class.
+            if sem_id == 0:
+                continue
+            sem_id_mask = sem_pred == sem_id
+            # fill instance holes
+            sem_id_mask = binary_fill_holes(sem_id_mask)
+            # remove small instance
+            sem_id_mask = remove_small_objects(sem_id_mask, 20)
+            sem_id_mask_dila = morphology.dilation(sem_id_mask, selem=morphology.disk(2))
+            sem_canvas[sem_id_mask_dila > 0] = sem_id
 
         # instance process & dilation
         tc_pred[tc_pred == 2] = 0

@@ -8,7 +8,6 @@ runner = dict(type='IterBasedRunner', max_iters=20000)
 
 evaluation = dict(
     interval=500,
-    eval_start=10000,
     metric='all',
     save_best='Aji',
     rule='greater',
@@ -31,16 +30,17 @@ lr_config = dict(
 
 # model settings
 model = dict(
-    type='CDNetSegmentor',
+    type='MultiTaskCDNetSegmentor',
     # model training and testing settings
-    num_classes=8,
-    train_cfg=dict(),
+    num_classes=7,
+    train_cfg=dict(if_weighted_loss=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
         crop_size=(256, 256),
         overlap_size=(80, 80),
-        use_ddm=True,
+        if_ddm=True,
+        if_mudslide=True,
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
