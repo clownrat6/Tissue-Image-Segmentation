@@ -74,12 +74,12 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
             dir_gt = dir_gt.squeeze(1)
 
             # TODO: Conside to remove some edge loss value.
+            # mask branch loss calculation
+            mask_loss = self._mask_loss(mask_logit, mask_gt, None)
+            loss.update(mask_loss)
             # three classes mask branch loss calculation
             tc_mask_loss = self._tc_mask_loss(tc_mask_logit, tc_mask_gt, weight_map)
             loss.update(tc_mask_loss)
-            # mask branch loss calculation
-            mask_loss = self._mask_loss(mask_logit, mask_gt, weight_map)
-            loss.update(mask_loss)
             # direction branch loss calculation
             dir_loss = self._dir_loss(dir_logit, dir_gt, weight_map)
             loss.update(dir_loss)

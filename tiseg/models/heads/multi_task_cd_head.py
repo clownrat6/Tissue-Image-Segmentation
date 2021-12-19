@@ -94,25 +94,25 @@ class DGM(nn.Module):
         self.num_classes = num_classes
         self.num_angles = num_angles
 
-        self.tc_mask_features = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+        self.tc_mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
         self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
         self.dir_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
         self.point_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
 
         # Cross Branch Attention
         self.point_to_dir_attn = AU(1)
-        self.dir_to_mask_attn = AU(self.num_angles + 1)
+        self.dir_to_tc_mask_attn = AU(self.num_angles + 1)
 
         # Prediction Operations
         self.point_conv = nn.Conv2d(self.feed_dims, 1, kernel_size=1)
         self.dir_conv = nn.Conv2d(self.feed_dims, self.num_angles + 1, kernel_size=1)
-        self.mask_conv = nn.Conv2d(self.feed_dims, self.num_classes, kernel_size=1)
         self.tc_mask_conv = nn.Conv2d(self.feed_dims, 3, kernel_size=1)
+        self.mask_conv = nn.Conv2d(self.feed_dims, self.num_classes, kernel_size=1)
 
     def forward(self, x):
 
-        mask_feature = self.mask_feats(x)
-        dir_feature = self.dir_feats(mask_feature)
+        tc_mask_feature = self.tc_mask_feats(x)
+        dir_feature = self.dir_feats(tc_mask_feature)
         point_feature = self.point_feats(dir_feature)
 
         # point branch
@@ -123,12 +123,12 @@ class DGM(nn.Module):
         dir_logit = self.dir_conv(dir_feature_with_point_logit)
 
         # mask branch
-        mask_feature_with_dir_logit = self.dir_to_mask_attn(mask_feature, dir_logit)
-        mask_logit = self.mask_conv(mask_feature_with_dir_logit)
+        tc_mask_feature_with_dir_logit = self.dir_to_tc_mask_attn(tc_mask_feature, dir_logit)
+        tc_mask_logit = self.tc_mask_conv(tc_mask_feature_with_dir_logit)
 
         # tc mask branch
-        tc_mask_feature = self.tc_mask_features(x)
-        tc_mask_logit = self.tc_mask_conv(tc_mask_feature)
+        mask_feature = self.mask_feats(x)
+        mask_logit = self.mask_conv(mask_feature)
 
         return tc_mask_logit, mask_logit, dir_logit, point_logit
 
