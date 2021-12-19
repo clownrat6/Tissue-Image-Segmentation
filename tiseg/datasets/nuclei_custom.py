@@ -278,7 +278,7 @@ class NucleiCustomDataset(Dataset):
             dice_metric = dice_similarity_coefficient(sem_pred, sem_seg, 2)[1]
 
             # instance metric calculation
-            aji_metric = aggregated_jaccard_index(inst_pred, inst_seg, is_semantic=False)
+            aji_metric = aggregated_jaccard_index(re_instance(inst_pred), inst_seg)
 
             single_loop_results = dict(
                 name=data_id,

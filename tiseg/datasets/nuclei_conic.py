@@ -199,7 +199,7 @@ class NucleiCoNICDataset(Dataset):
             dice_metric = dice_metric[1:]
 
             # instance metric calculation
-            aji_metric = aggregated_jaccard_index(inst_pred, inst_gt, is_semantic=False)
+            aji_metric = aggregated_jaccard_index(re_instance(inst_pred), inst_gt)
 
             single_loop_results = dict(
                 Aji=aji_metric, Dice=dice_metric, Recall=recall_metric, Precision=precision_metric)

@@ -3,14 +3,10 @@ from collections import OrderedDict
 import mmcv
 import numpy as np
 import torch
-from skimage import measure
 
 
 # TODO: Add doc string & comments
-def pre_eval_all_semantic_metric(pred_label,
-                                 target_label,
-                                 num_classes,
-                                 ignore_index=255):
+def pre_eval_all_semantic_metric(pred_label, target_label, num_classes, ignore_index=255):
     """Generate pre eval results for all semantic metrics."""
     if isinstance(pred_label, str):
         pred_label = torch.from_numpy(np.load(pred_label))
@@ -18,8 +14,7 @@ def pre_eval_all_semantic_metric(pred_label,
         pred_label = torch.from_numpy((pred_label))
 
     if isinstance(target_label, str):
-        target_label = torch.from_numpy(
-            mmcv.imread(target_label, flag='unchanged', backend='pillow'))
+        target_label = torch.from_numpy(mmcv.imread(target_label, flag='unchanged', backend='pillow'))
     else:
         target_label = torch.from_numpy(target_label)
 
@@ -31,22 +26,15 @@ def pre_eval_all_semantic_metric(pred_label,
     FP = pred_label[pred_label != target_label]
     FN = target_label[pred_label != target_label]
 
-    TP_per_class = torch.histc(
-        TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FP_per_class = torch.histc(
-        FP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FN_per_class = torch.histc(
-        FN.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    Pred_per_class = torch.histc(
-        pred_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    GT_per_class = torch.histc(
-        target_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    TP_per_class = torch.histc(TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    FP_per_class = torch.histc(FP.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    FN_per_class = torch.histc(FN.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    Pred_per_class = torch.histc(pred_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    GT_per_class = torch.histc(target_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
 
-    TN_per_class = Pred_per_class.sum() - (
-        TP_per_class + FP_per_class + FN_per_class)
+    TN_per_class = Pred_per_class.sum() - (TP_per_class + FP_per_class + FN_per_class)
 
-    ret_package = (TP_per_class, TN_per_class, FP_per_class, FN_per_class,
-                   Pred_per_class, GT_per_class)
+    ret_package = (TP_per_class, TN_per_class, FP_per_class, FN_per_class, Pred_per_class, GT_per_class)
 
     return ret_package
 
@@ -59,8 +47,7 @@ def accuracy(pred_label, target_label, num_classes, nan_to_num=None):
         pred_label = torch.from_numpy((pred_label))
 
     if isinstance(target_label, str):
-        target_label = torch.from_numpy(
-            mmcv.imread(target_label, flag='unchanged', backend='pillow'))
+        target_label = torch.from_numpy(mmcv.imread(target_label, flag='unchanged', backend='pillow'))
     else:
         target_label = torch.from_numpy(target_label)
 
@@ -68,15 +55,11 @@ def accuracy(pred_label, target_label, num_classes, nan_to_num=None):
     FP = pred_label[pred_label != target_label]
     FN = target_label[pred_label != target_label]
 
-    TP_per_class = torch.histc(
-        TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FP_per_class = torch.histc(
-        FP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FN_per_class = torch.histc(
-        FN.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    TP_per_class = torch.histc(TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    FP_per_class = torch.histc(FP.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    FN_per_class = torch.histc(FN.float(), bins=(num_classes), min=0, max=num_classes - 1)
 
-    TN_per_class = pred_label.numel() - (
-        TP_per_class + FP_per_class + FN_per_class)
+    TN_per_class = pred_label.numel() - (TP_per_class + FP_per_class + FN_per_class)
 
     accuracy = (TP_per_class + TN_per_class) / pred_label.numel()
 
@@ -93,8 +76,7 @@ def precision_recall(pred_label, target_label, num_classes, nan_to_num=None):
         pred_label = torch.from_numpy((pred_label))
 
     if isinstance(target_label, str):
-        target_label = torch.from_numpy(
-            mmcv.imread(target_label, flag='unchanged', backend='pillow'))
+        target_label = torch.from_numpy(mmcv.imread(target_label, flag='unchanged', backend='pillow'))
     else:
         target_label = torch.from_numpy(target_label)
 
@@ -102,12 +84,9 @@ def precision_recall(pred_label, target_label, num_classes, nan_to_num=None):
     FP = pred_label[pred_label != target_label]
     FN = target_label[pred_label != target_label]
 
-    TP_per_class = torch.histc(
-        TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FP_per_class = torch.histc(
-        FP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FN_per_class = torch.histc(
-        FN.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    TP_per_class = torch.histc(TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    FP_per_class = torch.histc(FP.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    FN_per_class = torch.histc(FN.float(), bins=(num_classes), min=0, max=num_classes - 1)
 
     precision = TP_per_class / (TP_per_class + FP_per_class)
     recall = TP_per_class / (TP_per_class + FN_per_class)
@@ -118,10 +97,7 @@ def precision_recall(pred_label, target_label, num_classes, nan_to_num=None):
     return precision, recall
 
 
-def dice_similarity_coefficient(pred_label,
-                                target_label,
-                                num_classes,
-                                nan_to_num=None):
+def dice_similarity_coefficient(pred_label, target_label, num_classes, nan_to_num=None):
     """multi-class dice calculation."""
     if isinstance(pred_label, str):
         pred_label = torch.from_numpy(np.load(pred_label))
@@ -129,19 +105,15 @@ def dice_similarity_coefficient(pred_label,
         pred_label = torch.from_numpy((pred_label))
 
     if isinstance(target_label, str):
-        target_label = torch.from_numpy(
-            mmcv.imread(target_label, flag='unchanged', backend='pillow'))
+        target_label = torch.from_numpy(mmcv.imread(target_label, flag='unchanged', backend='pillow'))
     else:
         target_label = torch.from_numpy(target_label)
 
     TP = pred_label[pred_label == target_label]
 
-    TP_per_class = torch.histc(
-        TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    Pred_per_class = torch.histc(
-        pred_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    GT_per_class = torch.histc(
-        target_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    TP_per_class = torch.histc(TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    Pred_per_class = torch.histc(pred_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    GT_per_class = torch.histc(target_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
 
     dice = 2 * TP_per_class / (Pred_per_class + GT_per_class)
 
@@ -150,10 +122,7 @@ def dice_similarity_coefficient(pred_label,
     return dice
 
 
-def intersect_and_union(pred_label,
-                        target_label,
-                        num_classes,
-                        nan_to_num=None):
+def intersect_and_union(pred_label, target_label, num_classes, nan_to_num=None):
     """multi-class iou calculation."""
     if isinstance(pred_label, str):
         pred_label = torch.from_numpy(np.load(pred_label))
@@ -161,19 +130,15 @@ def intersect_and_union(pred_label,
         pred_label = torch.from_numpy((pred_label))
 
     if isinstance(target_label, str):
-        target_label = torch.from_numpy(
-            mmcv.imread(target_label, flag='unchanged', backend='pillow'))
+        target_label = torch.from_numpy(mmcv.imread(target_label, flag='unchanged', backend='pillow'))
     else:
         target_label = torch.from_numpy(target_label)
 
     TP = pred_label[pred_label == target_label]
 
-    TP_per_class = torch.histc(
-        TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    Pred_per_class = torch.histc(
-        pred_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    GT_per_class = torch.histc(
-        target_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    TP_per_class = torch.histc(TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    Pred_per_class = torch.histc(pred_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
+    GT_per_class = torch.histc(target_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
 
     iou = TP_per_class / (Pred_per_class + GT_per_class - TP_per_class)
 
@@ -182,24 +147,17 @@ def intersect_and_union(pred_label,
     return iou
 
 
-def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
+def aggregated_jaccard_index(pred_label, target_label):
     """Aggregated Jaccard Index Calculation.
 
     0 is set as background pixels and we will ignored.
 
     Args:
-        pred_label (numpy.ndarray): Prediction segmentation map.
-        target_label (numpy.ndarray): Ground truth segmentation map.
-        is_semantic (bool): If the input is semantic level. Default: True
+        pred_label (numpy.ndarray): Prediction instance map.
+        target_label (numpy.ndarray): Ground truth instance map.
     """
     pred_label = pred_label.copy()
     target_label = target_label.copy()
-
-    if is_semantic:
-        pred_label[pred_label != 1] = 0
-        target_label[target_label != 1] = 0
-        pred_label = measure.label(pred_label)
-        target_label = measure.label(target_label)
 
     pred_id_list = list(np.unique(pred_label))
     target_id_list = list(np.unique(target_label))
@@ -235,12 +193,8 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
         target_masks[t] = t_mask
 
     # prefill with value
-    pairwise_intersection = np.zeros(
-        [len(target_id_list) - 1,
-         len(pred_id_list) - 1], dtype=np.float64)
-    pairwise_union = np.zeros([len(target_id_list) - 1,
-                               len(pred_id_list) - 1],
-                              dtype=np.float64)
+    pairwise_intersection = np.zeros([len(target_id_list) - 1, len(pred_id_list) - 1], dtype=np.float64)
+    pairwise_union = np.zeros([len(target_id_list) - 1, len(pred_id_list) - 1], dtype=np.float64)
 
     # caching pairwise
     for target_id in target_id_list:  # 0-th is background
@@ -274,15 +228,10 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     paired_target = list(paired_target + 1)  # index to instance ID
     paired_pred = list(paired_pred + 1)
     # It seems that only unpaired Predictions need to be added into union.
-    unpaired_target = np.array([
-        idx for idx in target_id_list
-        if (idx not in paired_target) and (idx != 0)
-    ])
+    unpaired_target = np.array([idx for idx in target_id_list if (idx not in paired_target) and (idx != 0)])
     for target_id in unpaired_target:
         overall_union += target_masks[target_id].sum()
-    unpaired_pred = np.array([
-        idx for idx in pred_id_list if (idx not in paired_pred) and (idx != 0)
-    ])
+    unpaired_pred = np.array([idx for idx in pred_id_list if (idx not in paired_pred) and (idx != 0)])
     for pred_id in unpaired_pred:
         overall_union += pred_masks[pred_id].sum()
 
@@ -290,10 +239,7 @@ def aggregated_jaccard_index(pred_label, target_label, is_semantic=True):
     return aji_score
 
 
-def pre_eval_to_metrics(pre_eval_results,
-                        metrics=['IoU'],
-                        nan_to_num=None,
-                        beta=1):
+def pre_eval_to_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None, beta=1):
     """Convert pre-eval results to metrics.
 
     Args:
@@ -321,10 +267,8 @@ def pre_eval_to_metrics(pre_eval_results,
     total_area_pred_label = sum(pre_eval_results[4])
     total_area_label = sum(pre_eval_results[5])
 
-    ret_metrics = total_area_to_metrics(total_area_TP, total_area_TN,
-                                        total_area_FP, total_area_FN,
-                                        total_area_pred_label,
-                                        total_area_label, metrics, nan_to_num)
+    ret_metrics = total_area_to_metrics(total_area_TP, total_area_TN, total_area_FP, total_area_FN,
+                                        total_area_pred_label, total_area_label, metrics, nan_to_num)
 
     return ret_metrics
 
@@ -366,12 +310,10 @@ def total_area_to_metrics(total_area_TP,
             acc = (total_area_TP + total_area_TN) / total_area_label.sum()
             ret_metrics['Accuracy'] = acc
         elif metric == 'IoU':
-            iou = total_area_TP / (
-                total_area_pred_label + total_area_label - total_area_TP)
+            iou = total_area_TP / (total_area_pred_label + total_area_label - total_area_TP)
             ret_metrics['IoU'] = iou
         elif metric == 'Dice':
-            dice = 2 * total_area_TP / (
-                total_area_pred_label + total_area_label)
+            dice = 2 * total_area_TP / (total_area_pred_label + total_area_label)
             ret_metrics['Dice'] = dice
         elif metric == 'Recall':
             recall = total_area_TP / (total_area_TP + total_area_FN)
@@ -381,13 +323,9 @@ def total_area_to_metrics(total_area_TP,
             ret_metrics['Precision'] = precision
 
     # convert torch to numpy
-    ret_metrics = {
-        metric: value.numpy()
-        for metric, value in ret_metrics.items()
-    }
+    ret_metrics = {metric: value.numpy() for metric, value in ret_metrics.items()}
     if nan_to_num is not None:
-        ret_metrics = OrderedDict({
-            metric: np.nan_to_num(metric_value, nan=nan_to_num)
-            for metric, metric_value in ret_metrics.items()
-        })
+        ret_metrics = OrderedDict(
+            {metric: np.nan_to_num(metric_value, nan=nan_to_num)
+             for metric, metric_value in ret_metrics.items()})
     return ret_metrics
