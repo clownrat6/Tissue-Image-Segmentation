@@ -111,10 +111,12 @@ class NucleiDatasetMapper(object):
                 sem_seg_w_bound = res['sem_gt_w_bound']
                 point_reg = res['point_gt']
                 dir_seg = res['dir_gt']
+                reg_dir_seg = res['reg_dir_gt']
                 weight_map = res['loss_weight_map']
                 ret['label']['sem_gt_w_bound'] = format_seg(sem_seg_w_bound)
                 ret['label']['point_gt'] = format_reg(point_reg)
                 ret['label']['dir_gt'] = format_seg(dir_seg)
+                ret['label']['reg_dir_gt'] = format_reg(reg_dir_seg)
                 ret['label']['loss_weight_map'] = format_reg(weight_map)
             else:
                 res = self.label_maker(sem_seg, inst_seg)

@@ -3,7 +3,11 @@ from .unet import UNetSegmentor
 from .cdnet_voronoi import CDNetVoronoiSegmentor
 from .multi_task_unet import MultiTaskUNetSegmentor
 from .multi_task_cdnet import MultiTaskCDNetSegmentor
+from .regression_cdnet import RegCDNetSegmentor
+from .reg_degree_cdnet import RegDegreeCDNetSegmentor
+
 
 __all__ = [
-    'UNetSegmentor', 'CDNetSegmentor', 'CDNetVoronoiSegmentor', 'MultiTaskUNetSegmentor', 'MultiTaskCDNetSegmentor'
+    'UNetSegmentor', 'CDNetSegmentor', 'CDNetVoronoiSegmentor', 'MultiTaskUNetSegmentor', 'MultiTaskCDNetSegmentor', 
+    'RegCDNetSegmentor', 'RegDegreeCDNetSegmentor'
 ]

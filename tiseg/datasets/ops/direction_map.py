@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.ndimage import gaussian_filter
 from scipy.ndimage.morphology import distance_transform_edt
-from skimage import morphology
+from skimage import morphology, io
 
 from ..utils import (angle_to_vector, calculate_centerpoint, calculate_gradient, vector_to_label)
 from ...models.utils import generate_direction_differential_map
@@ -123,11 +123,13 @@ class DirectionLabelMake(object):
 
         # direction map calculation
         dir_map = self.calculate_dir_map(inst_map, gradient_map)
+        reg_dir_map = self.calculate_regression_dir_map(inst_map, gradient_map)
         weight_map = self.calculate_weight_map(dir_map, dist_map)
         weight_map = weight_map * 10.
 
         results['point_gt'] = point_map
         results['dir_gt'] = dir_map
+        results['reg_dir_gt'] = reg_dir_map
         results['loss_weight_map'] = weight_map
 
         return results
@@ -155,6 +157,25 @@ class DirectionLabelMake(object):
         dir_map = dir_map + 1
 
         return dir_map
+
+    def calculate_regression_dir_map(self, instance_map, gradient_map):
+        angle_map = np.degrees(np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
+        angle_map[angle_map < 0] += 360
+        angle_map[instance_map == 0] = 0
+        return angle_map / 180 * np.pi
+        print(np.min(angle_map), np.max(angle_map), angle_map.shape)
+        exit(0)
+        if self.dir_type == 'rad':
+            return 
+        else:
+            return
+        vector_map = angle_to_vector(angle_map, self.num_angle_types)
+        vector_map = (vector_map + 1) / 2
+        print(vector_map.shape)
+        io.imsave("/root/workspace/NuclearSegmentation/Torch-Image-Segmentation/work_dirs/debug/vector_map_sin.png", np.uint8(vector_map[...,0] * 255))
+        io.imsave("/root/workspace/NuclearSegmentation/Torch-Image-Segmentation/work_dirs/debug/vector_map_cos.png", np.uint8(vector_map[...,1] * 255))
+        exit(0)
+        return vector_map
 
     def calculate_point_map(self, instance_map):
         H, W = instance_map.shape[:2]
