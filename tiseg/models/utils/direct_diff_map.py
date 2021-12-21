@@ -90,11 +90,18 @@ def circshift(matrix, shift_vertical, shift_horizontal):
 
     return moved_matrix
 
-
 # TODO: regularize variable name and add doc string
-def generate_direction_differential_map(dir_map, direction_classes=9):
+def generate_direction_differential_map(dir_map, direction_classes=9, background = None, use_reg = False):
     # label_to_vector requires NxHxW (torch.Tensor) or HxW (numpy.ndarry)
-    vector_map, dir_map = label_to_vector(dir_map, direction_classes)
+    if use_reg:
+        vector_map = torch.from_numpy(dir_map).cuda()
+        vector_map = vector_map.permute(2, 0, 1)[None, ...]
+        background = torch.from_numpy(background).cuda()[None, ...]
+        # print(background.shape)
+        # print(vector_map.shape)
+    else:
+        vector_map, dir_map = label_to_vector(dir_map, direction_classes)
+        background = dir_map == 0
     # Only support batch size == 1
     # Nx2xHxW (2: vertical and horizontal)
     vector_anchor = vector_map.float()
@@ -144,8 +151,8 @@ def generate_direction_differential_map(dir_map, direction_classes=9):
         cos_sim_map_single_direction[:, k, :, :] = numerator / denominator
 
     cos_sim_map, cos_sim_indices = torch.min(cos_sim_map_single_direction, dim=1)
-
-    cos_sim_map[dir_map == 0] = 1
+    # print(cos_sim_map.shape)
+    cos_sim_map[background] = 1
 
     cos_sim_map = (1 - torch.round(cos_sim_map))
     cos_sim_map_max = torch.max(cos_sim_map)
