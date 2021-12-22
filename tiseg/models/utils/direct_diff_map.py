@@ -90,15 +90,14 @@ def circshift(matrix, shift_vertical, shift_horizontal):
 
     return moved_matrix
 
+
 # TODO: regularize variable name and add doc string
-def generate_direction_differential_map(dir_map, direction_classes=9, background = None, use_reg = False):
+def generate_direction_differential_map(dir_map, direction_classes=9, background=None, use_reg=False):
     # label_to_vector requires NxHxW (torch.Tensor) or HxW (numpy.ndarry)
     if use_reg:
         vector_map = torch.from_numpy(dir_map).cuda()
         vector_map = vector_map.permute(2, 0, 1)[None, ...]
         background = torch.from_numpy(background).cuda()[None, ...]
-        # print(background.shape)
-        # print(vector_map.shape)
     else:
         vector_map, dir_map = label_to_vector(dir_map, direction_classes)
         background = dir_map == 0

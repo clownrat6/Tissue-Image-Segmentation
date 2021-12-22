@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.ndimage import gaussian_filter
 from scipy.ndimage.morphology import distance_transform_edt
-from skimage import morphology, io
+from skimage import morphology
 
 from ..utils import (angle_to_vector, calculate_centerpoint, calculate_gradient, vector_to_label)
 from ...models.utils import generate_direction_differential_map
@@ -51,7 +51,7 @@ class GenBound:
         inst_id_list = list(np.unique(inst_map))
         for inst_id in inst_id_list:
             inst_id_mask = inst_map == inst_id
-            bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(1)))
+            bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(2)))
             sem_map_w_bound[bound > 0] = self.edge_id
 
         results = {}
@@ -110,7 +110,7 @@ class DirectionLabelMake(object):
         inst_id_list = list(np.unique(inst_map))
         for inst_id in inst_id_list:
             inst_id_mask = inst_map == inst_id
-            bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(1)))
+            bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(2)))
             sem_map_w_bound[bound > 0] = self.edge_id
 
         # NOTE: sem_map is raw semantic map (two-class or multi-class without boundary)
@@ -162,20 +162,8 @@ class DirectionLabelMake(object):
         angle_map = np.degrees(np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
         angle_map[angle_map < 0] += 360
         angle_map[instance_map == 0] = 0
+
         return angle_map / 180 * np.pi
-        print(np.min(angle_map), np.max(angle_map), angle_map.shape)
-        exit(0)
-        if self.dir_type == 'rad':
-            return 
-        else:
-            return
-        vector_map = angle_to_vector(angle_map, self.num_angle_types)
-        vector_map = (vector_map + 1) / 2
-        print(vector_map.shape)
-        io.imsave("/root/workspace/NuclearSegmentation/Torch-Image-Segmentation/work_dirs/debug/vector_map_sin.png", np.uint8(vector_map[...,0] * 255))
-        io.imsave("/root/workspace/NuclearSegmentation/Torch-Image-Segmentation/work_dirs/debug/vector_map_cos.png", np.uint8(vector_map[...,1] * 255))
-        exit(0)
-        return vector_map
 
     def calculate_point_map(self, instance_map):
         H, W = instance_map.shape[:2]

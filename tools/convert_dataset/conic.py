@@ -69,9 +69,6 @@ def main():
     print('Images Shape:', images.shape)
     print('Labels Shape:', labels.shape)
 
-    analysis_func(labels)
-    exit(0)
-
     total_indices = list(range(images.shape[0]))
     random.shuffle(total_indices)
 

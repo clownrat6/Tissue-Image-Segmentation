@@ -240,6 +240,9 @@ class NucleiCustomDataset(Dataset):
         pre_eval_results = []
 
         for pred, index in zip(preds, indices):
+            # img related infos
+            # img_file_name = self.data_infos[index]['file_name']
+            # img_name = osp.splitext(osp.basename(img_file_name))[0]
             sem_file_name = self.data_infos[index]['sem_file_name']
             # semantic level label make
             sem_seg = mmcv.imread(sem_file_name, flag='unchanged', backend='pillow')
