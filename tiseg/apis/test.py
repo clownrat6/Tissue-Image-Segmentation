@@ -10,11 +10,8 @@ def single_gpu_test(model, data_loader, pre_eval=False, pre_eval_args={}):
     Args:
         model (nn.Module): Model to be tested.
         data_loader (utils.data.Dataloader): Pytorch data loader.
-        show (bool): Whether show results during inference. Default: False.
-        out_dir (str, optional): If specified, the results will be dumped into
-            the directory to save output results.
-        opacity(float): Opacity of painted segmentation map, Must be in (0, 1]
-            range. Default 0.5.
+        pre_eval (bool): Whether to evaluation by pre_eval mode. Default: False
+        pre_eval_args (dict): The arguments of `def pre_eval` of dataset. Default: {}
 
     Returns:
         object: The processor containing results.
@@ -56,6 +53,7 @@ def multi_gpu_test(model, data_loader, pre_eval=False, pre_eval_args={}):
         pre_eval (bool): Use dataset.pre_eval() function to generate
             pre_results for metric evaluation. Mutually exclusive with
             efficient_test and format_results. Default: False.
+        pre_eval_args (dict): The arguments of `def pre_eval` of dataset. Default: {}
 
     Returns:
         list: list of evaluation pre-results or list of save file names.
