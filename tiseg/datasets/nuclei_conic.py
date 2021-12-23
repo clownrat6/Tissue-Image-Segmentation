@@ -3,7 +3,9 @@ import os.path as osp
 import warnings
 from collections import OrderedDict
 
+import cv2
 import mmcv
+import matplotlib.pyplot as plt
 import numpy as np
 from mmcv.utils import print_log
 from prettytable import PrettyTable
@@ -15,7 +17,74 @@ from torch.utils.data import Dataset
 from tiseg.utils import (aggregated_jaccard_index, dice_similarity_coefficient, precision_recall)
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
-from .utils import re_instance, mudslide_watershed, align_foreground
+from .utils import re_instance, mudslide_watershed, align_foreground, colorize_seg_map
+
+
+def draw_all(save_folder,
+             img_name,
+             img_file_name,
+             sem_pred,
+             sem_gt,
+             tc_sem_pred,
+             tc_sem_gt,
+             inst_pred,
+             inst_gt,
+             edge_id=2,
+             sem_palette=None):
+
+    plt.figure(figsize=(5 * 2, 5 * 2 + 3))
+
+    # image drawing
+    img = cv2.imread(img_file_name)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    plt.subplot(321)
+    plt.imshow(img)
+    plt.axis('off')
+    plt.title('Image', fontsize=15, color='black')
+
+    canvas = np.zeros((*tc_sem_pred.shape, 3), dtype=np.uint8)
+    canvas[(tc_sem_pred > 0) * (tc_sem_gt > 0), :] = (0, 0, 255)
+    canvas[canvas == edge_id] = 0
+    canvas[(tc_sem_pred == 0) * (tc_sem_gt > 0), :] = (0, 255, 0)
+    canvas[(tc_sem_pred > 0) * (tc_sem_gt == 0), :] = (255, 0, 0)
+    plt.subplot(322)
+    plt.imshow(canvas)
+    plt.axis('off')
+    plt.title('FN-FP-Ground Truth', fontsize=15, color='black')
+
+    # get the colors of the values, according to the
+    # colormap used by imshow
+    colors = [(255, 255, 2), (2, 255, 255), (255, 2, 255)]
+    label_list = [
+        'Ground Truth',
+        'FN',
+        'FP',
+    ]
+    for color, label in zip(colors, label_list):
+        color = list(color)
+        color = [x / 255 for x in color]
+        plt.plot(0, 0, '-', color=tuple(color), label=label)
+    plt.legend(loc='upper center', fontsize=9, bbox_to_anchor=(0.5, 0), ncol=3)
+
+    plt.subplot(323)
+    plt.imshow(colorize_seg_map(sem_pred, sem_palette))
+    plt.axis('off')
+
+    plt.subplot(324)
+    plt.imshow(colorize_seg_map(sem_gt, sem_palette))
+    plt.axis('off')
+
+    plt.subplot(325)
+    plt.imshow(colorize_seg_map(inst_pred))
+    plt.axis('off')
+
+    plt.subplot(326)
+    plt.imshow(colorize_seg_map(inst_gt))
+    plt.axis('off')
+
+    # results visulization
+    plt.tight_layout()
+    plt.savefig(f'{save_folder}/{img_name}_compare.png', dpi=300)
 
 
 @DATASETS.register_module()
@@ -34,7 +103,7 @@ class NucleiCoNICDataset(Dataset):
 
     CLASSES = ('background', 'neutrophil', 'epithelial', 'lymphocyte', 'plasma', 'eosinophil', 'connective')
 
-    PALETTE = [[0, 0, 0], [255, 2, 255]]
+    PALETTE = [[0, 0, 0], [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [255, 0, 255], [0, 255, 255]]
 
     def __init__(self,
                  process_cfg,
@@ -130,7 +199,7 @@ class NucleiCoNICDataset(Dataset):
 
         return data_infos
 
-    def pre_eval(self, preds, indices, show_semantic=False, show_instance=False, show_folder=None):
+    def pre_eval(self, preds, indices, show=False, show_folder='.nuclei_show'):
         """Collect eval result from each iteration.
 
         Args:
@@ -138,9 +207,7 @@ class NucleiCoNICDataset(Dataset):
                 after argmax, shape (N, H, W).
             indices (list[int] | int): the prediction related ground truth
                 indices.
-            show_semantic (bool): Illustrate semantic level prediction &
-                ground truth. Default: False
-            show_instance (bool): Illustrate instance level prediction &
+            show (bool): Illustrate semantic level & instance level & prediction &
                 ground truth. Default: False
             show_folder (str | None, optional): The folder path of
                 illustration. Default: None
@@ -155,8 +222,8 @@ class NucleiCoNICDataset(Dataset):
         if not isinstance(preds, list):
             preds = [preds]
 
-        if show_folder is None and (show_semantic or show_instance):
-            warnings.warn('show_semantic or show_instance is set to True, but the '
+        if show_folder is None and show:
+            warnings.warn('show is set to True, but the '
                           'show_folder is None. We will use default show_folder: '
                           '.nuclei_show')
             show_folder = '.nuclei_show'
@@ -167,8 +234,8 @@ class NucleiCoNICDataset(Dataset):
 
         for pred, index in zip(preds, indices):
             # img related infos
-            # img_file_name = self.data_infos[index]['file_name']
-            # img_name = osp.splitext(osp.basename(img_file_name))[0]
+            img_file_name = self.data_infos[index]['file_name']
+            img_name = osp.splitext(osp.basename(img_file_name))[0]
             sem_file_name = self.data_infos[index]['sem_file_name']
             # semantic level label make
             sem_gt = mmcv.imread(sem_file_name, flag='unchanged', backend='pillow')
@@ -207,6 +274,26 @@ class NucleiCoNICDataset(Dataset):
             single_loop_results = dict(
                 Aji=aji_metric, Dice=dice_metric, Recall=recall_metric, Precision=precision_metric)
             pre_eval_results.append(single_loop_results)
+
+            tc_sem_pred = sem_pred.copy()
+            tc_sem_pred[(tc_sem_pred != 0) * (tc_sem_pred != len(self.CLASSES))] = 1
+            tc_sem_pred[tc_sem_pred > 1] = 2
+            tc_sem_gt = sem_gt.copy()
+            tc_sem_gt[(tc_sem_gt != 0) * (tc_sem_gt != len(self.CLASSES))] = 1
+            tc_sem_gt[tc_sem_gt > 1] = 2
+
+            if show:
+                draw_all(
+                    show_folder,
+                    img_name,
+                    img_file_name,
+                    sem_pred,
+                    sem_gt,
+                    tc_sem_pred,
+                    tc_sem_gt,
+                    inst_pred,
+                    inst_gt,
+                    sem_palette=self.PALETTE)
 
         return pre_eval_results
 

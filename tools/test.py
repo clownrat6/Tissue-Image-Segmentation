@@ -1,5 +1,6 @@
 import argparse
 import os
+import os.path as osp
 
 import mmcv
 import torch
@@ -16,6 +17,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description='test (and eval) a model')
     parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
+    parser.add_argument('--show', action='store_true', help='Whether to illustrate evaluation results.')
+    parser.add_argument(
+        '--show-folder', default='.nuclei_show', type=str, help='The storage folder of illustration results.')
     parser.add_argument('--eval-options', nargs='+', action=DictAction, help='custom options for evaluation')
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], default='none', help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
@@ -63,16 +67,25 @@ def main():
 
         eval_kwargs = {} if args.eval_options is None else args.eval_options
 
+        if args.show:
+            eval_kwargs['show'] = True
+
+        if args.show_folder is not None:
+            eval_kwargs['show_folder'] = args.show_folder
+
+            if not osp.exists(args.show_folder):
+                os.makedirs(args.show_folder, 0o775)
+
         # clean gpu memory when starting a new evaluation.
         torch.cuda.empty_cache()
 
         if not distributed:
             model = MMDataParallel(model, device_ids=[0])
-            results = single_gpu_test(model, data_loader, pre_eval=True)
+            results = single_gpu_test(model, data_loader, pre_eval=True, pre_eval_args=eval_kwargs)
         else:
             model = MMDistributedDataParallel(
                 model.cuda(), device_ids=[torch.cuda.current_device()], broadcast_buffers=False)
-            results = multi_gpu_test(model, data_loader, pre_eval=True)
+            results = multi_gpu_test(model, data_loader, pre_eval=True, pre_eval_args=eval_kwargs)
 
         rank, _ = get_dist_info()
         if rank == 0:
