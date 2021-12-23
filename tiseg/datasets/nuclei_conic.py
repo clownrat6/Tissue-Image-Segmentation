@@ -14,7 +14,7 @@ from skimage import measure, morphology
 from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
-from tiseg.utils import (aggregated_jaccard_index, dice_similarity_coefficient, precision_recall)
+from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_metrics, aggregated_jaccard_index)
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
 from .utils import re_instance, mudslide_watershed, align_foreground, colorize_seg_map
@@ -25,38 +25,39 @@ def draw_all(save_folder,
              img_file_name,
              sem_pred,
              sem_gt,
-             tc_sem_pred,
-             tc_sem_gt,
              inst_pred,
              inst_gt,
+             tri_sem_pred,
+             tri_sem_gt,
              edge_id=2,
-             sem_palette=None):
+             sem_palette=None,
+             eval_res=None):
 
-    plt.figure(figsize=(5 * 2, 5 * 2 + 3))
+    plt.figure(figsize=(5 * 4, 5 * 2 + 3))
 
     # image drawing
     img = cv2.imread(img_file_name)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    plt.subplot(321)
+    plt.subplot(241)
     plt.imshow(img)
     plt.axis('off')
     plt.title('Image', fontsize=15, color='black')
 
-    canvas = np.zeros((*tc_sem_pred.shape, 3), dtype=np.uint8)
-    canvas[(tc_sem_pred > 0) * (tc_sem_gt > 0), :] = (0, 0, 255)
+    canvas = np.zeros((*sem_pred.shape, 3), dtype=np.uint8)
+    canvas[(sem_pred > 0) * (sem_gt > 0), :] = (0, 0, 255)
     canvas[canvas == edge_id] = 0
-    canvas[(tc_sem_pred == 0) * (tc_sem_gt > 0), :] = (0, 255, 0)
-    canvas[(tc_sem_pred > 0) * (tc_sem_gt == 0), :] = (255, 0, 0)
-    plt.subplot(322)
+    canvas[(sem_pred == 0) * (sem_gt > 0), :] = (0, 255, 0)
+    canvas[(sem_pred > 0) * (sem_gt == 0), :] = (255, 0, 0)
+    plt.subplot(242)
     plt.imshow(canvas)
     plt.axis('off')
-    plt.title('FN-FP-Ground Truth', fontsize=15, color='black')
+    plt.title('Error Analysis: FN-FP-TP', fontsize=15, color='black')
 
     # get the colors of the values, according to the
     # colormap used by imshow
-    colors = [(255, 255, 2), (2, 255, 255), (255, 2, 255)]
+    colors = [(0, 0, 255), (0, 255, 0), (255, 0, 0)]
     label_list = [
-        'Ground Truth',
+        'TP',
         'FN',
         'FP',
     ]
@@ -66,21 +67,40 @@ def draw_all(save_folder,
         plt.plot(0, 0, '-', color=tuple(color), label=label)
     plt.legend(loc='upper center', fontsize=9, bbox_to_anchor=(0.5, 0), ncol=3)
 
-    plt.subplot(323)
-    plt.imshow(colorize_seg_map(sem_pred, sem_palette))
-    plt.axis('off')
-
-    plt.subplot(324)
-    plt.imshow(colorize_seg_map(sem_gt, sem_palette))
-    plt.axis('off')
-
-    plt.subplot(325)
+    plt.subplot(243)
     plt.imshow(colorize_seg_map(inst_pred))
     plt.axis('off')
+    plt.title('Instance Level Prediction')
 
-    plt.subplot(326)
+    plt.subplot(244)
     plt.imshow(colorize_seg_map(inst_gt))
     plt.axis('off')
+    plt.title('Instance Level Ground Truth')
+
+    plt.subplot(245)
+    plt.imshow(colorize_seg_map(sem_pred, sem_palette))
+    plt.axis('off')
+    plt.title('Semantic Level Prediction')
+
+    plt.subplot(246)
+    plt.imshow(colorize_seg_map(sem_gt, sem_palette))
+    plt.axis('off')
+    plt.title('Semantic Level Ground Truth')
+
+    tc_palette = [(0, 0, 0), (255, 0, 0), (0, 255, 0)]
+
+    plt.subplot(247)
+    plt.imshow(colorize_seg_map(tri_sem_pred, tc_palette))
+    plt.axis('off')
+    plt.title('Three-class Semantic Level Prediction')
+
+    plt.subplot(248)
+    plt.imshow(colorize_seg_map(tri_sem_gt, tc_palette))
+    plt.axis('off')
+    plt.title('Three-class Semantic Level Prediction')
+
+    if eval_res is not None:
+        plt.suptitle(f'Dice: {eval_res["Dice"] * 100:.2f}\nAji: {eval_res["Aji"] * 100:.2f}')
 
     # results visulization
     plt.tight_layout()
@@ -207,7 +227,7 @@ class NucleiCoNICDataset(Dataset):
                 after argmax, shape (N, H, W).
             indices (list[int] | int): the prediction related ground truth
                 indices.
-            show (bool): Illustrate semantic level & instance level & prediction &
+            show (bool): Illustrate semantic level & instance level prediction &
                 ground truth. Default: False
             show_folder (str | None, optional): The folder path of
                 illustration. Default: None
@@ -249,11 +269,11 @@ class NucleiCoNICDataset(Dataset):
 
             if 'dir_pred' in pred:
                 dir_pred = pred['dir_pred']
-                tc_pred = pred['tc_sem_pred']
-                sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_pred, sem_pred)
+                tc_sem_pred = pred['tc_sem_pred']
+                sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_sem_pred, sem_pred)
             elif 'tc_sem_pred' in pred:
-                tc_pred = pred['tc_sem_pred']
-                sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_pred, sem_pred)
+                tc_sem_pred = pred['tc_sem_pred']
+                sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_sem_pred, sem_pred)
             else:
                 # remove edge
                 sem_pred[sem_pred == len(self.CLASSES)] = 0
@@ -262,50 +282,59 @@ class NucleiCoNICDataset(Dataset):
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
-            precision_metric, recall_metric = precision_recall(sem_pred, sem_gt, len(self.CLASSES))
-            precision_metric = precision_metric[1:]
-            recall_metric = recall_metric[1:]
-            dice_metric = dice_similarity_coefficient(sem_pred, sem_gt, len(self.CLASSES))
-            dice_metric = dice_metric[1:]
+            sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
+
+            # NOTE: old metric calculation
+            # precision_metric, recall_metric = precision_recall(sem_pred, sem_gt, len(self.CLASSES))
+            # precision_metric = precision_metric[1:]
+            # recall_metric = recall_metric[1:]
+            # dice_metric = dice_similarity_coefficient(sem_pred, sem_gt, len(self.CLASSES))
+            # dice_metric = dice_metric[1:]
 
             # instance metric calculation
             aji_metric = aggregated_jaccard_index(re_instance(inst_pred), inst_gt)
 
-            single_loop_results = dict(
-                Aji=aji_metric, Dice=dice_metric, Recall=recall_metric, Precision=precision_metric)
+            # NOTE: old single loop results
+            # single_loop_results = dict(
+            #     Aji=aji_metric, Dice=dice_metric, Recall=recall_metric, Precision=precision_metric)
+
+            single_loop_results = dict(Aji=aji_metric, sem_pre_eval_res=sem_pre_eval_res)
             pre_eval_results.append(single_loop_results)
 
-            tc_sem_pred = sem_pred.copy()
-            tc_sem_pred[(tc_sem_pred != 0) * (tc_sem_pred != len(self.CLASSES))] = 1
-            tc_sem_pred[tc_sem_pred > 1] = 2
-            tc_sem_gt = sem_gt.copy()
-            tc_sem_gt[(tc_sem_gt != 0) * (tc_sem_gt != len(self.CLASSES))] = 1
-            tc_sem_gt[tc_sem_gt > 1] = 2
-
             if show:
+                tri_sem_pred = tc_sem_pred.copy()
+                tri_sem_gt = np.zeros_like(tri_sem_pred)
+                inst_id_list = list(np.unique(inst_gt))
+                # TODO: move it to dataset conversion
+                for inst_id in inst_id_list:
+                    if inst_id == 0:
+                        continue
+                    inst_id_mask = inst_gt == inst_id
+                    bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(2)))
+                    tri_sem_gt[bound > 0] = 2
                 draw_all(
                     show_folder,
                     img_name,
                     img_file_name,
                     sem_pred,
                     sem_gt,
-                    tc_sem_pred,
-                    tc_sem_gt,
                     inst_pred,
                     inst_gt,
+                    tri_sem_pred,
+                    tri_sem_gt,
                     sem_palette=self.PALETTE)
 
         return pre_eval_results
 
-    def model_agnostic_postprocess_w_dir(self, dir_pred, tc_pred, sem_pred):
+    def model_agnostic_postprocess_w_dir(self, dir_pred, tc_sem_pred, sem_pred):
         """model free post-process for both instance-level & semantic-level."""
         # fill instance holes
-        tc_pred[tc_pred == 2] = 0
-        tc_sem_pred = tc_pred
-        tc_sem_pred = binary_fill_holes(tc_pred)
+        bin_sem_pred = tc_sem_pred.copy()
+        bin_sem_pred[bin_sem_pred == 2] = 0
+        bin_sem_pred = binary_fill_holes(bin_sem_pred)
         # remove small instance
-        tc_sem_pred = remove_small_objects(tc_sem_pred, 20)
-        tc_sem_pred = tc_sem_pred.astype(np.uint8)
+        bin_sem_pred = remove_small_objects(bin_sem_pred, 20)
+        bin_sem_pred = bin_sem_pred.astype(np.uint8)
 
         sem_id_list = list(np.unique(sem_pred))
         sem_canvas = np.zeros_like(sem_pred).astype(np.uint8)
@@ -323,15 +352,15 @@ class NucleiCoNICDataset(Dataset):
         sem_pred = sem_canvas
         fore_pred = sem_pred > 0
 
-        tc_sem_pred, bound = mudslide_watershed(tc_sem_pred, dir_pred, fore_pred)
+        bin_sem_pred, bound = mudslide_watershed(bin_sem_pred, dir_pred, fore_pred)
 
-        tc_sem_pred = remove_small_objects(tc_sem_pred, 20)
-        inst_pred = measure.label(tc_sem_pred, connectivity=1)
+        bin_sem_pred = remove_small_objects(bin_sem_pred, 20)
+        inst_pred = measure.label(bin_sem_pred, connectivity=1)
         inst_pred = align_foreground(inst_pred, fore_pred, 20)
 
         return sem_pred, inst_pred
 
-    def model_agnostic_postprocess_w_tc(self, tc_pred, sem_pred):
+    def model_agnostic_postprocess_w_tc(self, tc_sem_pred, sem_pred):
         """model free post-process for both instance-level & semantic-level."""
         sem_id_list = list(np.unique(sem_pred))
         sem_canvas = np.zeros_like(sem_pred).astype(np.uint8)
@@ -348,9 +377,10 @@ class NucleiCoNICDataset(Dataset):
             sem_canvas[sem_id_mask_dila > 0] = sem_id
 
         # instance process & dilation
-        tc_pred[tc_pred == 2] = 0
+        bin_sem_pred = tc_sem_pred.copy()
+        bin_sem_pred[bin_sem_pred == 2] = 0
 
-        inst_pred = measure.label(tc_pred)
+        inst_pred = measure.label(bin_sem_pred)
         # if re_edge=True, dilation pixel length should be 2
         inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(2))
 
@@ -406,19 +436,23 @@ class NucleiCoNICDataset(Dataset):
                 else:
                     ret_metrics[key].append(value)
 
+        sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
+        ret_metrics.update(pre_eval_to_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
+
         inst_eval = ['Aji']
-        sem_eval = ['IoU', 'Dice', 'Precision', 'Recall']
+        sem_eval = ['Dice', 'Precision', 'Recall']
         inst_metrics = {}
         sem_metrics = {}
         # calculate average metric
         for key in ret_metrics.keys():
             # XXX: Using average value may have lower metric value than using
             # confused matrix.
-            average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
             if key in inst_eval:
+                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
                 inst_metrics[key] = average_value
             elif key in sem_eval:
-                sem_metrics[key] = average_value
+                # remove background class
+                sem_metrics[key] = ret_metrics[key][1:]
 
         # semantic table
         classes_metrics = OrderedDict()
@@ -427,6 +461,7 @@ class NucleiCoNICDataset(Dataset):
 
         classes_metrics.update(classes_sem_metrics)
         classes_metrics.update(classes_inst_metrics)
+        # remove background class
         classes_metrics.update({'classes': self.CLASSES[1:]})
         classes_metrics.move_to_end('classes', last=False)
 

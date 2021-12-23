@@ -50,6 +50,8 @@ class GenBound:
         assert np.allclose(sem_map > 0, inst_map > 0)
         inst_id_list = list(np.unique(inst_map))
         for inst_id in inst_id_list:
+            if inst_id == 0:
+                continue
             inst_id_mask = inst_map == inst_id
             bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(2)))
             sem_map_w_bound[bound > 0] = self.edge_id
@@ -109,6 +111,8 @@ class DirectionLabelMake(object):
         assert np.allclose(sem_map > 0, inst_map > 0)
         inst_id_list = list(np.unique(inst_map))
         for inst_id in inst_id_list:
+            if inst_id == 0:
+                continue
             inst_id_mask = inst_map == inst_id
             bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(2)))
             sem_map_w_bound[bound > 0] = self.edge_id
