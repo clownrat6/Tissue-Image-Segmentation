@@ -6,7 +6,7 @@ from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..heads.cd_voronoi_head import CDVoronoiHead
 from ..builder import SEGMENTORS
-from ..losses import MultiClassDiceLoss, miou, tiou
+from ..losses import MultiClassDiceLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 
@@ -82,7 +82,6 @@ class CDNetVoronoiSegmentor(BaseSegmentor):
             # foreground branch loss calculation
             foreground_loss = self._foreground_loss(foreground_logit, mask_gt > 0, weight_map)
             loss.update(foreground_loss)
-
 
             # calculate training metric
             training_metric_dict = self._training_metric(mask_logit, dir_logit, point_logit, mask_gt, dir_gt, point_gt)
@@ -293,7 +292,7 @@ class CDNetVoronoiSegmentor(BaseSegmentor):
         beta = 0
         foreground_loss['foreground_ce_loss'] = alpha * foreground_ce_loss
         foreground_loss['foreground_dice_loss'] = beta * foreground_dice_loss
-        
+
         return foreground_loss
 
     def _dir_loss(self, dir_logit, dir_gt, weight_map=None):
@@ -332,11 +331,11 @@ class CDNetVoronoiSegmentor(BaseSegmentor):
         clean_dir_logit = dir_logit.clone().detach()
         clean_dir_gt = dir_gt.clone().detach()
 
-        wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_gt, self.num_classes)
-        wrap_dict['dir_miou'] = miou(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
+        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        wrap_dict['dir_mdice'] = mdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
-        wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_gt, self.num_classes)
-        wrap_dict['dir_tiou'] = tiou(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
+        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        wrap_dict['dir_tdice'] = tdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
         # NOTE: training aji calculation metric calculate (This will be deprecated.)
         # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)

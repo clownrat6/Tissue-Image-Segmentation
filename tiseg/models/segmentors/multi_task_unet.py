@@ -6,7 +6,7 @@ from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads import MultiTaskUNetHead
-from ..losses import MultiClassDiceLoss, miou, tiou
+from ..losses import MultiClassDiceLoss, mdice, tdice
 from .base import BaseSegmentor
 
 
@@ -221,8 +221,8 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
         clean_mask_logit = mask_logit.clone().detach()
         clean_mask_label = mask_label.clone().detach()
 
-        wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_label, self.num_classes)
-        wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_label, self.num_classes)
+        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_label, self.num_classes)
+        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_label, self.num_classes)
 
         # NOTE: training aji calculation metric calculate (This will be deprecated.)
         # (the edge id is set `self.num_classes - 1` in default)

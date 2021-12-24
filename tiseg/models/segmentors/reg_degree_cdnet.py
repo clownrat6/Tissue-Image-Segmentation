@@ -9,7 +9,7 @@ from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..heads.regression_degree_cd_head import RegDegreeCDHead
 from ..builder import SEGMENTORS
-from ..losses import MultiClassDiceLoss, miou, tiou
+from ..losses import MultiClassDiceLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 from ...datasets.utils import (angle_to_vector, calculate_centerpoint, calculate_gradient, vector_to_label)
@@ -331,11 +331,11 @@ class RegDegreeCDNetSegmentor(BaseSegmentor):
         clean_dir_logit = dir_logit.clone().detach()
         clean_dir_gt = dir_gt.clone().detach()
 
-        wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_gt, self.num_classes)
-        # wrap_dict['dir_miou'] = miou(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
+        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        # wrap_dict['dir_mdice'] = mdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
-        wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_gt, self.num_classes)
-        # wrap_dict['dir_tiou'] = tiou(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
+        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        # wrap_dict['dir_tdice'] = tdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
         # NOTE: training aji calculation metric calculate (This will be deprecated.)
         # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
