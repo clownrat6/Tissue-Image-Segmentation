@@ -285,22 +285,13 @@ class NucleiCoNICDataset(Dataset):
             # [1] will remove background class.
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
 
-            # NOTE: old metric calculation
-            # precision_metric, recall_metric = precision_recall(sem_pred, sem_gt, len(self.CLASSES))
-            # precision_metric = precision_metric[1:]
-            # recall_metric = recall_metric[1:]
-            # dice_metric = dice_similarity_coefficient(sem_pred, sem_gt, len(self.CLASSES))
-            # dice_metric = dice_metric[1:]
-
             # instance metric calculation
             aji_metric = aggregated_jaccard_index(re_instance(inst_pred), inst_gt)
             maji_metric = mean_aggregated_jaccard_index(
                 re_instance(inst_pred), inst_gt, sem_pred, sem_gt, len(self.CLASSES))
 
             # NOTE: old single loop results
-            # single_loop_results = dict(
-            #     Aji=aji_metric, Dice=dice_metric, Recall=recall_metric, Precision=precision_metric)
-
+            # single_loop_results = dict(Aji=aji_metric, sem_pre_eval_res=sem_pre_eval_res)
             single_loop_results = dict(Aji=aji_metric, mAji=maji_metric, sem_pre_eval_res=sem_pre_eval_res)
             pre_eval_results.append(single_loop_results)
 
