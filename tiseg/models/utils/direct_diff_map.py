@@ -150,7 +150,7 @@ def generate_direction_differential_map(dir_map, direction_classes=9, background
         cos_sim_map_single_direction[:, k, :, :] = numerator / denominator
 
     cos_sim_map, cos_sim_indices = torch.min(cos_sim_map_single_direction, dim=1)
-    # print(cos_sim_map.shape)
+
     cos_sim_map[background] = 1
 
     cos_sim_map = (1 - torch.round(cos_sim_map))

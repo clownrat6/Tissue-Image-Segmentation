@@ -279,8 +279,7 @@ class NucleiCoNICDataset(Dataset):
             sem_id_mask = binary_fill_holes(sem_id_mask)
             # remove small instance
             sem_id_mask = remove_small_objects(sem_id_mask, 20)
-            sem_id_mask_dila = morphology.dilation(sem_id_mask, selem=morphology.disk(2))
-            sem_canvas[sem_id_mask_dila > 0] = sem_id
+            sem_canvas[sem_id_mask > 0] = sem_id
 
         # instance process & dilation
         bin_sem_pred = tc_sem_pred.copy()
