@@ -20,8 +20,7 @@ def calculate_centerpoint(instance_mask, H, W):
     Directions = []
     # Set eight search directions
     for i in range(8):
-        Directions.append(
-            (math.sin(2 * math.pi / 8 * i), math.cos(2 * math.pi / 8 * i)))
+        Directions.append((math.sin(2 * math.pi / 8 * i), math.cos(2 * math.pi / 8 * i)))
 
     # traversal points of instance and calculate centerness of each instance
     # point. Then selecting out the point with max centerness
@@ -39,8 +38,7 @@ def calculate_centerpoint(instance_mask, H, W):
                         mid = (smaller_bound + larger_bound) / 2
                         x_offset = round(i + Directions[k][0] * mid)
                         y_offset = round(j + Directions[k][1] * mid)
-                        if (x_offset >= 0 and y_offset < W and y_offset >= 0
-                                and x_offset < H
+                        if (x_offset >= 0 and y_offset < W and y_offset >= 0 and x_offset < H
                                 and instance_mask[x_offset][y_offset] > 0):
                             smaller_bound = mid
                         else:

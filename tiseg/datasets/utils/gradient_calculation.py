@@ -32,10 +32,8 @@ class Sobel:
         if ksize in cls._caches:
             return cls._caches[ksize]
 
-        sobel_x, sobel_y = (
-            cls._generate_sobel_kernel((ksize, ksize), i) for i in (0, 1))
-        sobel_ker = torch.cat([sobel_y, sobel_x],
-                              dim=0).view(2, 1, ksize, ksize)
+        sobel_x, sobel_y = (cls._generate_sobel_kernel((ksize, ksize), i) for i in (0, 1))
+        sobel_ker = torch.cat([sobel_y, sobel_x], dim=0).view(2, 1, ksize, ksize)
         cls._caches[ksize] = sobel_ker
         return sobel_ker
 
@@ -45,8 +43,7 @@ def calculate_gradient(input_map, ksize=11):
     sobel_kernel = Sobel.kernel(ksize=ksize)
     assert len(input_map.shape) == 2
     # format input image
-    input_map = torch.from_numpy(input_map).float().reshape(
-        1, 1, *input_map.shape)
+    input_map = torch.from_numpy(input_map).float().reshape(1, 1, *input_map.shape)
     gradient = F.conv2d(input_map, sobel_kernel, padding=ksize // 2)
     # unformat
     gradient = gradient.squeeze().permute(1, 2, 0).numpy()

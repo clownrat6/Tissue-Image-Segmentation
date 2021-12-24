@@ -32,11 +32,26 @@ def convert_instance_to_semantic(instance_map, with_edge=True):
     for instance_id in instance_ids:
         single_instance_map = (instance_map == instance_id).astype(np.uint8)
         if with_edge:
-            boundary = morphology.dilation(single_instance_map) & (
-                ~morphology.erosion(single_instance_map))
+            boundary = morphology.dilation(single_instance_map) & (~morphology.erosion(single_instance_map))
             mask += single_instance_map
             mask[boundary > 0] = 2
         else:
             mask += single_instance_map
 
     return mask
+
+
+def get_tc_from_inst(inst_seg):
+    """Calculate three class segmentation mask from instance map."""
+    tc_sem_seg = np.zeros_like(inst_seg)
+    inst_id_list = list(np.unique(inst_seg))
+    # TODO: move it to dataset conversion
+    for inst_id in inst_id_list:
+        if inst_id == 0:
+            continue
+        inst_id_mask = inst_seg == inst_id
+        bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(2)))
+        tc_sem_seg[inst_id_mask > 0] = 1
+        tc_sem_seg[bound > 0] = 2
+
+    return tc_sem_seg
