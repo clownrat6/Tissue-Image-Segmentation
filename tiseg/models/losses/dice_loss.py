@@ -29,9 +29,10 @@ class GeneralizedDiceLoss(nn.Module):
     Unbalanced Segmentations" - `https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7610921/` # noqa
     """
 
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, weighted=False):
         super(GeneralizedDiceLoss, self).__init__()
         self.num_classes = num_classes
+        self.weighted = weighted
 
     def forward(self, logit, target, smooth=1e-4, spatial_weight=None, channel_weight=None):
         # one-hot encoding for target
@@ -39,32 +40,22 @@ class GeneralizedDiceLoss(nn.Module):
         # softmax for logit
         logit = F.softmax(logit, dim=1)
 
-        if spatial_weight is not None:
+        if spatial_weight is not None and self.weighted:
             logit *= spatial_weight
             target_one_hot *= spatial_weight
 
-        intersect = torch.sum(logit * target_one_hot, dim=(0, 2, 3))
-        logit_area = torch.sum(logit, dim=(0, 2, 3))
-        target_area = torch.sum(target_one_hot, dim=(0, 2, 3))
-        addition_area = logit_area + target_area
-        # channel_weight = 1 / (target_area ** 2 + 1e-6)
-        # print('intersect', intersect)
-        # print('logit_area', logit_area)
-        # print('target_area', target_area)
-        # print('addition_area', addition_area)
-        # print('channel_weight', channel_weight)
-       
-        if channel_weight is not None:
+        if channel_weight is None:
+            intersect = torch.sum(logit * target_one_hot, dim=(0, 2, 3))
+            logit_area = torch.sum(logit, dim=(0, 2, 3))
+            target_area = torch.sum(target_one_hot, dim=(0, 2, 3))
+            addition_area = logit_area + target_area
+            channel_weight = 1 / (target_area**2 + 1e-6)
+
+        if self.weighted:
             intersect *= channel_weight
             addition_area *= channel_weight
-        # print('weight_intersect', intersect)
-        # print('weight_addition_aera', addition_area)
-        
+
         generalized_dice_score = (2 * torch.sum(intersect) + smooth) / (torch.sum(addition_area) + smooth)
-        # generalized_dice_score_nosmooth = (2 * torch.sum(intersect)) / (torch.sum(addition_area))
-        # print('generalized_dice_score', generalized_dice_score)
-        # print('generalized_dice_score_nosmooth', generalized_dice_score_nosmooth)
-        # exit(0)
         generalized_dice_loss = 1 - generalized_dice_score
 
         return generalized_dice_loss
@@ -96,17 +87,17 @@ class BatchMultiClassDiceLoss(nn.Module):
 
             intersection = logit_per_class * target_per_class
             # calculate per class dice loss
-            dice_loss_per_class =  (2 * intersection.sum((0, -2, -1)) + smooth) / (
+            dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
                 logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
             dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
                 logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
             dice_loss_per_class = 1 - dice_loss_per_class
-            # print(i, dice_loss_per_class, intersection.sum((-2, -1)), logit_per_class.sum((-2, -1)), target_per_class.sum((-2, -1)), N)
             if weights is not None:
                 dice_loss_per_class *= weights[i]
             loss += dice_loss_per_class
 
         return loss
+
 
 class MultiClassDiceLoss(nn.Module):
     """Calculate each class dice loss, then sum per class dice loss as a total
@@ -134,18 +125,16 @@ class MultiClassDiceLoss(nn.Module):
 
             intersection = logit_per_class * target_per_class
             # calculate per class dice loss
-            dice_loss_per_class =  (2 * intersection.sum((-2, -1)) + smooth) / (
+            dice_loss_per_class = (2 * intersection.sum((-2, -1)) + smooth) / (
                 logit_per_class.sum((-2, -1)) + target_per_class.sum((-2, -1)) + smooth)
             dice_loss_per_class = (2 * intersection.sum((-2, -1)) + smooth) / (
                 logit_per_class.sum((-2, -1)) + target_per_class.sum((-2, -1)) + smooth)
             dice_loss_per_class = 1 - dice_loss_per_class.sum() / N
-            # print(i, dice_loss_per_class, intersection.sum((-2, -1)), logit_per_class.sum((-2, -1)), target_per_class.sum((-2, -1)), N)
             if weights is not None:
                 dice_loss_per_class *= weights[i]
             loss += dice_loss_per_class
 
         return loss
-
 
 
 class DiceLoss(nn.Module):

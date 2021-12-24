@@ -6,10 +6,11 @@ from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..heads.regression_cd_head import RegCDHead
 from ..builder import SEGMENTORS
-from ..losses import MultiClassDiceLoss, miou, tiou
+from ..losses import MultiClassDiceLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 from ...datasets.utils import (angle_to_vector, calculate_centerpoint, calculate_gradient, vector_to_label)
+
 
 @SEGMENTORS.register_module()
 class RegCDNetSegmentor(BaseSegmentor):
@@ -61,8 +62,8 @@ class RegCDNetSegmentor(BaseSegmentor):
             assert label is not None
             mask_gt = label['sem_gt_w_bound']
             point_gt = label['point_gt']
-            dir_sin_gt = label['reg_dir_gt'][...,0]
-            dir_cos_gt = label['reg_dir_gt'][...,1]
+            dir_sin_gt = label['reg_dir_gt'][..., 0]
+            dir_cos_gt = label['reg_dir_gt'][..., 1]
             weight_map = label['loss_weight_map'] if self.if_weighted_loss else None
 
             loss = dict()
@@ -82,7 +83,8 @@ class RegCDNetSegmentor(BaseSegmentor):
             loss.update(point_loss)
 
             # calculate training metric
-            training_metric_dict = self._training_metric(mask_logit, dir_sin_logit, point_logit, mask_gt, dir_sin_gt, point_gt)
+            training_metric_dict = self._training_metric(mask_logit, dir_sin_logit, point_logit, mask_gt, dir_sin_gt,
+                                                         point_gt)
             loss.update(training_metric_dict)
             return loss
         else:
@@ -153,14 +155,14 @@ class RegCDNetSegmentor(BaseSegmentor):
         dd_map_list = []
         dir_map_list = []
         for idx in range(len(dir_sin_logit_list)):
-            dir_sin_logit = dir_sin_logit_list[idx] 
+            dir_sin_logit = dir_sin_logit_list[idx]
             dir_cos_logit = dir_cos_logit_list[idx]
-            background = (dir_sin_logit ** 2 + dir_cos_logit ** 2) < 0.5
-            
+            background = (dir_sin_logit**2 + dir_cos_logit**2) < 0.5
+
             dir_map = vector_to_label(torch.cat(()), 8)
             dir_map[background == 1] = -1
             dir_map = dir_map + 1
-            
+
             dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
             dir_map_list.append(dir_map)
             dd_map_list.append(dd_map)
@@ -220,9 +222,9 @@ class RegCDNetSegmentor(BaseSegmentor):
                 sem_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = sem_patch[:, :, ind1_s - i:ind1_e - i,
                                                                           ind2_s - j:ind2_e - j]
                 dir_sin_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = dir_sin_patch[:, :, ind1_s - i:ind1_e - i,
-                                                                          ind2_s - j:ind2_e - j]
+                                                                                  ind2_s - j:ind2_e - j]
                 dir_cos_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = dir_cos_patch[:, :, ind1_s - i:ind1_e - i,
-                                                                          ind2_s - j:ind2_e - j]
+                                                                                  ind2_s - j:ind2_e - j]
                 point_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = point_patch[:, :, ind1_s - i:ind1_e - i,
                                                                               ind2_s - j:ind2_e - j]
 
@@ -276,7 +278,7 @@ class RegCDNetSegmentor(BaseSegmentor):
         dir_loss['dir_sin_mse_loss'] = dir_sin_mse_loss
         dir_loss['dir_cos_mse_loss'] = dir_cos_mse_loss
         return dir_loss
-        
+
     def _dir_loss(self, dir_logit, dir_gt, weight_map=None):
         dir_loss = {}
         dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
@@ -313,11 +315,11 @@ class RegCDNetSegmentor(BaseSegmentor):
         clean_dir_logit = dir_logit.clone().detach()
         clean_dir_gt = dir_gt.clone().detach()
 
-        wrap_dict['mask_miou'] = miou(clean_mask_logit, clean_mask_gt, self.num_classes)
-        # wrap_dict['dir_miou'] = miou(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
+        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        # wrap_dict['dir_mdice'] = mdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
-        wrap_dict['mask_tiou'] = tiou(clean_mask_logit, clean_mask_gt, self.num_classes)
-        # wrap_dict['dir_tiou'] = tiou(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
+        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        # wrap_dict['dir_tdice'] = tdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
         # NOTE: training aji calculation metric calculate (This will be deprecated.)
         # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)

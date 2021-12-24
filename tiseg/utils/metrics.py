@@ -228,101 +228,126 @@ def aggregated_jaccard_index(inst_pred, inst_gt):
     return aji_score
 
 
-# def mean_aggregated_jaccard_index(inst_pred, inst_gt, sem_pred, sem_gt):
-#     """Aggregated Jaccard Index Calculation.
+def mean_aggregated_jaccard_index(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
+    """Class Wise Aggregated Jaccard Index Calculation.
 
-#     0 is set as background pixels and we will ignored.
+    0 is set as background pixels and we will ignored.
 
-#     Args:
-#         inst_pred (numpy.ndarray): Prediction instance map.
-#         inst_gt (numpy.ndarray): Ground truth instance map.
-#     """
-#     # make instance id contiguous
-#     inst_pred = measure.label(inst_pred.copy())
-#     inst_gt = measure.label(inst_gt.copy())
+    Args:
+        inst_pred (numpy.ndarray): Prediction instance map.
+        inst_gt (numpy.ndarray): Ground truth instance map.
+    """
+    # make instance id contiguous
+    inst_pred = measure.label(inst_pred.copy())
+    inst_gt = measure.label(inst_gt.copy())
 
-#     pred_id_list = list(np.unique(inst_pred))
-#     gt_id_list = list(np.unique(inst_gt))
+    pred_id_list = list(np.unique(inst_pred))
+    gt_id_list = list(np.unique(inst_gt))
 
-#     if 0 not in pred_id_list:
-#         pred_id_list.insert(0, 0)
+    if 0 not in pred_id_list:
+        pred_id_list.insert(0, 0)
 
-#     if 0 not in gt_id_list:
-#         gt_id_list.insert(0, 0)
+    if 0 not in gt_id_list:
+        gt_id_list.insert(0, 0)
 
-#     # get instance id from semantic results per class.
-#     # for sem_id in np.unique(sem_pred):
-#     #     if sem_id == 0:
-#     #         continue
-#     #     for pred_id in
+    def precision(pred, gt):
+        tp = np.logical_and(pred, gt)
 
-#     def precision(pred, gt):
-#         tp = pred[pred == gt]
-#         fp = pred[(pred != gt) * (pred > 0)]
+        return np.sum(tp) / np.sum(pred)
 
-#         return tp / (tp + fp)
+    def to_one_hot(mask, num_classes):
+        ret = np.zeros((num_classes, *mask.shape))
+        for i in range(num_classes):
+            ret[i, mask == i] = 1
 
-#     # Remove background class
-#     pred_masks = []
-#     for p in pred_id_list:
-#         p_mask = (inst_pred == p).astype(np.uint8)
-#         for sem_id in np.unique(sem_pred):
-#             if sem_id == 0:
-#                 continue
-#             sem_pred_per_class = (sem_pred == sem_id).astype(np.uint8)
-#             if pre
-#         pred_masks.append(p_mask)
+        return ret
 
-#     gt_masks = []
-#     for g in gt_id_list:
-#         g_mask = (inst_gt == g).astype(np.uint8)
-#         gt_masks.append(g_mask)
+    sem_pred_one_hot = to_one_hot(sem_pred, num_classes)
+    sem_gt_one_hot = to_one_hot(sem_gt, num_classes)
 
-#     # prefill with value
-#     pairwise_intersection = np.zeros([len(gt_id_list) - 1, len(pred_id_list) - 1], dtype=np.float64)
-#     pairwise_union = np.zeros([len(gt_id_list) - 1, len(pred_id_list) - 1], dtype=np.float64)
+    # Remove background class
+    pred_masks = []
+    pred_id_list_per_class = {}
+    for p in pred_id_list:
+        p_mask = (inst_pred == p).astype(np.uint8)
 
-#     # caching pairwise
-#     for gt_id in gt_id_list:  # 0-th is background
-#         if gt_id == 0:
-#             continue
-#         g_mask = gt_masks[gt_id]
-#         pred_target_overlap = inst_pred[g_mask > 0]
-#         pred_target_overlap_id = list(np.unique(pred_target_overlap))
-#         for pred_id in pred_target_overlap_id:
-#             if pred_id == 0:  # ignore
-#                 continue  # overlaping background
-#             p_mask = pred_masks[pred_id]
-#             total = (g_mask + p_mask).sum()
-#             intersect = (g_mask * p_mask).sum()
-#             pairwise_intersection[gt_id - 1, pred_id - 1] = intersect
-#             pairwise_union[gt_id - 1, pred_id - 1] = total - intersect
+        tp = np.sum(p_mask * sem_pred_one_hot, axis=(-2, -1))
+        belong_sem_id = np.argmax(tp)
 
-#     pairwise_iou = pairwise_intersection / (pairwise_union + 1.0e-6)
-#     # pair of pred that give highest iou for each target, dont care
-#     # about reusing pred instance multiple times
-#     if pairwise_iou.shape[0] * pairwise_iou.shape[1] == 0:
-#         return 0.
-#     paired_pred = np.argmax(pairwise_iou, axis=1)
-#     pairwise_iou = np.max(pairwise_iou, axis=1)
-#     # exlude those dont have intersection
-#     paired_gt = np.nonzero(pairwise_iou > 0.0)[0]
-#     paired_pred = paired_pred[paired_gt]
-#     overall_inter = (pairwise_intersection[paired_gt, paired_pred]).sum()
-#     overall_union = (pairwise_union[paired_gt, paired_pred]).sum()
+        if belong_sem_id not in pred_id_list_per_class:
+            pred_id_list_per_class[belong_sem_id] = [p]
+        else:
+            pred_id_list_per_class[belong_sem_id].append(p)
 
-#     paired_gt = list(paired_gt + 1)  # index to instance ID
-#     paired_pred = list(paired_pred + 1)
-#     # It seems that only unpaired Predictions need to be added into union.
-#     unpaired_gt = np.array([idx for idx in gt_id_list if (idx not in paired_gt) and (idx != 0)])
-#     for gt_id in unpaired_gt:
-#         overall_union += gt_masks[gt_id].sum()
-#     unpaired_pred = np.array([idx for idx in pred_id_list if (idx not in paired_pred) and (idx != 0)])
-#     for pred_id in unpaired_pred:
-#         overall_union += pred_masks[pred_id].sum()
+        pred_masks.append(p_mask)
 
-#     aji_score = overall_inter / overall_union
-#     return aji_score
+    gt_masks = []
+    gt_id_list_per_class = {}
+    for g in gt_id_list:
+        g_mask = (inst_gt == g).astype(np.uint8)
+
+        tp = np.sum(g_mask * sem_gt_one_hot, axis=(-2, -1))
+        belong_sem_id = np.argmax(tp)
+
+        if belong_sem_id not in gt_id_list_per_class:
+            gt_id_list_per_class[belong_sem_id] = [g]
+        else:
+            gt_id_list_per_class[belong_sem_id].append(g)
+
+        gt_masks.append(g_mask)
+
+    # prefill with value
+    pairwise_intersection = np.zeros([len(gt_id_list) - 1, len(pred_id_list) - 1], dtype=np.float64)
+    pairwise_union = np.zeros([len(gt_id_list) - 1, len(pred_id_list) - 1], dtype=np.float64)
+
+    # caching pairwise
+    for sem_id in gt_id_list_per_class.keys():
+        if sem_id not in pred_id_list_per_class:
+            continue
+        gt_id_list = gt_id_list_per_class[sem_id]
+        pred_id_list = pred_id_list_per_class[sem_id]
+        for gt_id in gt_id_list:  # 0-th is background
+            if gt_id == 0:
+                continue
+            g_mask = gt_masks[gt_id]
+            pred_target_overlap = inst_pred[g_mask > 0]
+            pred_target_overlap_id = list(np.unique(pred_target_overlap))
+            for pred_id in pred_target_overlap_id:
+                if pred_id == 0:  # ignore
+                    continue  # overlaping background
+                if pred_id not in pred_id_list:
+                    continue
+                p_mask = pred_masks[pred_id]
+                total = (g_mask + p_mask).sum()
+                intersect = (g_mask * p_mask).sum()
+                pairwise_intersection[gt_id - 1, pred_id - 1] = intersect
+                pairwise_union[gt_id - 1, pred_id - 1] = total - intersect
+
+    pairwise_iou = pairwise_intersection / (pairwise_union + 1.0e-6)
+    # pair of pred that give highest iou for each target, dont care
+    # about reusing pred instance multiple times
+    if pairwise_iou.shape[0] * pairwise_iou.shape[1] == 0:
+        return 0.
+    paired_pred = np.argmax(pairwise_iou, axis=1)
+    pairwise_iou = np.max(pairwise_iou, axis=1)
+    # exlude those dont have intersection
+    paired_gt = np.nonzero(pairwise_iou > 0.0)[0]
+    paired_pred = paired_pred[paired_gt]
+    overall_inter = (pairwise_intersection[paired_gt, paired_pred]).sum()
+    overall_union = (pairwise_union[paired_gt, paired_pred]).sum()
+
+    paired_gt = list(paired_gt + 1)  # index to instance ID
+    paired_pred = list(paired_pred + 1)
+    # It seems that only unpaired Predictions need to be added into union.
+    unpaired_gt = np.array([idx for idx in gt_id_list if (idx not in paired_gt) and (idx != 0)])
+    for gt_id in unpaired_gt:
+        overall_union += gt_masks[gt_id].sum()
+    unpaired_pred = np.array([idx for idx in pred_id_list if (idx not in paired_pred) and (idx != 0)])
+    for pred_id in unpaired_pred:
+        overall_union += pred_masks[pred_id].sum()
+
+    aji_score = overall_inter / overall_union
+    return aji_score
 
 
 def pre_eval_to_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None, beta=1):

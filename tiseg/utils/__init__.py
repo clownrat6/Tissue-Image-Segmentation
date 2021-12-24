@@ -1,5 +1,5 @@
 from .metrics import (pre_eval_all_semantic_metric, aggregated_jaccard_index, dice_similarity_coefficient,
-                      pre_eval_to_metrics, precision_recall)
+                      pre_eval_to_metrics, precision_recall, mean_aggregated_jaccard_index)
 from .hooks.training_curve import TrainingCurveHook
 from .hooks.eval_hook import DistEvalHook, EvalHook
 from .misc import (add_prefix, blend_image, image_addition, pillow_save, tensor2maps)
@@ -12,7 +12,7 @@ __all__ = ['collect_env', 'add_prefix', 'tensor2maps', 'pillow_save', 'blend_ima
 # evaluation utils
 __all__ += [
     'EvalHook', 'DistEvalHook', 'pre_eval_to_metrics', 'aggregated_jaccard_index', 'precision_recall',
-    'dice_similarity_coefficient', 'pre_eval_all_semantic_metric'
+    'dice_similarity_coefficient', 'pre_eval_all_semantic_metric', 'mean_aggregated_jaccard_index'
 ]
 
 # ops utils

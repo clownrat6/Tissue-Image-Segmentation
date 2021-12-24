@@ -9,7 +9,6 @@ Supported Dataset:
 - [x] MoNuSeg;
 - [x] CoNSeP;
 - [x] CPM17;
-- [x] OSCD;
 - [x] CoNIC;
 
 ## Installation
@@ -21,15 +20,26 @@ Supported Dataset:
 
 ## Usage
 
+### Training
+
 ```Bash
 # single gpu training
 python tools/train.py [config_path]
-# multi gpu training
-./tools/dist_train.sh [config_path] [gpu_num]
-# demo (cdnet for oscd dataset on 1 gpu)
-python tools/train.py configs/cdnet/cdnet_vgg16_adam-lr1e-3_8x1_256x256_80k_carton_oscd.py
-# demo (upernet for coco dataset on 4 gpu)
-./tools/dist_train.py configs/upernet/upernet_r50-d8_sgd-lr5e-3_4x2_512x512_160k_instance_coco.py 4
+# multiple gpu training
+./tools/dist_train.sh [config_path] [num_gpu]
+# demo (cdnet for CPM17 dataset on 1 gpu)
+python tools/train.py configs/unet/unet_vgg16_radam-lr5e-4_bs16_256x256_7k_cpm17.py
+# demo (unet for CPM17 dataset on 4 gpu)
+./tools/dist_train.py configs/unet/unet_vgg16_radam-lr5e-4_bs16_256x256_7k_cpm17.py 4
+```
+
+# Evaluation
+
+```Bash
+# single gpu evaluation
+python tools/test.py [config_path]
+# multiple gpu evaluation
+./tools/dist_test.py [config_path] [num_gpu]
 ```
 
 ## Main Board
