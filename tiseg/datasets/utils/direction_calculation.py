@@ -1,4 +1,8 @@
 import numpy as np
+from scipy.ndimage.morphology import distance_transform_edt
+
+from .center_calculation import calculate_centerpoint
+from .gradient_calculation import calculate_gradient
 
 label_to_vector_mapping = {
     4: [[-1, -1], [-1, 1], [1, 1], [1, -1]],
@@ -135,3 +139,71 @@ def label_to_vector(dir_map, num_classes=8):
     vector_map = vector_map.transpose(0, 3, 1, 2)
 
     return vector_map
+
+
+def calculate_dir_map(instance_map, gradient_map, num_angle_types):
+    # Prepare for gradient map & direction map calculation
+    # continue angle calculation
+    angle_map = np.degrees(np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
+    angle_map[instance_map == 0] = 0
+    vector_map = angle_to_vector(angle_map, num_angle_types)
+    # angle type judgement
+    dir_map = vector_to_label(vector_map, num_angle_types)
+
+    dir_map[instance_map == 0] = -1
+    dir_map = dir_map + 1
+
+    return dir_map
+
+
+def calculate_distance_to_center(single_instance_map, center):
+    H, W = single_instance_map.shape[:2]
+    # Calculate distance (to center) map for single instance
+    point_map_instance = np.zeros((H, W), dtype=np.uint8)
+    point_map_instance[center[0], center[1]] = 1
+    distance_to_center = distance_transform_edt(1 - point_map_instance)
+    # Only calculate distance (to center) in distance region
+    distance_to_center = distance_to_center * single_instance_map
+    distance_to_center_instance = (1 - distance_to_center /
+                                   (distance_to_center.max() + 0.0000001)) * single_instance_map
+
+    return distance_to_center_instance
+
+
+def _calculate_gradient(single_instance_map, distance_to_center_instance):
+    H, W = single_instance_map.shape[:2]
+    gradient_map_instance = np.zeros((H, W, 2))
+    gradient_map_instance = calculate_gradient(distance_to_center_instance, ksize=11)
+    gradient_map_instance[(single_instance_map == 0), :] = 0
+    return gradient_map_instance
+
+
+def get_dir_from_inst(inst_map, num_angle_types):
+    """Calculate direction classification map from instance map."""
+    H, W = inst_map.shape[:2]
+
+    gradient_map = np.zeros((H, W, 2), dtype=np.float32)
+
+    # remove background
+    markers_unique = list(np.unique(inst_map))
+
+    for k in markers_unique:
+        if k == 0:
+            continue
+        single_instance_map = (inst_map == k).astype(np.uint8)
+
+        center = calculate_centerpoint(single_instance_map, H, W)
+        # Count each center to judge if some instances don't get center
+        assert single_instance_map[center[0], center[1]] > 0
+
+        # Calculate distance from points of instance to instance center.
+        distance_to_center_instance = calculate_distance_to_center(single_instance_map, center)
+
+        # Calculate gradient of (to center) distance
+        gradient_map_instance = _calculate_gradient(single_instance_map, distance_to_center_instance)
+        gradient_map[(single_instance_map != 0), :] = 0
+        gradient_map += gradient_map_instance
+
+    dir_map = calculate_dir_map(inst_map, gradient_map, num_angle_types)
+
+    return dir_map

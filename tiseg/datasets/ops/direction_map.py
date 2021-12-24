@@ -126,9 +126,9 @@ class DirectionLabelMake(object):
         point_map, gradient_map, dist_map = self.calculate_point_map(inst_map)
 
         # direction map calculation
-        dir_map = self.calculate_dir_map(inst_map, gradient_map)
+        dir_map = self.calculate_dir_map(inst_map, gradient_map, self.num_angle_types)
         reg_dir_map = self.calculate_regression_dir_map(inst_map, gradient_map)
-        weight_map = self.calculate_weight_map(dir_map, dist_map)
+        weight_map = self.calculate_weight_map(dir_map, dist_map, self.num_angle_types)
         weight_map = weight_map * 10.
 
         results['point_gt'] = point_map
@@ -138,9 +138,10 @@ class DirectionLabelMake(object):
 
         return results
 
-    def calculate_weight_map(self, dir_map, dist_map):
+    @classmethod
+    def calculate_weight_map(self, dir_map, dist_map, num_angle_types):
         # torch style api
-        dd_map = generate_direction_differential_map(dir_map, self.num_angle_types + 1)
+        dd_map = generate_direction_differential_map(dir_map, num_angle_types + 1)
         dd_map = dd_map[0].numpy()
         weight_map = dd_map * (1 - dist_map)
         weight_map = morphology.dilation(dd_map, selem=morphology.selem.disk(1))
@@ -148,20 +149,22 @@ class DirectionLabelMake(object):
 
         return weight_map
 
-    def calculate_dir_map(self, instance_map, gradient_map):
+    @classmethod
+    def calculate_dir_map(self, instance_map, gradient_map, num_angle_types):
         # Prepare for gradient map & direction map calculation
         # continue angle calculation
         angle_map = np.degrees(np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
         angle_map[instance_map == 0] = 0
-        vector_map = angle_to_vector(angle_map, self.num_angle_types)
+        vector_map = angle_to_vector(angle_map, num_angle_types)
         # angle type judgement
-        dir_map = vector_to_label(vector_map, self.num_angle_types)
+        dir_map = vector_to_label(vector_map, num_angle_types)
 
         dir_map[instance_map == 0] = -1
         dir_map = dir_map + 1
 
         return dir_map
 
+    @classmethod
     def calculate_regression_dir_map(self, instance_map, gradient_map):
         angle_map = np.degrees(np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
         angle_map[angle_map < 0] += 360
@@ -169,6 +172,7 @@ class DirectionLabelMake(object):
 
         return angle_map / 180 * np.pi
 
+    @classmethod
     def calculate_point_map(self, instance_map):
         H, W = instance_map.shape[:2]
         # distance_center_map: The min distance between center and point
@@ -206,6 +210,7 @@ class DirectionLabelMake(object):
 
         return point_map_gaussian, gradient_map, distance_to_center_map
 
+    @classmethod
     def calculate_distance_to_center(self, single_instance_map, center):
         H, W = single_instance_map.shape[:2]
         # Calculate distance (to center) map for single instance
@@ -219,6 +224,7 @@ class DirectionLabelMake(object):
 
         return distance_to_center_instance
 
+    @classmethod
     def calculate_gradient(self, single_instance_map, distance_to_center_instance):
         H, W = single_instance_map.shape[:2]
         gradient_map_instance = np.zeros((H, W, 2))

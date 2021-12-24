@@ -3,9 +3,7 @@ import os.path as osp
 import warnings
 from collections import OrderedDict
 
-import cv2
 import mmcv
-import matplotlib.pyplot as plt
 import numpy as np
 from mmcv.utils import print_log
 from prettytable import PrettyTable
@@ -13,99 +11,14 @@ from scipy.ndimage import binary_fill_holes
 from skimage import measure, morphology
 from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
+from tiseg.datasets.utils.draw import Drawer
 
 from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_metrics, aggregated_jaccard_index,
                          mean_aggregated_jaccard_index)
+from tiseg.models.utils import generate_direction_differential_map
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
-from .utils import re_instance, mudslide_watershed, align_foreground, colorize_seg_map
-
-
-def draw_all(save_folder,
-             img_name,
-             img_file_name,
-             sem_pred,
-             sem_gt,
-             inst_pred,
-             inst_gt,
-             tri_sem_pred,
-             tri_sem_gt,
-             edge_id=2,
-             sem_palette=None,
-             eval_res=None):
-
-    plt.figure(figsize=(5 * 4, 5 * 2 + 3))
-
-    # image drawing
-    img = cv2.imread(img_file_name)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    plt.subplot(241)
-    plt.imshow(img)
-    plt.axis('off')
-    plt.title('Image', fontsize=15, color='black')
-
-    canvas = np.zeros((*sem_pred.shape, 3), dtype=np.uint8)
-    canvas[(sem_pred > 0) * (sem_gt > 0), :] = (0, 0, 255)
-    canvas[canvas == edge_id] = 0
-    canvas[(sem_pred == 0) * (sem_gt > 0), :] = (0, 255, 0)
-    canvas[(sem_pred > 0) * (sem_gt == 0), :] = (255, 0, 0)
-    plt.subplot(242)
-    plt.imshow(canvas)
-    plt.axis('off')
-    plt.title('Error Analysis: FN-FP-TP', fontsize=15, color='black')
-
-    # get the colors of the values, according to the
-    # colormap used by imshow
-    colors = [(0, 0, 255), (0, 255, 0), (255, 0, 0)]
-    label_list = [
-        'TP',
-        'FN',
-        'FP',
-    ]
-    for color, label in zip(colors, label_list):
-        color = list(color)
-        color = [x / 255 for x in color]
-        plt.plot(0, 0, '-', color=tuple(color), label=label)
-    plt.legend(loc='upper center', fontsize=9, bbox_to_anchor=(0.5, 0), ncol=3)
-
-    plt.subplot(243)
-    plt.imshow(colorize_seg_map(inst_pred))
-    plt.axis('off')
-    plt.title('Instance Level Prediction')
-
-    plt.subplot(244)
-    plt.imshow(colorize_seg_map(inst_gt))
-    plt.axis('off')
-    plt.title('Instance Level Ground Truth')
-
-    plt.subplot(245)
-    plt.imshow(colorize_seg_map(sem_pred, sem_palette))
-    plt.axis('off')
-    plt.title('Semantic Level Prediction')
-
-    plt.subplot(246)
-    plt.imshow(colorize_seg_map(sem_gt, sem_palette))
-    plt.axis('off')
-    plt.title('Semantic Level Ground Truth')
-
-    tc_palette = [(0, 0, 0), (0, 255, 0), (255, 0, 0)]
-
-    plt.subplot(247)
-    plt.imshow(colorize_seg_map(tri_sem_pred, tc_palette))
-    plt.axis('off')
-    plt.title('Three-class Semantic Level Prediction')
-
-    plt.subplot(248)
-    plt.imshow(colorize_seg_map(tri_sem_gt, tc_palette))
-    plt.axis('off')
-    plt.title('Three-class Semantic Level Ground Truth')
-
-    if eval_res is not None:
-        plt.suptitle(f'Dice: {eval_res["Dice"] * 100:.2f}\nAji: {eval_res["Aji"] * 100:.2f}')
-
-    # results visulization
-    plt.tight_layout()
-    plt.savefig(f'{save_folder}/{img_name}_compare.png', dpi=300)
+from .utils import (re_instance, mudslide_watershed, align_foreground, get_tc_from_inst, get_dir_from_inst)
 
 
 @DATASETS.register_module()
@@ -281,6 +194,21 @@ class NucleiCoNICDataset(Dataset):
                 # model-agnostic post process operations
                 sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
 
+            tc_sem_pred_ = tc_sem_pred.copy()
+            tc_sem_gt = get_tc_from_inst(inst_gt)
+            pred_collect = {'sem_pred': sem_pred, 'inst_pred': inst_pred, 'tc_sem_pred': tc_sem_pred_}
+            gt_collect = {'sem_gt': sem_gt, 'inst_gt': inst_gt, 'tc_sem_gt': tc_sem_gt}
+
+            if 'dir_pred' in pred:
+                dir_pred_ = dir_pred.copy()
+                dir_gt = get_dir_from_inst(inst_gt, num_angle_types=8)
+
+                ddm_pred = generate_direction_differential_map(dir_pred_, direction_classes=(8 + 1))[0]
+                ddm_gt = generate_direction_differential_map(dir_gt, direction_classes=(8 + 1))[0]
+
+                pred_collect.update({'dir_pred': dir_pred_, 'ddm_pred': ddm_pred})
+                gt_collect.update({'dir_gt': dir_gt, 'ddm_gt': ddm_gt})
+
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
@@ -296,28 +224,11 @@ class NucleiCoNICDataset(Dataset):
             pre_eval_results.append(single_loop_results)
 
             if show:
-                tri_sem_pred = tc_sem_pred.copy()
-                tri_sem_gt = np.zeros_like(tri_sem_pred)
-                inst_id_list = list(np.unique(inst_gt))
-                # TODO: move it to dataset conversion
-                for inst_id in inst_id_list:
-                    if inst_id == 0:
-                        continue
-                    inst_id_mask = inst_gt == inst_id
-                    bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(2)))
-                    tri_sem_gt[inst_id_mask > 0] = 1
-                    tri_sem_gt[bound > 0] = 2
-                draw_all(
-                    show_folder,
-                    img_name,
-                    img_file_name,
-                    sem_pred,
-                    sem_gt,
-                    inst_pred,
-                    inst_gt,
-                    tri_sem_pred,
-                    tri_sem_gt,
-                    sem_palette=self.PALETTE)
+                self.drawer = Drawer(show_folder, sem_palette=self.PALETTE)
+                if 'dir_pred' in pred_collect and 'dir_gt' in gt_collect:
+                    self.drawer.draw_direction(img_name, img_file_name, pred_collect, gt_collect)
+                else:
+                    self.drawer.draw(img_name, img_file_name, pred_collect, gt_collect)
 
         return pre_eval_results
 
