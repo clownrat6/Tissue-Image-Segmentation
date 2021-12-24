@@ -14,7 +14,8 @@ from skimage import measure, morphology
 from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
-from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_metrics, aggregated_jaccard_index)
+from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_metrics, aggregated_jaccard_index,
+                         mean_aggregated_jaccard_index)
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
 from .utils import re_instance, mudslide_watershed, align_foreground, colorize_seg_map
@@ -87,7 +88,7 @@ def draw_all(save_folder,
     plt.axis('off')
     plt.title('Semantic Level Ground Truth')
 
-    tc_palette = [(0, 0, 0), (255, 0, 0), (0, 255, 0)]
+    tc_palette = [(0, 0, 0), (0, 255, 0), (255, 0, 0)]
 
     plt.subplot(247)
     plt.imshow(colorize_seg_map(tri_sem_pred, tc_palette))
@@ -97,7 +98,7 @@ def draw_all(save_folder,
     plt.subplot(248)
     plt.imshow(colorize_seg_map(tri_sem_gt, tc_palette))
     plt.axis('off')
-    plt.title('Three-class Semantic Level Prediction')
+    plt.title('Three-class Semantic Level Ground Truth')
 
     if eval_res is not None:
         plt.suptitle(f'Dice: {eval_res["Dice"] * 100:.2f}\nAji: {eval_res["Aji"] * 100:.2f}')
@@ -293,12 +294,14 @@ class NucleiCoNICDataset(Dataset):
 
             # instance metric calculation
             aji_metric = aggregated_jaccard_index(re_instance(inst_pred), inst_gt)
+            maji_metric = mean_aggregated_jaccard_index(
+                re_instance(inst_pred), inst_gt, sem_pred, sem_gt, len(self.CLASSES))
 
             # NOTE: old single loop results
             # single_loop_results = dict(
             #     Aji=aji_metric, Dice=dice_metric, Recall=recall_metric, Precision=precision_metric)
 
-            single_loop_results = dict(Aji=aji_metric, sem_pre_eval_res=sem_pre_eval_res)
+            single_loop_results = dict(Aji=aji_metric, mAji=maji_metric, sem_pre_eval_res=sem_pre_eval_res)
             pre_eval_results.append(single_loop_results)
 
             if show:
@@ -311,6 +314,7 @@ class NucleiCoNICDataset(Dataset):
                         continue
                     inst_id_mask = inst_gt == inst_id
                     bound = inst_id_mask & (~morphology.erosion(inst_id_mask, selem=morphology.selem.disk(2)))
+                    tri_sem_gt[inst_id_mask > 0] = 1
                     tri_sem_gt[bound > 0] = 2
                 draw_all(
                     show_folder,
@@ -439,7 +443,7 @@ class NucleiCoNICDataset(Dataset):
         sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
         ret_metrics.update(pre_eval_to_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
 
-        inst_eval = ['Aji']
+        inst_eval = ['Aji', 'mAji']
         sem_eval = ['Dice', 'Precision', 'Recall']
         inst_metrics = {}
         sem_metrics = {}
