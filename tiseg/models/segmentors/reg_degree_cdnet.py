@@ -5,6 +5,7 @@ import numpy as np
 import time
 from skimage import io
 
+
 from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..heads.regression_degree_cd_head import RegDegreeCDHead
@@ -13,7 +14,6 @@ from ..losses import MultiClassDiceLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 from ...datasets.utils import (angle_to_vector, calculate_centerpoint, calculate_gradient, vector_to_label)
-
 
 @SEGMENTORS.register_module()
 class RegDegreeCDNetSegmentor(BaseSegmentor):
@@ -85,8 +85,7 @@ class RegDegreeCDNetSegmentor(BaseSegmentor):
             loss.update(point_loss)
 
             # calculate training metric
-            training_metric_dict = self._training_metric(mask_logit, dir_degree_logit, point_logit, mask_gt, dir_gt,
-                                                         point_gt)
+            training_metric_dict = self._training_metric(mask_logit, dir_degree_logit, point_logit, mask_gt, dir_gt, point_gt)
             loss.update(training_metric_dict)
             return loss
         else:
@@ -153,23 +152,30 @@ class RegDegreeCDNetSegmentor(BaseSegmentor):
         dd_map_list = []
         dir_map_list = []
         for idx in range(len(dir_degree_logit_list)):
+            name = meta['file_name'][meta['file_name'].find('/T') : -4]
             dir_degree_logit = dir_degree_logit_list[idx]
             # print(torch.min(dir_degree_logit), torch.max(dir_degree_logit))
             # background = (dir_degree_logit <= 0.3)[0, 0].cpu().numpy()
             dir_degree_logit[dir_degree_logit < 0] = 0
-            dir_degree_logit[dir_degree_logit > 2 * np.pi] = 2 * np.pi
-
+            dir_degree_logit[dir_degree_logit > 2 * np.pi] = 2 * np.pi 
+            
             background = (torch.argmax(sem_logit, dim=1)[0] == 0).cpu().numpy()
             # print(dir_degree_logit.shape, background.shape)
             angle_map = dir_degree_logit * 180 / np.pi
-            angle_map[angle_map > 180] -= 360
-            angle_map = angle_map[0, 0].cpu().numpy()  #[H, W]
-            angle_map[background] = 0
-            name = meta['file_name'][meta['file_name'].find('/T'):-4]
+            angle_map = angle_map[0, 0].cpu().numpy() #[H, W]
             # if idx == 0:
             #     print(name)
-            #     # id = time.time() % 1000
-            #     io.imsave("/root/workspace/NuclearSegmentation/Torch-Image-Segmentation/work_dirs/debug/" + name + '_angle_map.png', angle_map)
+            #     io.imsave("/root/workspace/NuclearSegmentation/Torch-Image-Segmentation/work_dirs/debug/" + name + '_angle_map1.png', angle_map)
+            angle_map[angle_map > 180] -= 360
+            # if idx == 0:
+            #     print(name)
+            #     io.imsave("/root/workspace/NuclearSegmentation/Torch-Image-Segmentation/work_dirs/debug/" + name + '_angle_map2.png', angle_map)
+            angle_map[background] = 0
+            # if idx == 0:
+            #     print(name)
+            #     io.imsave("/root/workspace/NuclearSegmentation/Torch-Image-Segmentation/work_dirs/debug/" + name + '_angle_map3.png', angle_map)
+
+            
 
             vector_map = angle_to_vector(angle_map, 8)
 
@@ -179,13 +185,14 @@ class RegDegreeCDNetSegmentor(BaseSegmentor):
             # if idx == 0:
             #     io.imsave("/root/workspace/NuclearSegmentation/Torch-Image-Segmentation/work_dirs/debug/" + name + '_dcm_map.png', dir_map / 8 * 255)
 
-            dir_map = torch.from_numpy(dir_map[None, :, :]).cuda()
+            dir_map = torch.from_numpy(dir_map[None,:,:]).cuda()
             # print(type(dir_map), dir_map.shape)
             # dd_map = generate_direction_differential_map(vector_map, self.num_angles + 1, background, True)
             dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
 
             # if idx == 0:
             #     io.imsave("/root/workspace/NuclearSegmentation/Torch-Image-Segmentation/work_dirs/debug/" + name + '_ddm_map.png', dd_map[0].cpu().numpy() * 255)
+
 
             dir_map_list.append(dir_map)
             dd_map_list.append(dd_map)
@@ -244,7 +251,7 @@ class RegDegreeCDNetSegmentor(BaseSegmentor):
                 sem_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = sem_patch[:, :, ind1_s - i:ind1_e - i,
                                                                           ind2_s - j:ind2_e - j]
                 dir_degree_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = dir_degree_patch[:, :, ind1_s - i:ind1_e - i,
-                                                                                        ind2_s - j:ind2_e - j]
+                                                                          ind2_s - j:ind2_e - j]
                 point_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = point_patch[:, :, ind1_s - i:ind1_e - i,
                                                                               ind2_s - j:ind2_e - j]
 
@@ -294,7 +301,7 @@ class RegDegreeCDNetSegmentor(BaseSegmentor):
         dir_degree_mse_loss = dir_mse_loss_calculator(dir_degree_logit, dir_gt)
         dir_loss['dir_degree_mse_loss'] = dir_degree_mse_loss
         return dir_loss
-
+        
     def _dir_loss(self, dir_logit, dir_gt, weight_map=None):
         dir_loss = {}
         dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
