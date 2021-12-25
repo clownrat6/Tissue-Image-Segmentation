@@ -6,7 +6,7 @@ from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..heads.multi_task_cd_head import MultiTaskCDHead
 from ..builder import SEGMENTORS
-from ..losses import MultiClassDiceLoss, mdice, tdice
+from ..losses import BatchMultiClassDiceLoss, MultiClassDiceLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 
@@ -268,7 +268,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
     def _mask_loss(self, mask_logit, mask_gt, weight_map=None):
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_classes)
+        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
         # Assign weight map for each pixel position
         mask_ce_loss = mask_ce_loss_calculator(mask_logit, mask_gt)
         if weight_map is not None:
@@ -276,7 +276,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         mask_ce_loss = torch.mean(mask_ce_loss)
         mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_gt)
         # loss weight
-        alpha = 1
+        alpha = 3
         beta = 1
         mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
         mask_loss['mask_dice_loss'] = beta * mask_dice_loss
