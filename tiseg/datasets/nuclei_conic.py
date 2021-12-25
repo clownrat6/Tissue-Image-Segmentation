@@ -13,7 +13,7 @@ from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 from tiseg.datasets.utils.draw import Drawer
 
-from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_metrics, aggregated_jaccard_index,
+from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_aji, pre_eval_to_sem_metrics, pre_eval_to_aji,
                          mean_aggregated_jaccard_index)
 from tiseg.models.utils import generate_direction_differential_map
 from .builder import DATASETS
@@ -214,13 +214,13 @@ class NucleiCoNICDataset(Dataset):
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
 
             # instance metric calculation
-            aji_metric = aggregated_jaccard_index(re_instance(inst_pred), inst_gt)
+            aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt)
             maji_metric = mean_aggregated_jaccard_index(
                 re_instance(inst_pred), inst_gt, sem_pred, sem_gt, len(self.CLASSES))
 
             # NOTE: old single loop results
-            # single_loop_results = dict(Aji=aji_metric, sem_pre_eval_res=sem_pre_eval_res)
-            single_loop_results = dict(Aji=aji_metric, mAji=maji_metric, sem_pre_eval_res=sem_pre_eval_res)
+            single_loop_results = dict(
+                mAji=maji_metric, aji_pre_eval_res=aji_pre_eval_res, sem_pre_eval_res=sem_pre_eval_res)
             pre_eval_results.append(single_loop_results)
 
             if show:
@@ -342,9 +342,12 @@ class NucleiCoNICDataset(Dataset):
                     ret_metrics[key].append(value)
 
         sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
-        ret_metrics.update(pre_eval_to_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
+        ret_metrics.update(pre_eval_to_sem_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
+        aji_pre_eval_results = ret_metrics.pop('aji_pre_eval_res')
+        ret_metrics.update(pre_eval_to_aji(aji_pre_eval_results))
 
-        inst_eval = ['Aji', 'mAji']
+        inst_eval = ['mAji']
+        inst_pre_eval = ['Aji']
         sem_eval = ['Dice', 'Precision', 'Recall']
         inst_metrics = {}
         sem_metrics = {}
@@ -355,6 +358,8 @@ class NucleiCoNICDataset(Dataset):
             if key in inst_eval:
                 average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
                 inst_metrics[key] = average_value
+            elif key in inst_pre_eval:
+                inst_metrics[key] = ret_metrics[key]
             elif key in sem_eval:
                 # remove background class
                 sem_metrics[key] = ret_metrics[key][1:]
