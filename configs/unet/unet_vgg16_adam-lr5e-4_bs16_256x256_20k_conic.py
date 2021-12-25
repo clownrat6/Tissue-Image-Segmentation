@@ -9,7 +9,7 @@ runner = dict(type='IterBasedRunner', max_iters=20000)
 evaluation = dict(
     interval=1000,
     metric='all',
-    save_best='Aji',
+    save_best='bAji',
     rule='greater',
 )
 checkpoint_config = dict(
