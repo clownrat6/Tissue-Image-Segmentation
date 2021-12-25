@@ -201,10 +201,13 @@ class NucleiCoNICDataset(Dataset):
             # instance metric calculation
             bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
             aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
+            imw_aji = bin_aji_pre_eval_res[0] / bin_aji_pre_eval_res[1]
+
             bin_pq_pre_eval_res = pre_eval_bin_pq(inst_pred, inst_gt)
             pq_pre_eval_res = pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
 
             single_loop_results = dict(
+                imwAji=imw_aji,
                 bin_aji_pre_eval_res=bin_aji_pre_eval_res,
                 aji_pre_eval_res=aji_pre_eval_res,
                 bin_pq_pre_eval_res=bin_pq_pre_eval_res,
@@ -229,10 +232,11 @@ class NucleiCoNICDataset(Dataset):
                     gt_collect.update({'dir_gt': dir_gt, 'ddm_gt': ddm_gt})
 
                 self.drawer = Drawer(show_folder, sem_palette=self.PALETTE)
+                metrics = {'imwAji': imw_aji}
                 if 'dir_pred' in pred_collect and 'dir_gt' in gt_collect:
-                    self.drawer.draw_direction(img_name, img_file_name, pred_collect, gt_collect)
+                    self.drawer.draw_direction(img_name, img_file_name, pred_collect, gt_collect, metrics)
                 else:
-                    self.drawer.draw(img_name, img_file_name, pred_collect, gt_collect)
+                    self.drawer.draw(img_name, img_file_name, pred_collect, gt_collect, metrics)
 
         return pre_eval_results
 
@@ -281,8 +285,6 @@ class NucleiCoNICDataset(Dataset):
             sem_id_mask = sem_pred == sem_id
             # fill instance holes
             sem_id_mask = binary_fill_holes(sem_id_mask)
-            # remove small instance
-            sem_id_mask = remove_small_objects(sem_id_mask, 20)
             sem_canvas[sem_id_mask > 0] = sem_id
 
         # instance process & dilation
@@ -307,8 +309,6 @@ class NucleiCoNICDataset(Dataset):
             sem_id_mask = pred == sem_id
             # fill instance holes
             sem_id_mask = binary_fill_holes(sem_id_mask)
-            # remove small instance
-            sem_id_mask = remove_small_objects(sem_id_mask, 20)
             sem_id_mask_dila = morphology.dilation(sem_id_mask, selem=morphology.disk(2))
             inst_pred[sem_id_mask > 0] = 1
             sem_pred[sem_id_mask_dila > 0] = sem_id
@@ -374,6 +374,8 @@ class NucleiCoNICDataset(Dataset):
             elif key in sem_keys:
                 # remove background class
                 sem_metrics[key] = ret_metrics[key][1:]
+            else:
+                total_inst_metrics[key] = sum(ret_metrics[key]) / len(ret_metrics[key])
 
         # semantic table
         classes_metrics = OrderedDict()

@@ -465,13 +465,15 @@ def pre_eval_to_aji(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=T
     # [1]: overall union
     overall_inter = sum(pre_eval_results[0])
     overall_union = sum(pre_eval_results[1])
+
+    aji = overall_inter / overall_union
+
     if reduce_zero_class_insts:
-        overall_inter_ = np.sum(overall_inter[1:])
-        overall_union_ = np.sum(overall_union[1:])
+        maji = np.mean(aji[1:])
     else:
-        overall_inter_ = np.sum(overall_inter)
-        overall_union_ = np.sum(overall_union)
-    ret_metrics = {'mAji': overall_inter_ / overall_union_, 'Aji': overall_inter / overall_union}
+        maji = np.mean(aji)
+
+    ret_metrics = {'mAji': maji, 'Aji': aji}
 
     if nan_to_num is not None:
         ret_metrics = OrderedDict(
@@ -526,17 +528,6 @@ def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=Tr
     fn = sum(pre_eval_results[2])
     iou = sum(pre_eval_results[3])
 
-    if reduce_zero_class_insts:
-        tp_sum = np.sum(tp[1:])
-        fp_sum = np.sum(fp[1:])
-        fn_sum = np.sum(fn[1:])
-        iou_sum = np.sum(iou[1:])
-    else:
-        tp_sum = np.sum(tp)
-        fp_sum = np.sum(fp)
-        fn_sum = np.sum(fn)
-        iou_sum = np.sum(iou)
-
     # get the F1-score i.e DQ
     dq = tp / (tp + 0.5 * fp + 0.5 * fn)
     # get the SQ, no paired has 0 iou so not impact
@@ -545,13 +536,16 @@ def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=Tr
 
     ret_metrics = {'DQ': dq, 'SQ': sq, 'PQ': pq}
 
-    # get the F1-score i.e DQ
-    dq = tp_sum / (tp_sum + 0.5 * fp_sum + 0.5 * fn_sum)
-    # get the SQ, no paired has 0 iou so not impact
-    sq = iou_sum / (tp_sum + 1.0e-6)
-    pq = dq * sq
+    if reduce_zero_class_insts:
+        dq = np.mean(dq[1:])
+        sq = np.mean(sq[1:])
+        pq = np.mean(pq[1:])
+    else:
+        dq = np.mean(dq)
+        sq = np.mean(sq)
+        pq = np.mean(pq)
 
-    ret_metrics.update({'mDQ': pq, 'mSQ': sq, 'mPQ': pq})
+    ret_metrics.update({'mDQ': dq, 'mSQ': sq, 'mPQ': pq})
 
     if nan_to_num is not None:
         ret_metrics = OrderedDict(

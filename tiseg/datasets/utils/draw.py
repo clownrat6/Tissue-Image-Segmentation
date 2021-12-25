@@ -32,7 +32,7 @@ class Drawer(object):
         self.edge_id = edge_id
         self.sem_palette = sem_palette
 
-    def draw(self, img_name, img_file_name, pred, gt):
+    def draw(self, img_name, img_file_name, pred, gt, metrics):
         sem_pred = pred['sem_pred']
         inst_pred = pred['inst_pred']
         tc_sem_pred = pred['tc_sem_pred']
@@ -100,7 +100,7 @@ class Drawer(object):
         plt.subplot(247)
         plt.imshow(colorize_seg_map(tc_sem_pred, tc_palette))
         plt.axis('off')
-        plt.title('Three-class Semantic Level Prediction')
+        plt.title(f'Three-class Semantic Level Prediction imwAji: {metrics["imwAji"]*100:.2f}')
 
         plt.subplot(248)
         plt.imshow(colorize_seg_map(tc_sem_gt, tc_palette))
@@ -111,7 +111,7 @@ class Drawer(object):
         plt.tight_layout()
         plt.savefig(f'{self.save_folder}/{img_name}_compare.png', dpi=300)
 
-    def draw_direction(self, img_name, img_file_name, pred, gt):
+    def draw_direction(self, img_name, img_file_name, pred, gt, metrics):
         sem_pred = pred['sem_pred']
         inst_pred = pred['inst_pred']
         tc_sem_pred = pred['tc_sem_pred']
@@ -183,7 +183,7 @@ class Drawer(object):
         plt.subplot(347)
         plt.imshow(colorize_seg_map(tc_sem_pred, tc_palette))
         plt.axis('off')
-        plt.title('Three-class Semantic Level Prediction')
+        plt.title(f'Three-class Semantic Level Prediction imwAji: {metrics["imwAji"]*100:.2f}')
 
         plt.subplot(348)
         plt.imshow(colorize_seg_map(tc_sem_gt, tc_palette))
