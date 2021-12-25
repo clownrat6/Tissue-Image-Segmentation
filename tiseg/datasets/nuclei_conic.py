@@ -201,7 +201,10 @@ class NucleiCoNICDataset(Dataset):
             # instance metric calculation
             bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
             aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
-            imw_aji = bin_aji_pre_eval_res[0] / bin_aji_pre_eval_res[1]
+            if bin_aji_pre_eval_res[0] * bin_aji_pre_eval_res[1] == 0:
+                imw_aji = 0
+            else:
+                imw_aji = bin_aji_pre_eval_res[0] / bin_aji_pre_eval_res[1]
 
             bin_pq_pre_eval_res = pre_eval_bin_pq(inst_pred, inst_gt)
             pq_pre_eval_res = pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))

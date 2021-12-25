@@ -5,7 +5,7 @@ from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads import UNetHead
-from ..losses import MultiClassDiceLoss, mdice, tdice
+from ..losses import BatchMultiClassDiceLoss, mdice, tdice
 from .base import BaseSegmentor
 
 
@@ -70,14 +70,14 @@ class UNetSegmentor(BaseSegmentor):
         """calculate mask branch loss."""
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_classes)
+        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
         mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
         # loss weight
-        alpha = 1
-        beta = 1
+        alpha = 5
+        beta = 0.5
         mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
         mask_loss['mask_dice_loss'] = beta * mask_dice_loss
 
