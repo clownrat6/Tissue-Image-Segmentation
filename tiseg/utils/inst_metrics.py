@@ -1,47 +1,11 @@
 from collections import OrderedDict
 
-import mmcv
 import numpy as np
-import torch
 from skimage import measure
 from scipy.optimize import linear_sum_assignment
 
 
-# TODO: Add doc string & comments
-def pre_eval_all_semantic_metric(pred_label, target_label, num_classes, ignore_index=255):
-    """Generate pre eval results for all semantic metrics."""
-    if isinstance(pred_label, str):
-        pred_label = torch.from_numpy(np.load(pred_label))
-    else:
-        pred_label = torch.from_numpy((pred_label))
-
-    if isinstance(target_label, str):
-        target_label = torch.from_numpy(mmcv.imread(target_label, flag='unchanged', backend='pillow'))
-    else:
-        target_label = torch.from_numpy(target_label)
-
-    mask = target_label != ignore_index
-    pred_label = pred_label[mask]
-    target_label = target_label[mask]
-
-    TP = target_label[pred_label == target_label]
-    FP = pred_label[pred_label != target_label]
-    FN = target_label[pred_label != target_label]
-
-    TP_per_class = torch.histc(TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FP_per_class = torch.histc(FP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FN_per_class = torch.histc(FN.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    Pred_per_class = torch.histc(pred_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    GT_per_class = torch.histc(target_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
-
-    TN_per_class = Pred_per_class.sum() - (TP_per_class + FP_per_class + FN_per_class)
-
-    ret_package = (TP_per_class, TN_per_class, FP_per_class, FN_per_class, Pred_per_class, GT_per_class)
-
-    return ret_package
-
-
-def pre_eval_aji(inst_pred, inst_gt):
+def pre_eval_bin_aji(inst_pred, inst_gt):
     # make instance id contiguous
     inst_pred = measure.label(inst_pred.copy())
     inst_gt = measure.label(inst_gt.copy())
@@ -112,7 +76,7 @@ def pre_eval_aji(inst_pred, inst_gt):
     return overall_inter, overall_union
 
 
-def pre_eval_maji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, reduce_zero_class_insts=True):
+def pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
     # make instance id contiguous
     inst_pred = measure.label(inst_pred.copy())
     inst_gt = measure.label(inst_gt.copy())
@@ -172,15 +136,15 @@ def pre_eval_maji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, reduce_zero
 
     union_sem_ids = list(set(pred_sem_ids + gt_sem_ids))
 
-    overall_inter = 0
-    overall_union = 0
+    overall_inter = np.zeros((num_classes), dtype=np.float32)
+    overall_union = np.zeros((num_classes), dtype=np.float32)
     for sem_id in union_sem_ids:
         # NOTE: this part overall union is about mismatching between semantic map & instance map.
-        if sem_id == 0 and not reduce_zero_class_insts:
+        if sem_id == 0:
             pred_id_list = pred_id_list_per_class[sem_id]
             gt_id_list = gt_id_list_per_class[sem_id]
-            overall_union += sum([np.sum(inst_pred == pred_id) for pred_id in pred_id_list if pred_id != 0])
-            overall_union += sum([np.sum(inst_gt == gt_id) for gt_id in gt_id_list if gt_id != 0])
+            overall_union[sem_id] += sum([np.sum(inst_pred == pred_id) for pred_id in pred_id_list if pred_id != 0])
+            overall_union[sem_id] += sum([np.sum(inst_gt == gt_id) for gt_id in gt_id_list if gt_id != 0])
             continue
 
         if sem_id in pred_id_list_per_class and sem_id in gt_id_list_per_class:
@@ -191,16 +155,16 @@ def pre_eval_maji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, reduce_zero
             gt_inst_map = sum([((inst_gt == gt_id).astype(np.int32) * (idx + 1))
                                for idx, gt_id in enumerate(gt_id_list)])
 
-            res = pre_eval_aji(pred_inst_map, gt_inst_map)
-            overall_inter += res[0]
-            overall_union += res[1]
+            res = pre_eval_bin_aji(pred_inst_map, gt_inst_map)
+            overall_inter[sem_id] += res[0]
+            overall_union[sem_id] += res[1]
         # NOTE: this part overall union is about semantic results mismatching between prediction & ground truth.
         elif sem_id in pred_id_list_per_class:
             pred_id_list = pred_id_list_per_class[sem_id]
-            overall_union += sum([np.sum(inst_pred == pred_id) for pred_id in pred_id_list if pred_id != 0])
+            overall_union[sem_id] += sum([np.sum(inst_pred == pred_id) for pred_id in pred_id_list if pred_id != 0])
         elif sem_id in gt_id_list_per_class:
             gt_id_list = gt_id_list_per_class[sem_id]
-            overall_union += sum([np.sum(inst_gt == gt_id) for gt_id in gt_id_list if gt_id != 0])
+            overall_union[sem_id] += sum([np.sum(inst_gt == gt_id) for gt_id in gt_id_list if gt_id != 0])
 
     return overall_inter, overall_union
 
@@ -314,116 +278,8 @@ def pre_eval_maji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, reduce_zero
 #     return overall_inter, overall_union
 
 
-def accuracy(pred_label, target_label, num_classes, nan_to_num=None):
-    """multi-class accuracy calculation."""
-    if isinstance(pred_label, str):
-        pred_label = torch.from_numpy(np.load(pred_label))
-    else:
-        pred_label = torch.from_numpy((pred_label))
-
-    if isinstance(target_label, str):
-        target_label = torch.from_numpy(mmcv.imread(target_label, flag='unchanged', backend='pillow'))
-    else:
-        target_label = torch.from_numpy(target_label)
-
-    TP = target_label[pred_label == target_label]
-    FP = pred_label[pred_label != target_label]
-    FN = target_label[pred_label != target_label]
-
-    TP_per_class = torch.histc(TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FP_per_class = torch.histc(FP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FN_per_class = torch.histc(FN.float(), bins=(num_classes), min=0, max=num_classes - 1)
-
-    TN_per_class = pred_label.numel() - (TP_per_class + FP_per_class + FN_per_class)
-
-    accuracy = (TP_per_class + TN_per_class) / pred_label.numel()
-
-    accuracy = np.nan_to_num(accuracy.numpy(), nan_to_num)
-
-    return accuracy
-
-
-def precision_recall(pred_label, target_label, num_classes, nan_to_num=None):
-    """multi-class precision-recall calculation."""
-    if isinstance(pred_label, str):
-        pred_label = torch.from_numpy(np.load(pred_label))
-    else:
-        pred_label = torch.from_numpy((pred_label))
-
-    if isinstance(target_label, str):
-        target_label = torch.from_numpy(mmcv.imread(target_label, flag='unchanged', backend='pillow'))
-    else:
-        target_label = torch.from_numpy(target_label)
-
-    TP = pred_label[pred_label == target_label]
-    FP = pred_label[pred_label != target_label]
-    FN = target_label[pred_label != target_label]
-
-    TP_per_class = torch.histc(TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FP_per_class = torch.histc(FP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    FN_per_class = torch.histc(FN.float(), bins=(num_classes), min=0, max=num_classes - 1)
-
-    precision = TP_per_class / (TP_per_class + FP_per_class)
-    recall = TP_per_class / (TP_per_class + FN_per_class)
-
-    precision = np.nan_to_num(precision.numpy(), nan_to_num)
-    recall = np.nan_to_num(recall.numpy(), nan_to_num)
-
-    return precision, recall
-
-
-def dice_similarity_coefficient(pred_label, target_label, num_classes, nan_to_num=None):
-    """multi-class dice calculation."""
-    if isinstance(pred_label, str):
-        pred_label = torch.from_numpy(np.load(pred_label))
-    else:
-        pred_label = torch.from_numpy((pred_label))
-
-    if isinstance(target_label, str):
-        target_label = torch.from_numpy(mmcv.imread(target_label, flag='unchanged', backend='pillow'))
-    else:
-        target_label = torch.from_numpy(target_label)
-
-    TP = pred_label[pred_label == target_label]
-
-    TP_per_class = torch.histc(TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    Pred_per_class = torch.histc(pred_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    GT_per_class = torch.histc(target_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
-
-    dice = 2 * TP_per_class / (Pred_per_class + GT_per_class)
-
-    dice = np.nan_to_num(dice.numpy(), nan_to_num)
-
-    return dice
-
-
-def intersect_and_union(pred_label, target_label, num_classes, nan_to_num=None):
-    """multi-class iou calculation."""
-    if isinstance(pred_label, str):
-        pred_label = torch.from_numpy(np.load(pred_label))
-    else:
-        pred_label = torch.from_numpy((pred_label))
-
-    if isinstance(target_label, str):
-        target_label = torch.from_numpy(mmcv.imread(target_label, flag='unchanged', backend='pillow'))
-    else:
-        target_label = torch.from_numpy(target_label)
-
-    TP = pred_label[pred_label == target_label]
-
-    TP_per_class = torch.histc(TP.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    Pred_per_class = torch.histc(pred_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
-    GT_per_class = torch.histc(target_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
-
-    iou = TP_per_class / (Pred_per_class + GT_per_class - TP_per_class)
-
-    iou = np.nan_to_num(iou.numpy(), nan_to_num)
-
-    return iou
-
-
-def aggregated_jaccard_index(inst_pred, inst_gt):
-    """Aggregated Jaccard Index Calculation.
+def binary_aggregated_jaccard_index(inst_pred, inst_gt):
+    """Two-class Aggregated Jaccard Index Calculation.
 
     0 is set as background pixels and we will ignored.
 
@@ -431,14 +287,10 @@ def aggregated_jaccard_index(inst_pred, inst_gt):
         inst_pred (numpy.ndarray): Prediction instance map.
         inst_gt (numpy.ndarray): Ground truth instance map.
     """
-    i, u = pre_eval_aji(inst_pred, inst_gt)
-    if i == 0. or u == 0.:
-        return 0.
-    aji_score = i / u
-    return aji_score
+    return aggregated_jaccard_index(inst_pred, inst_gt, inst_pred > 0, inst_gt > 0, 2)
 
 
-def mean_aggregated_jaccard_index(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
+def aggregated_jaccard_index(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, reduce_zero_class_insts=True):
     """Class Wise Aggregated Jaccard Index Calculation.
 
     0 is set as background pixels and we will ignored.
@@ -447,10 +299,13 @@ def mean_aggregated_jaccard_index(inst_pred, inst_gt, sem_pred, sem_gt, num_clas
         inst_pred (numpy.ndarray): Prediction instance map.
         inst_gt (numpy.ndarray): Ground truth instance map.
     """
-    i, u = pre_eval_maji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes)
-    if i == 0. or u == 0.:
-        return 0
-    aji_score = i / u
+    i, u = pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes)
+    if reduce_zero_class_insts:
+        i = i[1:]
+        u = u[1:]
+    if np.sum(i) == 0. or np.sum(u) == 0.:
+        return 0.
+    aji_score = np.sum(i) / np.sum(u)
     return aji_score
 
 
@@ -555,7 +410,7 @@ def panoptic_quality(inst_pred, inst_gt, match_iou=0.5):
     return [dq, sq, dq * sq], [paired_gt, paired_pred, unpaired_gt, unpaired_pred]
 
 
-def pre_eval_to_aji(pre_eval_results, nan_to_num=None):
+def pre_eval_to_bin_aji(pre_eval_results, nan_to_num=None):
     """Convert aji pre-eval overall intersection & pre-eval overall union to aji score."""
     # convert list of tuples to tuple of lists, e.g.
     # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
@@ -565,7 +420,7 @@ def pre_eval_to_aji(pre_eval_results, nan_to_num=None):
 
     # [0]: overall intersection
     # [1]: overall union
-    ret_metrics = {'Aji': sum(pre_eval_results[0]) / sum(pre_eval_results[1])}
+    ret_metrics = {'bAji': sum(pre_eval_results[0]) / sum(pre_eval_results[1])}
 
     if nan_to_num is not None:
         ret_metrics = OrderedDict(
@@ -575,93 +430,26 @@ def pre_eval_to_aji(pre_eval_results, nan_to_num=None):
     return ret_metrics
 
 
-def pre_eval_to_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None, beta=1):
-    """Convert pre-eval results to metrics.
-
-    Args:
-        pre_eval_results (list[tuple[torch.Tensor]]): per image eval results
-            for computing evaluation metric
-        metrics (list[str] | str): Metrics to be evaluated, 'mIoU' and 'mDice'.
-        nan_to_num (int, optional): If specified, NaN values will be replaced
-            by the numbers defined by the user. Default: None.
-     Returns:
-        float: Overall accuracy on all images.
-        ndarray: Per category accuracy, shape (num_classes, ).
-        ndarray: Per category evaluation metrics, shape (num_classes, ).
-    """
-
+def pre_eval_to_aji(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=True):
+    """Convert aji pre-eval overall intersection & pre-eval overall union to aji score."""
     # convert list of tuples to tuple of lists, e.g.
     # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
     # ([A_1, ..., A_n], ..., [D_1, ..., D_n])
     pre_eval_results = tuple(zip(*pre_eval_results))
-    assert len(pre_eval_results) == 6
+    assert len(pre_eval_results) == 2
 
-    total_area_TP = sum(pre_eval_results[0])
-    total_area_TN = sum(pre_eval_results[1])
-    total_area_FP = sum(pre_eval_results[2])
-    total_area_FN = sum(pre_eval_results[3])
-    total_area_pred_label = sum(pre_eval_results[4])
-    total_area_label = sum(pre_eval_results[5])
+    # [0]: overall intersection
+    # [1]: overall union
+    overall_inter = sum(pre_eval_results[0])
+    overall_union = sum(pre_eval_results[1])
+    if reduce_zero_class_insts:
+        overall_inter = overall_inter[1:]
+        overall_union = overall_union[1:]
+    ret_metrics = {'mAji': np.sum(overall_inter) / np.sum(overall_union), 'Aji': overall_inter / overall_union}
 
-    ret_metrics = total_area_to_sem_metrics(total_area_TP, total_area_TN, total_area_FP, total_area_FN,
-                                            total_area_pred_label, total_area_label, metrics, nan_to_num)
-
-    return ret_metrics
-
-
-def total_area_to_sem_metrics(total_area_TP,
-                              total_area_TN,
-                              total_area_FP,
-                              total_area_FN,
-                              total_area_pred_label,
-                              total_area_label,
-                              metrics=['IoU'],
-                              nan_to_num=None):
-    """Calculate evaluation metrics
-    Args:
-        total_area_TP (torch.Tensor): The intersection of prediction and
-            ground truth histogram on all classes.
-        total_area_FP (torch.Tensor): The false positive pixels histogram on
-            all classes.
-        total_area_FN (torch.Tensor): The prediction histogram on all
-            classes.
-        total_area_pred_label (torch.Tensor): The prediction histogram on all
-            classes.
-        total_area_label (ndarray): The ground truth histogram on all classes.
-        metrics (list[str] | str): Metrics to be evaluated, 'IoU' and 'Dice'.
-        nan_to_num (int, optional): If specified, NaN values will be replaced
-            by the numbers defined by the user. Default: None.
-     Returns:
-        dict: Contains selected metric value.
-    """
-    if isinstance(metrics, str):
-        metrics = [metrics]
-    allowed_metrics = ['Accuracy', 'IoU', 'Dice', 'Recall', 'Precision']
-    if not set(metrics).issubset(set(allowed_metrics)):
-        raise KeyError('metrics {} is not supported'.format(metrics))
-
-    ret_metrics = {}
-    for metric in metrics:
-        if metric == 'Accuracy':
-            acc = (total_area_TP + total_area_TN) / total_area_label.sum()
-            ret_metrics['Accuracy'] = acc
-        elif metric == 'IoU':
-            iou = total_area_TP / (total_area_pred_label + total_area_label - total_area_TP)
-            ret_metrics['IoU'] = iou
-        elif metric == 'Dice':
-            dice = 2 * total_area_TP / (total_area_pred_label + total_area_label)
-            ret_metrics['Dice'] = dice
-        elif metric == 'Recall':
-            recall = total_area_TP / (total_area_TP + total_area_FN)
-            ret_metrics['Recall'] = recall
-        elif metric == 'Precision':
-            precision = total_area_TP / (total_area_TP + total_area_FP)
-            ret_metrics['Precision'] = precision
-
-    # convert torch to numpy
-    ret_metrics = {metric: value.numpy() for metric, value in ret_metrics.items()}
     if nan_to_num is not None:
         ret_metrics = OrderedDict(
             {metric: np.nan_to_num(metric_value, nan=nan_to_num)
              for metric, metric_value in ret_metrics.items()})
+
     return ret_metrics
