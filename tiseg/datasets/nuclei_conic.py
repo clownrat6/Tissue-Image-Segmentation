@@ -14,7 +14,8 @@ from torch.utils.data import Dataset
 from tiseg.datasets.utils.draw import Drawer
 
 from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_sem_metrics, pre_eval_bin_aji, pre_eval_aji,
-                         pre_eval_to_bin_aji, pre_eval_to_aji)
+                         pre_eval_bin_pq, pre_eval_pq, pre_eval_to_bin_aji, pre_eval_to_aji, pre_eval_to_bin_pq,
+                         pre_eval_to_pq)
 from tiseg.models.utils import generate_direction_differential_map
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
@@ -195,16 +196,19 @@ class NucleiCoNICDataset(Dataset):
                 sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
 
             # semantic metric calculation (remove background class)
-            # [1] will remove background class.
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
 
             # instance metric calculation
             bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
             aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
+            bin_pq_pre_eval_res = pre_eval_bin_pq(inst_pred, inst_gt)
+            pq_pre_eval_res = pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
 
             single_loop_results = dict(
                 bin_aji_pre_eval_res=bin_aji_pre_eval_res,
                 aji_pre_eval_res=aji_pre_eval_res,
+                bin_pq_pre_eval_res=bin_pq_pre_eval_res,
+                pq_pre_eval_res=pq_pre_eval_res,
                 sem_pre_eval_res=sem_pre_eval_res)
             pre_eval_results.append(single_loop_results)
 
@@ -347,10 +351,14 @@ class NucleiCoNICDataset(Dataset):
         ret_metrics.update(pre_eval_to_bin_aji(bin_aji_pre_eval_results))
         aji_pre_eval_results = ret_metrics.pop('aji_pre_eval_res')
         ret_metrics.update(pre_eval_to_aji(aji_pre_eval_results))
+        bin_pq_pre_eval_results = ret_metrics.pop('bin_pq_pre_eval_res')
+        ret_metrics.update(pre_eval_to_bin_pq(bin_pq_pre_eval_results))
+        pq_pre_eval_results = ret_metrics.pop('pq_pre_eval_res')
+        ret_metrics.update(pre_eval_to_pq(pq_pre_eval_results))
 
-        total_inst_keys = ['bAji', 'mAji']
+        total_inst_keys = ['bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'mDQ', 'mSQ', 'mPQ']
         total_inst_metrics = {}
-        inst_keys = ['Aji']
+        inst_keys = ['Aji', 'DQ', 'SQ', 'PQ']
         inst_metrics = {}
         sem_keys = ['Dice', 'Precision', 'Recall']
         sem_metrics = {}
@@ -385,29 +393,34 @@ class NucleiCoNICDataset(Dataset):
             classes_table_data.add_column(key, val)
 
         # total table
-        total_metrics = OrderedDict()
         sem_total_metrics = OrderedDict(
             {'m' + sem_key: np.round(np.mean(value) * 100, 2)
              for sem_key, value in sem_metrics.items()})
+
+        sem_total_table_data = PrettyTable()
+        for key, val in sem_total_metrics.items():
+            sem_total_table_data.add_column(key, [val])
+
         inst_total_metrics = OrderedDict(
             {inst_key: np.round(value * 100, 2)
              for inst_key, value in total_inst_metrics.items()})
 
-        total_metrics.update(sem_total_metrics)
-        total_metrics.update(inst_total_metrics)
-
-        total_table_data = PrettyTable()
-        for key, val in total_metrics.items():
-            total_table_data.add_column(key, [val])
+        inst_total_table_data = PrettyTable()
+        for key, val in inst_total_metrics.items():
+            inst_total_table_data.add_column(key, [val])
 
         print_log('Per classes:', logger)
         print_log('\n' + classes_table_data.get_string(), logger=logger)
-        print_log('Total:', logger)
-        print_log('\n' + total_table_data.get_string(), logger=logger)
+        print_log('Semantic Total:', logger)
+        print_log('\n' + sem_total_table_data.get_string(), logger=logger)
+        print_log('Instance Total:', logger)
+        print_log('\n' + inst_total_table_data.get_string(), logger=logger)
 
         eval_results = {}
         # average results
-        for k, v in total_metrics.items():
+        for k, v in sem_total_metrics.items():
+            eval_results[k] = v
+        for k, v in inst_total_metrics.items():
             eval_results[k] = v
 
         classes = classes_metrics.pop('classes', None)
