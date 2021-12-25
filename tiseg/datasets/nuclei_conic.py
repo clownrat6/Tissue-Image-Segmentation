@@ -194,21 +194,6 @@ class NucleiCoNICDataset(Dataset):
                 # model-agnostic post process operations
                 sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
 
-            tc_sem_pred_ = tc_sem_pred.copy()
-            tc_sem_gt = get_tc_from_inst(inst_gt)
-            pred_collect = {'sem_pred': sem_pred, 'inst_pred': inst_pred, 'tc_sem_pred': tc_sem_pred_}
-            gt_collect = {'sem_gt': sem_gt, 'inst_gt': inst_gt, 'tc_sem_gt': tc_sem_gt}
-
-            if 'dir_pred' in pred:
-                dir_pred_ = dir_pred.copy()
-                dir_gt = get_dir_from_inst(inst_gt, num_angle_types=8)
-
-                ddm_pred = generate_direction_differential_map(dir_pred_, direction_classes=(8 + 1))[0]
-                ddm_gt = generate_direction_differential_map(dir_gt, direction_classes=(8 + 1))[0]
-
-                pred_collect.update({'dir_pred': dir_pred_, 'ddm_pred': ddm_pred})
-                gt_collect.update({'dir_gt': dir_gt, 'ddm_gt': ddm_gt})
-
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
@@ -224,6 +209,21 @@ class NucleiCoNICDataset(Dataset):
             pre_eval_results.append(single_loop_results)
 
             if show:
+                tc_sem_pred_ = tc_sem_pred.copy()
+                tc_sem_gt = get_tc_from_inst(inst_gt)
+                pred_collect = {'sem_pred': sem_pred, 'inst_pred': inst_pred, 'tc_sem_pred': tc_sem_pred_}
+                gt_collect = {'sem_gt': sem_gt, 'inst_gt': inst_gt, 'tc_sem_gt': tc_sem_gt}
+
+                if 'dir_pred' in pred:
+                    dir_pred_ = dir_pred.copy()
+                    dir_gt = get_dir_from_inst(inst_gt, num_angle_types=8)
+
+                    ddm_pred = generate_direction_differential_map(dir_pred_, direction_classes=(8 + 1))[0]
+                    ddm_gt = generate_direction_differential_map(dir_gt, direction_classes=(8 + 1))[0]
+
+                    pred_collect.update({'dir_pred': dir_pred_, 'ddm_pred': ddm_pred})
+                    gt_collect.update({'dir_gt': dir_gt, 'ddm_gt': ddm_gt})
+
                 self.drawer = Drawer(show_folder, sem_palette=self.PALETTE)
                 if 'dir_pred' in pred_collect and 'dir_gt' in gt_collect:
                     self.drawer.draw_direction(img_name, img_file_name, pred_collect, gt_collect)

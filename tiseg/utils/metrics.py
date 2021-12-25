@@ -4,6 +4,7 @@ import mmcv
 import numpy as np
 import torch
 from skimage import measure
+from scipy.optimize import linear_sum_assignment
 
 
 # TODO: Add doc string & comments
@@ -111,7 +112,7 @@ def pre_eval_aji(inst_pred, inst_gt):
     return overall_inter, overall_union
 
 
-def pre_eval_maji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
+def pre_eval_maji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, reduce_zero_class_insts=True):
     # make instance id contiguous
     inst_pred = measure.label(inst_pred.copy())
     inst_gt = measure.label(inst_gt.copy())
@@ -166,39 +167,40 @@ def pre_eval_maji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
 
         gt_masks.append(g_mask)
 
+    pred_sem_ids = list(pred_id_list_per_class.keys())
+    gt_sem_ids = list(gt_id_list_per_class.keys())
+
+    union_sem_ids = list(set(pred_sem_ids + gt_sem_ids))
+
     overall_inter = 0
     overall_union = 0
-    for sem_id in gt_id_list_per_class.keys():
-        if sem_id == 0 or sem_id not in pred_id_list_per_class:
+    for sem_id in union_sem_ids:
+        # NOTE: this part overall union is about mismatching between semantic map & instance map.
+        if sem_id == 0 and not reduce_zero_class_insts:
+            pred_id_list = pred_id_list_per_class[sem_id]
+            gt_id_list = gt_id_list_per_class[sem_id]
+            overall_union += sum([np.sum(inst_pred == pred_id) for pred_id in pred_id_list if pred_id != 0])
+            overall_union += sum([np.sum(inst_gt == gt_id) for gt_id in gt_id_list if gt_id != 0])
             continue
-        pred_inst_map = sum([((inst_pred == pred_id).astype(np.int32) * (idx + 1))
-                             for idx, pred_id in enumerate(pred_id_list_per_class[sem_id])])
-        gt_inst_map = sum([((inst_gt == gt_id).astype(np.int32) * (idx + 1))
-                           for idx, gt_id in enumerate(gt_id_list_per_class[sem_id])])
 
-        res = pre_eval_aji(pred_inst_map, gt_inst_map)
-        overall_inter += res[0]
-        overall_union += res[1]
+        if sem_id in pred_id_list_per_class and sem_id in gt_id_list_per_class:
+            pred_id_list = pred_id_list_per_class[sem_id]
+            gt_id_list = gt_id_list_per_class[sem_id]
+            pred_inst_map = sum([((inst_pred == pred_id).astype(np.int32) * (idx + 1))
+                                 for idx, pred_id in enumerate(pred_id_list)])
+            gt_inst_map = sum([((inst_gt == gt_id).astype(np.int32) * (idx + 1))
+                               for idx, gt_id in enumerate(gt_id_list)])
 
-    # calculate unpaired gt semantic class
-    for sem_id in gt_id_list_per_class.keys():
-        if sem_id in pred_id_list_per_class and sem_id != 0:
-            continue
-        gt_id_list = gt_id_list_per_class[sem_id]
-        for gt_id in gt_id_list:
-            if gt_id == 0:
-                continue
-            overall_union += np.sum(inst_gt == gt_id)
-
-    # calculate unpaired pred semantic class
-    for sem_id in pred_id_list_per_class.keys():
-        if sem_id in gt_id_list_per_class and sem_id != 0:
-            continue
-        pred_id_list = pred_id_list_per_class[sem_id]
-        for pred_id in pred_id_list:
-            if pred_id == 0:
-                continue
-            overall_union += np.sum(inst_pred == pred_id)
+            res = pre_eval_aji(pred_inst_map, gt_inst_map)
+            overall_inter += res[0]
+            overall_union += res[1]
+        # NOTE: this part overall union is about semantic results mismatching between prediction & ground truth.
+        elif sem_id in pred_id_list_per_class:
+            pred_id_list = pred_id_list_per_class[sem_id]
+            overall_union += sum([np.sum(inst_pred == pred_id) for pred_id in pred_id_list if pred_id != 0])
+        elif sem_id in gt_id_list_per_class:
+            gt_id_list = gt_id_list_per_class[sem_id]
+            overall_union += sum([np.sum(inst_gt == gt_id) for gt_id in gt_id_list if gt_id != 0])
 
     return overall_inter, overall_union
 
@@ -450,6 +452,107 @@ def mean_aggregated_jaccard_index(inst_pred, inst_gt, sem_pred, sem_gt, num_clas
         return 0
     aji_score = i / u
     return aji_score
+
+
+def panoptic_quality(inst_pred, inst_gt, match_iou=0.5):
+    """`match_iou` is the IoU threshold level to determine the pairing between
+    GT instances `p` and prediction instances `g`. `p` and `g` is a pair
+    if IoU > `match_iou`. However, pair of `p` and `g` must be unique
+    (1 prediction instance to 1 GT instance mapping).
+    If `match_iou` < 0.5, Munkres assignment (solving minimum weight matching
+    in bipartite graphs) is caculated to find the maximal amount of unique pairing.
+    If `match_iou` >= 0.5, all IoU(p,g) > 0.5 pairing is proven to be unique and
+    the number of pairs is also maximal.
+
+    Fast computation requires instance IDs are in contiguous orderding
+    i.e [1, 2, 3, 4] not [2, 3, 6, 10]. Please call `remap_label` beforehand
+    and `by_size` flag has no effect on the result.
+    Returns:
+        [dq, sq, pq]: measurement statistic
+        [paired_true, paired_pred, unpaired_true, unpaired_pred]:
+                      pairing information to perform measurement
+
+    """
+    assert match_iou >= 0.0, "Cant' be negative"
+
+    # make instance id contiguous
+    inst_pred = measure.label(inst_pred.copy())
+    inst_gt = measure.label(inst_gt.copy())
+
+    pred_id_list = list(np.unique(inst_pred))
+    gt_id_list = list(np.unique(inst_gt))
+
+    if 0 not in pred_id_list:
+        pred_id_list.insert(0, 0)
+
+    if 0 not in gt_id_list:
+        gt_id_list.insert(0, 0)
+
+    # Remove background class
+    pred_masks = []
+    for p in pred_id_list:
+        p_mask = (inst_pred == p).astype(np.uint8)
+        pred_masks.append(p_mask)
+
+    gt_masks = []
+    for g in gt_id_list:
+        g_mask = (inst_gt == g).astype(np.uint8)
+        gt_masks.append(g_mask)
+
+    # prefill with value
+    pairwise_iou = np.zeros([len(gt_id_list) - 1, len(pred_id_list) - 1], dtype=np.float64)
+
+    # caching pairwise iou
+    for gt_id in gt_id_list[1:]:  # 0-th is background
+        g_mask = gt_masks[gt_id]
+        pred_true_overlap = inst_pred[g_mask > 0]
+        pred_true_overlap_id = np.unique(pred_true_overlap)
+        pred_true_overlap_id = list(pred_true_overlap_id)
+        for pred_id in pred_true_overlap_id:
+            if pred_id == 0:  # ignore
+                continue  # overlaping background
+            p_mask = pred_masks[pred_id]
+            total = (g_mask + p_mask).sum()
+            inter = (g_mask * p_mask).sum()
+            iou = inter / (total - inter)
+            pairwise_iou[gt_id - 1, pred_id - 1] = iou
+
+    if match_iou >= 0.5:
+        paired_iou = pairwise_iou[pairwise_iou > match_iou]
+        pairwise_iou[pairwise_iou <= match_iou] = 0.0
+        paired_gt, paired_pred = np.nonzero(pairwise_iou)
+        paired_iou = pairwise_iou[paired_gt, paired_pred]
+        paired_gt += 1  # index is instance id - 1
+        paired_pred += 1  # hence return back to original
+    else:  # * Exhaustive maximal unique pairing
+        # Munkres pairing with scipy library
+        # the algorithm return (row indices, matched column indices)
+        # if there is multiple same cost in a row, index of first occurence
+        # is return, thus the unique pairing is ensure
+        # inverse pair to get high IoU as minimum
+        paired_gt, paired_pred = linear_sum_assignment(-pairwise_iou)
+        # extract the paired cost and remove invalid pair
+        paired_iou = pairwise_iou[paired_gt, paired_pred]
+
+        # now select those above threshold level
+        # paired with iou = 0.0 i.e no intersection => FP or FN
+        paired_gt = list(paired_gt[paired_iou > match_iou] + 1)
+        paired_pred = list(paired_pred[paired_iou > match_iou] + 1)
+        paired_iou = paired_iou[paired_iou > match_iou]
+
+    # get the actual FP and FN
+    unpaired_gt = [idx for idx in gt_id_list[1:] if idx not in paired_gt]
+    unpaired_pred = [idx for idx in pred_id_list[1:] if idx not in paired_pred]
+
+    tp = len(paired_gt)
+    fp = len(unpaired_pred)
+    fn = len(unpaired_gt)
+    # get the F1-score i.e DQ
+    dq = tp / (tp + 0.5 * fp + 0.5 * fn)
+    # get the SQ, no paired has 0 iou so not impact
+    sq = paired_iou.sum() / (tp + 1.0e-6)
+
+    return [dq, sq, dq * sq], [paired_gt, paired_pred, unpaired_gt, unpaired_pred]
 
 
 def pre_eval_to_aji(pre_eval_results, nan_to_num=None):
