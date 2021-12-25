@@ -13,8 +13,8 @@ from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 from tiseg.datasets.utils.draw import Drawer
 
-from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_aji, pre_eval_to_sem_metrics, pre_eval_to_aji,
-                         mean_aggregated_jaccard_index)
+from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_sem_metrics, pre_eval_bin_aji, pre_eval_aji,
+                         pre_eval_to_bin_aji, pre_eval_to_aji)
 from tiseg.models.utils import generate_direction_differential_map
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
@@ -199,13 +199,13 @@ class NucleiCoNICDataset(Dataset):
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
 
             # instance metric calculation
-            aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt)
-            maji_metric = mean_aggregated_jaccard_index(
-                re_instance(inst_pred), inst_gt, sem_pred, sem_gt, len(self.CLASSES))
+            bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
+            aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
 
-            # NOTE: old single loop results
             single_loop_results = dict(
-                mAji=maji_metric, aji_pre_eval_res=aji_pre_eval_res, sem_pre_eval_res=sem_pre_eval_res)
+                bin_aji_pre_eval_res=bin_aji_pre_eval_res,
+                aji_pre_eval_res=aji_pre_eval_res,
+                sem_pre_eval_res=sem_pre_eval_res)
             pre_eval_results.append(single_loop_results)
 
             if show:
@@ -343,34 +343,39 @@ class NucleiCoNICDataset(Dataset):
 
         sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
         ret_metrics.update(pre_eval_to_sem_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
+        bin_aji_pre_eval_results = ret_metrics.pop('bin_aji_pre_eval_res')
+        ret_metrics.update(pre_eval_to_bin_aji(bin_aji_pre_eval_results))
         aji_pre_eval_results = ret_metrics.pop('aji_pre_eval_res')
         ret_metrics.update(pre_eval_to_aji(aji_pre_eval_results))
 
-        inst_eval = ['mAji']
-        inst_pre_eval = ['Aji']
-        sem_eval = ['Dice', 'Precision', 'Recall']
+        total_inst_keys = ['bAji', 'mAji']
+        total_inst_metrics = {}
+        inst_keys = ['Aji']
         inst_metrics = {}
+        sem_keys = ['Dice', 'Precision', 'Recall']
         sem_metrics = {}
         # calculate average metric
         for key in ret_metrics.keys():
             # XXX: Using average value may have lower metric value than using
             # confused matrix.
-            if key in inst_eval:
-                average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
-                inst_metrics[key] = average_value
-            elif key in inst_pre_eval:
-                inst_metrics[key] = ret_metrics[key]
-            elif key in sem_eval:
+            if key in total_inst_keys:
+                total_inst_metrics[key] = ret_metrics[key]
+            elif key in inst_keys:
+                # remove background class
+                inst_metrics[key] = ret_metrics[key][1:]
+            elif key in sem_keys:
                 # remove background class
                 sem_metrics[key] = ret_metrics[key][1:]
 
         # semantic table
         classes_metrics = OrderedDict()
-        classes_sem_metrics = OrderedDict({sem_key: np.round(value * 100, 2) for sem_key, value in sem_metrics.items()})
-        classes_inst_metrics = OrderedDict()
+        classes_metrics.update(
+            OrderedDict({sem_key: np.round(value * 100, 2)
+                         for sem_key, value in sem_metrics.items()}))
+        classes_metrics.update(
+            OrderedDict({sem_key: np.round(value * 100, 2)
+                         for sem_key, value in inst_metrics.items()}))
 
-        classes_metrics.update(classes_sem_metrics)
-        classes_metrics.update(classes_inst_metrics)
         # remove background class
         classes_metrics.update({'classes': self.CLASSES[1:]})
         classes_metrics.move_to_end('classes', last=False)
@@ -386,7 +391,7 @@ class NucleiCoNICDataset(Dataset):
              for sem_key, value in sem_metrics.items()})
         inst_total_metrics = OrderedDict(
             {inst_key: np.round(value * 100, 2)
-             for inst_key, value in inst_metrics.items()})
+             for inst_key, value in total_inst_metrics.items()})
 
         total_metrics.update(sem_total_metrics)
         total_metrics.update(inst_total_metrics)

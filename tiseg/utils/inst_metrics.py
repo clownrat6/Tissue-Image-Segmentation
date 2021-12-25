@@ -443,9 +443,12 @@ def pre_eval_to_aji(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=T
     overall_inter = sum(pre_eval_results[0])
     overall_union = sum(pre_eval_results[1])
     if reduce_zero_class_insts:
-        overall_inter = overall_inter[1:]
-        overall_union = overall_union[1:]
-    ret_metrics = {'mAji': np.sum(overall_inter) / np.sum(overall_union), 'Aji': overall_inter / overall_union}
+        overall_inter_ = np.sum(overall_inter[1:])
+        overall_union_ = np.sum(overall_union[1:])
+    else:
+        overall_inter_ = np.sum(overall_inter)
+        overall_union_ = np.sum(overall_union)
+    ret_metrics = {'mAji': overall_inter_ / overall_union_, 'Aji': overall_inter / overall_union}
 
     if nan_to_num is not None:
         ret_metrics = OrderedDict(
