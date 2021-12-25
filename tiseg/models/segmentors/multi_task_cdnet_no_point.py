@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
-from ..heads.multi_task_cd_head import MultiTaskCDHead
+from ..heads import MultiTaskCDHeadNoPoint
 from ..builder import SEGMENTORS
 from ..losses import BatchMultiClassDiceLoss, MultiClassDiceLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
@@ -12,11 +12,11 @@ from .base import BaseSegmentor
 
 
 @SEGMENTORS.register_module()
-class MultiTaskCDNetSegmentor(BaseSegmentor):
+class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
     """Base class for segmentors."""
 
     def __init__(self, num_classes, train_cfg, test_cfg):
-        super(MultiTaskCDNetSegmentor, self).__init__()
+        super(MultiTaskCDNetSegmentorNoPoint, self).__init__()
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
@@ -28,7 +28,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         self.if_mudslide = self.test_cfg.get('if_mudslide', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
-        self.head = MultiTaskCDHead(
+        self.head = MultiTaskCDHeadNoPoint(
             num_classes=self.num_classes,
             num_angles=self.num_angles,
             dgm_dims=64,
@@ -43,28 +43,26 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         img_feats = self.backbone(img)
         bottom_feat = img_feats[-1]
         skip_feats = img_feats[:-1]
-        tc_mask_logit, mask_logit, dir_logit, point_logit = self.head(bottom_feat, skip_feats)
+        tc_mask_logit, mask_logit, dir_logit = self.head(bottom_feat, skip_feats)
 
         if rescale:
             tc_mask_logit = resize(input=tc_mask_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
             mask_logit = resize(input=mask_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
             dir_logit = resize(input=dir_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
-            point_logit = resize(input=point_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
 
-        return tc_mask_logit, mask_logit, dir_logit, point_logit
+        return tc_mask_logit, mask_logit, dir_logit
 
     def forward(self, data, label=None, metas=None, **kwargs):
         """detectron2 style forward functions. Segmentor can be see as meta_arch of detectron2.
         """
         if self.training:
-            tc_mask_logit, mask_logit, dir_logit, point_logit = self.calculate(data['img'])
+            tc_mask_logit, mask_logit, dir_logit = self.calculate(data['img'])
 
             assert label is not None
             tc_mask_gt = label['sem_gt_w_bound']
             tc_mask_gt[(tc_mask_gt != 0) * (tc_mask_gt != self.num_classes)] = 1
             tc_mask_gt[tc_mask_gt > 1] = 2
             mask_gt = label['sem_gt']
-            point_gt = label['point_gt']
             dir_gt = label['dir_gt']
             weight_map = label['loss_weight_map'] if self.if_weighted_loss else None
 
@@ -84,12 +82,9 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
             # direction branch loss calculation
             dir_loss = self._dir_loss(dir_logit, dir_gt, weight_map)
             loss.update(dir_loss)
-            # point branch loss calculation
-            point_loss = self._point_loss(point_logit, point_gt)
-            loss.update(point_loss)
 
             # calculate training metric
-            training_metric_dict = self._training_metric(mask_logit, dir_logit, point_logit, mask_gt, dir_gt, point_gt)
+            training_metric_dict = self._training_metric(mask_logit, dir_logit, mask_gt, dir_gt)
             loss.update(training_metric_dict)
             return loss
         else:
@@ -131,7 +126,6 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         tc_sem_logit_list = []
         sem_logit_list = []
         dir_logit_list = []
-        point_logit_list = []
         img_ = img
         for rotate_degree in self.rotate_degrees:
             for flip_direction in self.flip_directions:
@@ -139,14 +133,13 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
 
                 # inference
                 if self.test_cfg.mode == 'split':
-                    tc_sem_logit, sem_logit, dir_logit, point_logit = self.split_inference(img, meta, rescale)
+                    tc_sem_logit, sem_logit, dir_logit = self.split_inference(img, meta, rescale)
                 else:
-                    tc_sem_logit, sem_logit, dir_logit, point_logit = self.whole_inference(img, meta, rescale)
+                    tc_sem_logit, sem_logit, dir_logit = self.whole_inference(img, meta, rescale)
 
                 tc_sem_logit = self.reverse_tta_transform(tc_sem_logit, rotate_degree, flip_direction)
                 sem_logit = self.reverse_tta_transform(sem_logit, rotate_degree, flip_direction)
                 dir_logit = self.reverse_tta_transform(dir_logit, rotate_degree, flip_direction)
-                point_logit = self.reverse_tta_transform(point_logit, rotate_degree, flip_direction)
 
                 tc_sem_logit = F.softmax(tc_sem_logit, dim=1)
                 sem_logit = F.softmax(sem_logit, dim=1)
@@ -155,11 +148,9 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
                 tc_sem_logit_list.append(tc_sem_logit)
                 sem_logit_list.append(sem_logit)
                 dir_logit_list.append(dir_logit)
-                point_logit_list.append(point_logit)
 
         tc_sem_logit = sum(tc_sem_logit_list) / len(tc_sem_logit_list)
         sem_logit = sum(sem_logit_list) / len(sem_logit_list)
-        point_logit = sum(point_logit_list) / len(point_logit_list)
 
         dd_map_list = []
         dir_map_list = []
@@ -173,7 +164,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         dd_map = sum(dd_map_list) / len(dd_map_list)
 
         if self.if_ddm:
-            tc_sem_logit = self._ddm_enhencement(tc_sem_logit, dd_map, point_logit)
+            tc_sem_logit = self._ddm_enhencement(tc_sem_logit, dd_map)
 
         return tc_sem_logit, sem_logit, dir_map_list[0]
 
@@ -203,7 +194,6 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         tc_sem_logit = torch.zeros((B, 3, H1, W1), dtype=img.dtype, device=img.device)
         sem_logit = torch.zeros((B, self.num_classes, H1, W1), dtype=img.dtype, device=img.device)
         dir_logit = torch.zeros((B, self.num_angles + 1, H1, W1), dtype=img.dtype, device=img.device)
-        point_logit = torch.zeros((B, 1, H1, W1), dtype=img.dtype, device=img.device)
         for i in range(0, H1 - overlap_size, window_size - overlap_size):
             r_end = i + window_size if i + window_size < H1 else H1
             ind1_s = i + overlap_size // 2 if i > 0 else 0
@@ -212,7 +202,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
                 c_end = j + window_size if j + window_size < W1 else W1
 
                 img_patch = img_canvas[:, :, i:r_end, j:c_end]
-                tc_sem_patch, sem_patch, dir_patch, point_patch = self.calculate(img_patch)
+                tc_sem_patch, sem_patch, dir_patch = self.calculate(img_patch)
 
                 ind2_s = j + overlap_size // 2 if j > 0 else 0
                 ind2_e = (j + window_size - overlap_size // 2 if j + window_size < W1 else W1)
@@ -222,31 +212,26 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
                                                                           ind2_s - j:ind2_e - j]
                 dir_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = dir_patch[:, :, ind1_s - i:ind1_e - i,
                                                                           ind2_s - j:ind2_e - j]
-                point_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = point_patch[:, :, ind1_s - i:ind1_e - i,
-                                                                              ind2_s - j:ind2_e - j]
 
         tc_sem_logit = tc_sem_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
         sem_logit = sem_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
         dir_logit = dir_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
-        point_logit = point_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
         if rescale:
             tc_sem_logit = resize(tc_sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
             sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
             dir_logit = resize(dir_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            point_logit = resize(point_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-        return tc_sem_logit, sem_logit, dir_logit, point_logit
+        return tc_sem_logit, sem_logit, dir_logit
 
     def whole_inference(self, img, meta, rescale):
         """Inference with full image."""
 
-        tc_sem_logit, sem_logit, dir_logit, point_logit = self.calculate(img)
+        tc_sem_logit, sem_logit, dir_logit = self.calculate(img)
         if rescale:
             tc_sem_logit = resize(tc_sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
             sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
             dir_logit = resize(dir_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            point_logit = resize(point_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
 
-        return tc_sem_logit, sem_logit, dir_logit, point_logit
+        return tc_sem_logit, sem_logit, dir_logit
 
     def _tc_mask_loss(self, tc_mask_logit, tc_mask_gt, weight_map=None):
         mask_loss = {}
@@ -302,17 +287,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
 
         return dir_loss
 
-    def _point_loss(self, point_logit, point_gt):
-        point_loss = {}
-        point_mse_loss_calculator = nn.MSELoss()
-        point_mse_loss = point_mse_loss_calculator(point_logit, point_gt)
-        # loss weight
-        alpha = 1
-        point_loss['point_mse_loss'] = alpha * point_mse_loss
-
-        return point_loss
-
-    def _training_metric(self, mask_logit, dir_logit, point_logit, mask_gt, dir_gt, point_gt):
+    def _training_metric(self, mask_logit, dir_logit, mask_gt, dir_gt):
         wrap_dict = {}
         # detach these training variable to avoid gradient noise.
         clean_mask_logit = mask_logit.clone().detach()
@@ -344,15 +319,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         return wrap_dict
 
     @classmethod
-    def _ddm_enhencement(self, mask_logit, dd_map, point_logit):
-        # using point map to remove center point direction differential map
-        point_logit = point_logit[:, 0, :, :]
-        point_map = (point_logit / torch.max(point_logit)) > 0.2
-        # point_logit = point_logit - torch.min(point_logit) / (torch.max(point_logit) - torch.min(point_logit))
-
-        # mask out some redundant direction differential
-        dd_map = dd_map - (dd_map * point_map)
-
+    def _ddm_enhencement(self, mask_logit, dd_map):
         # using direction differential map to enhance edge
         mask_logit[:, -1, :, :] = (mask_logit[:, -1, :, :] + dd_map) * (1 + dd_map)
 

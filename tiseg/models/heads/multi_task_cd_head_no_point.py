@@ -104,18 +104,14 @@ class DGM(nn.Module):
         self.tc_mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
         self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
         self.dir_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
-        self.point_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
 
         # Cross Branch Attention
         if noau:
-            self.point_to_dir_attn = Identity()
             self.dir_to_tc_mask_attn = Identity()
         else:
-            self.point_to_dir_attn = AU(1)
             self.dir_to_tc_mask_attn = AU(self.num_angles + 1)
 
         # Prediction Operations
-        self.point_conv = nn.Conv2d(self.feed_dims, 1, kernel_size=1)
         self.dir_conv = nn.Conv2d(self.feed_dims, self.num_angles + 1, kernel_size=1)
         self.tc_mask_conv = nn.Conv2d(self.feed_dims, 3, kernel_size=1)
         self.mask_conv = nn.Conv2d(self.feed_dims, self.num_classes, kernel_size=1)
@@ -124,27 +120,24 @@ class DGM(nn.Module):
 
         tc_mask_feature = self.tc_mask_feats(x)
         dir_feature = self.dir_feats(tc_mask_feature)
-        point_feature = self.point_feats(dir_feature)
-
-        # point branch
-        point_logit = self.point_conv(point_feature)
 
         # direction branch
-        dir_feature_with_point_logit = self.point_to_dir_attn(dir_feature, point_logit)
-        dir_logit = self.dir_conv(dir_feature_with_point_logit)
+        dir_logit = self.dir_conv(dir_feature)
 
         # mask branch
         tc_mask_feature_with_dir_logit = self.dir_to_tc_mask_attn(tc_mask_feature, dir_logit)
+        print(self.dir_to_tc_mask_attn)
+        exit(0)
         tc_mask_logit = self.tc_mask_conv(tc_mask_feature_with_dir_logit)
 
         # semantic mask branch
         mask_feature = self.mask_feats(x)
         mask_logit = self.mask_conv(mask_feature)
 
-        return tc_mask_logit, mask_logit, dir_logit, point_logit
+        return tc_mask_logit, mask_logit, dir_logit
 
 
-class MultiTaskCDHead(UNetHead):
+class MultiTaskCDHeadNoPoint(UNetHead):
 
     def __init__(self, num_classes, num_angles=8, dgm_dims=64, noau=False, **kwargs):
         super().__init__(num_classes=num_classes, **kwargs)

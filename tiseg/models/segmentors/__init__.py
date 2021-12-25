@@ -5,9 +5,9 @@ from .multi_task_unet import MultiTaskUNetSegmentor
 from .multi_task_cdnet import MultiTaskCDNetSegmentor
 from .regression_cdnet import RegCDNetSegmentor
 from .reg_degree_cdnet import RegDegreeCDNetSegmentor
-
+from .multi_task_cdnet_no_point import MultiTaskCDHeadNoPoint
 
 __all__ = [
-    'UNetSegmentor', 'CDNetSegmentor', 'CDNetVoronoiSegmentor', 'MultiTaskUNetSegmentor', 'MultiTaskCDNetSegmentor', 
-    'RegCDNetSegmentor', 'RegDegreeCDNetSegmentor'
+    'UNetSegmentor', 'CDNetSegmentor', 'CDNetVoronoiSegmentor', 'MultiTaskUNetSegmentor', 'MultiTaskCDNetSegmentor',
+    'RegCDNetSegmentor', 'RegDegreeCDNetSegmentor', 'MultiTaskCDHeadNoPoint'
 ]
