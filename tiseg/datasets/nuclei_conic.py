@@ -180,7 +180,7 @@ class NucleiCoNICDataset(Dataset):
             inst_gt = re_instance(inst_gt)
 
             # metric calculation & post process codes:
-            sem_pred = pred['sem_pred']
+            sem_pred = pred['sem_pred'].copy()
 
             if 'dir_pred' in pred:
                 dir_pred = pred['dir_pred']
@@ -219,7 +219,13 @@ class NucleiCoNICDataset(Dataset):
             pre_eval_results.append(single_loop_results)
 
             if show:
-                tc_sem_pred_ = tc_sem_pred.copy()
+                if 'tc_pred' in pred:
+                    tc_sem_pred_ = tc_sem_pred.copy()
+                else:
+                    tc_sem_pred_ = pred['sem_pred']
+                    bound = tc_sem_pred_ == len(self.CLASSES)
+                    tc_sem_pred_[tc_sem_pred_ > 0] = 1
+                    tc_sem_pred_[bound > 0] = 2
                 tc_sem_gt = get_tc_from_inst(inst_gt)
                 pred_collect = {'sem_pred': sem_pred, 'inst_pred': inst_pred, 'tc_sem_pred': tc_sem_pred_}
                 gt_collect = {'sem_gt': sem_gt, 'inst_gt': inst_gt, 'tc_sem_gt': tc_sem_gt}
@@ -235,7 +241,15 @@ class NucleiCoNICDataset(Dataset):
                     gt_collect.update({'dir_gt': dir_gt, 'ddm_gt': ddm_gt})
 
                 self.drawer = Drawer(show_folder, sem_palette=self.PALETTE)
-                metrics = {'imwAji': imw_aji}
+                metrics = {
+                    'imwAji': imw_aji,
+                    'pixel_TP': sem_pre_eval_res[0],
+                    'pixel_FP': sem_pre_eval_res[2],
+                    'pixel_FN': sem_pre_eval_res[3],
+                    'inst_TP': pq_pre_eval_res[0],
+                    'inst_FP': pq_pre_eval_res[1],
+                    'inst_FN': pq_pre_eval_res[2],
+                }
                 if 'dir_pred' in pred_collect and 'dir_gt' in gt_collect:
                     self.drawer.draw_direction(img_name, img_file_name, pred_collect, gt_collect, metrics)
                 else:
@@ -303,8 +317,9 @@ class NucleiCoNICDataset(Dataset):
     def model_agnostic_postprocess(self, pred):
         """model free post-process for both instance-level & semantic-level."""
         sem_id_list = list(np.unique(pred))
-        inst_pred = np.zeros_like(pred).astype(np.uint8)
+        inst_pred = np.zeros_like(pred).astype(np.int32)
         sem_pred = np.zeros_like(pred).astype(np.uint8)
+        cur = 0
         for sem_id in sem_id_list:
             # 0 is background semantic class.
             if sem_id == 0:
@@ -312,14 +327,14 @@ class NucleiCoNICDataset(Dataset):
             sem_id_mask = pred == sem_id
             # fill instance holes
             sem_id_mask = binary_fill_holes(sem_id_mask)
-            sem_id_mask_dila = morphology.dilation(sem_id_mask, selem=morphology.disk(2))
-            inst_pred[sem_id_mask > 0] = 1
-            sem_pred[sem_id_mask_dila > 0] = sem_id
-
-        # instance process & dilation
-        inst_pred = measure.label(inst_pred)
-        # if re_edge=True, dilation pixel length should be 2
-        inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(2))
+            sem_id_mask = remove_small_objects(sem_id_mask, 5)
+            inst_sem_mask = measure.label(sem_id_mask)
+            inst_sem_mask = morphology.dilation(inst_sem_mask, selem=morphology.disk(2))
+            inst_sem_mask[inst_sem_mask > 0] += cur
+            inst_pred[inst_sem_mask > 0] = 0
+            inst_pred += inst_sem_mask
+            cur += len(np.unique(inst_sem_mask))
+            sem_pred[inst_sem_mask > 0] = sem_id
 
         return sem_pred, inst_pred
 
@@ -355,12 +370,16 @@ class NucleiCoNICDataset(Dataset):
         aji_pre_eval_results = ret_metrics.pop('aji_pre_eval_res')
         ret_metrics.update(pre_eval_to_aji(aji_pre_eval_results))
         bin_pq_pre_eval_results = ret_metrics.pop('bin_pq_pre_eval_res')
-        ret_metrics.update(pre_eval_to_bin_pq(bin_pq_pre_eval_results))
+        [ret_metrics.update(x) for x in pre_eval_to_bin_pq(bin_pq_pre_eval_results)]
         pq_pre_eval_results = ret_metrics.pop('pq_pre_eval_res')
-        ret_metrics.update(pre_eval_to_pq(pq_pre_eval_results))
+        [ret_metrics.update(x) for x in pre_eval_to_pq(pq_pre_eval_results)]
 
         total_inst_keys = ['bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'mDQ', 'mSQ', 'mPQ']
         total_inst_metrics = {}
+        total_analysis_keys = ['pq_bTP', 'pq_bFP', 'pq_bFN', 'pq_bIoU', 'pq_mTP', 'pq_mFP', 'pq_mFN', 'pq_mIoU']
+        total_analysis = {}
+        inst_analysis_keys = ['pq_TP', 'pq_FP', 'pq_FN', 'pq_IoU']
+        inst_analysis = {}
         inst_keys = ['Aji', 'DQ', 'SQ', 'PQ']
         inst_metrics = {}
         sem_keys = ['Dice', 'Precision', 'Recall']
@@ -377,6 +396,10 @@ class NucleiCoNICDataset(Dataset):
             elif key in sem_keys:
                 # remove background class
                 sem_metrics[key] = ret_metrics[key][1:]
+            elif key in total_analysis_keys:
+                total_analysis[key] = ret_metrics[key]
+            elif key in inst_analysis_keys:
+                inst_analysis[key] = ret_metrics[key][1:]
             else:
                 total_inst_metrics[key] = sum(ret_metrics[key]) / len(ret_metrics[key])
 
@@ -386,8 +409,9 @@ class NucleiCoNICDataset(Dataset):
             OrderedDict({sem_key: np.round(value * 100, 2)
                          for sem_key, value in sem_metrics.items()}))
         classes_metrics.update(
-            OrderedDict({sem_key: np.round(value * 100, 2)
-                         for sem_key, value in inst_metrics.items()}))
+            OrderedDict({inst_key: np.round(value * 100, 2)
+                         for inst_key, value in inst_metrics.items()}))
+        classes_metrics.update(OrderedDict({analysis_key: value for analysis_key, value in inst_analysis.items()}))
 
         # remove background class
         classes_metrics.update({'classes': self.CLASSES[1:]})
@@ -414,12 +438,18 @@ class NucleiCoNICDataset(Dataset):
         for key, val in inst_total_metrics.items():
             inst_total_table_data.add_column(key, [val])
 
+        total_analysis_table_data = PrettyTable()
+        for key, val in total_analysis.items():
+            total_analysis_table_data.add_column(key, [val])
+
         print_log('Per classes:', logger)
         print_log('\n' + classes_table_data.get_string(), logger=logger)
         print_log('Semantic Total:', logger)
         print_log('\n' + sem_total_table_data.get_string(), logger=logger)
         print_log('Instance Total:', logger)
         print_log('\n' + inst_total_table_data.get_string(), logger=logger)
+        print_log('Analysis Total:', logger)
+        print_log('\n' + total_analysis_table_data.get_string(), logger=logger)
 
         eval_results = {}
         # average results

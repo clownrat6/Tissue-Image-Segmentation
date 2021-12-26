@@ -107,6 +107,9 @@ class Drawer(object):
         plt.axis('off')
         plt.title('Three-class Semantic Level Ground Truth')
 
+        _ = metrics.pop('imwAji')
+        plt.suptitle(''.join([f'{k}:{v[1]} ' for k, v in metrics.items()]))
+
         # results visulization
         plt.tight_layout()
         plt.savefig(f'{self.save_folder}/{img_name}_compare.png', dpi=300)

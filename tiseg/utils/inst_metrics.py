@@ -4,6 +4,8 @@ import numpy as np
 from skimage import measure
 from scipy.optimize import linear_sum_assignment
 
+from .misc import get_bounding_box
+
 
 def pre_eval_bin_aji(inst_pred, inst_gt):
     # make instance id contiguous
@@ -39,14 +41,28 @@ def pre_eval_bin_aji(inst_pred, inst_gt):
         if gt_id == 0:
             continue
         g_mask = gt_masks[gt_id]
-        pred_target_overlap = inst_pred[g_mask > 0]
+        rmin1, rmax1, cmin1, cmax1 = get_bounding_box(g_mask)
+        g_mask_crop = g_mask[rmin1:rmax1, cmin1:cmax1]
+        g_mask_crop = g_mask_crop.astype("int")
+        p_mask_crop = inst_pred[rmin1:rmax1, cmin1:cmax1]
+        pred_target_overlap = p_mask_crop[g_mask_crop > 0]
         pred_target_overlap_id = list(np.unique(pred_target_overlap))
         for pred_id in pred_target_overlap_id:
             if pred_id == 0:  # ignore
                 continue  # overlaping background
             p_mask = pred_masks[pred_id]
-            total = (g_mask + p_mask).sum()
-            intersect = (g_mask * p_mask).sum()
+
+            # crop region to speed up computation
+            rmin2, rmax2, cmin2, cmax2 = get_bounding_box(p_mask)
+            rmin = min(rmin1, rmin2)
+            rmax = max(rmax1, rmax2)
+            cmin = min(cmin1, cmin2)
+            cmax = max(cmax1, cmax2)
+            g_mask_union_crop = (g_mask[rmin:rmax, cmin:cmax] > 0).astype(np.uint8)
+            p_mask_union_crop = (p_mask[rmin:rmax, cmin:cmax] > 0).astype(np.uint8)
+            total = (g_mask_union_crop + p_mask_union_crop).sum()
+            intersect = (g_mask_union_crop * p_mask_union_crop).sum()
+            # print(total, intersect)
             pairwise_intersection[gt_id - 1, pred_id - 1] = intersect
             pairwise_union[gt_id - 1, pred_id - 1] = total - intersect
 
@@ -107,7 +123,11 @@ def pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
         p_mask = (inst_pred == p).astype(np.uint8)
 
         tp = np.sum(p_mask * sem_pred_one_hot, axis=(-2, -1))
-        belong_sem_id = np.argmax(tp)
+
+        if np.sum(tp[1:]) > 0:
+            belong_sem_id = np.argmax(tp[1:]) + 1
+        else:
+            belong_sem_id = 0
 
         if belong_sem_id not in pred_id_list_per_class:
             pred_id_list_per_class[belong_sem_id] = [p]
@@ -122,7 +142,11 @@ def pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
         g_mask = (inst_gt == g).astype(np.uint8)
 
         tp = np.sum(g_mask * sem_gt_one_hot, axis=(-2, -1))
-        belong_sem_id = np.argmax(tp)
+
+        if np.sum(tp[1:]) > 0:
+            belong_sem_id = np.argmax(tp[1:]) + 1
+        else:
+            belong_sem_id = 0
 
         if belong_sem_id not in gt_id_list_per_class:
             gt_id_list_per_class[belong_sem_id] = [g]
@@ -202,15 +226,29 @@ def pre_eval_bin_pq(inst_pred, inst_gt, match_iou=0.5):
     # caching pairwise iou
     for gt_id in gt_id_list[1:]:  # 0-th is background
         g_mask = gt_masks[gt_id]
-        pred_true_overlap = inst_pred[g_mask > 0]
-        pred_true_overlap_id = np.unique(pred_true_overlap)
-        pred_true_overlap_id = list(pred_true_overlap_id)
-        for pred_id in pred_true_overlap_id:
+
+        rmin1, rmax1, cmin1, cmax1 = get_bounding_box(g_mask)
+        g_mask_crop = g_mask[rmin1:rmax1, cmin1:cmax1]
+        g_mask_crop = g_mask_crop.astype("int")
+        p_mask_crop = inst_pred[rmin1:rmax1, cmin1:cmax1]
+        pred_gt_overlap = p_mask_crop[g_mask_crop > 0]
+        pred_gt_overlap_id = np.unique(pred_gt_overlap)
+        pred_gt_overlap_id = list(pred_gt_overlap_id)
+        for pred_id in pred_gt_overlap_id:
             if pred_id == 0:  # ignore
                 continue  # overlaping background
             p_mask = pred_masks[pred_id]
-            total = (g_mask + p_mask).sum()
-            inter = (g_mask * p_mask).sum()
+
+            # crop region to speed up computation
+            rmin2, rmax2, cmin2, cmax2 = get_bounding_box(p_mask)
+            rmin = min(rmin1, rmin2)
+            rmax = max(rmax1, rmax2)
+            cmin = min(cmin1, cmin2)
+            cmax = max(cmax1, cmax2)
+            g_mask_union_crop = g_mask[rmin:rmax, cmin:cmax]
+            p_mask_union_crop = p_mask[rmin:rmax, cmin:cmax]
+            total = (g_mask_union_crop + p_mask_union_crop).sum()
+            inter = (g_mask_union_crop * p_mask_union_crop).sum()
             iou = inter / (total - inter)
             pairwise_iou[gt_id - 1, pred_id - 1] = iou
 
@@ -280,7 +318,11 @@ def pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
         p_mask = (inst_pred == p).astype(np.uint8)
 
         tp = np.sum(p_mask * sem_pred_one_hot, axis=(-2, -1))
-        belong_sem_id = np.argmax(tp)
+
+        if np.sum(tp[1:]) > 0:
+            belong_sem_id = np.argmax(tp[1:]) + 1
+        else:
+            belong_sem_id = 0
 
         if belong_sem_id not in pred_id_list_per_class:
             pred_id_list_per_class[belong_sem_id] = [p]
@@ -295,7 +337,11 @@ def pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
         g_mask = (inst_gt == g).astype(np.uint8)
 
         tp = np.sum(g_mask * sem_gt_one_hot, axis=(-2, -1))
-        belong_sem_id = np.argmax(tp)
+
+        if np.sum(tp[1:]) > 0:
+            belong_sem_id = np.argmax(tp[1:]) + 1
+        else:
+            belong_sem_id = 0
 
         if belong_sem_id not in gt_id_list_per_class:
             gt_id_list_per_class[belong_sem_id] = [g]
@@ -318,8 +364,8 @@ def pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
         if sem_id == 0:
             pred_id_list = pred_id_list_per_class[sem_id]
             gt_id_list = gt_id_list_per_class[sem_id]
-            fp[sem_id] += sum([np.sum(inst_pred == pred_id) for pred_id in pred_id_list if pred_id != 0])
-            fn[sem_id] += sum([np.sum(inst_gt == gt_id) for gt_id in gt_id_list if gt_id != 0])
+            fp[sem_id] += len(pred_id_list)
+            fn[sem_id] += len(gt_id_list)
             continue
 
         if sem_id in pred_id_list_per_class and sem_id in gt_id_list_per_class:
@@ -338,10 +384,10 @@ def pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
         # NOTE: this part overall union is about semantic results mismatching between prediction & ground truth.
         elif sem_id in pred_id_list_per_class:
             pred_id_list = pred_id_list_per_class[sem_id]
-            fp[sem_id] += sum([np.sum(inst_pred == pred_id) for pred_id in pred_id_list if pred_id != 0])
+            fp[sem_id] += len(pred_id_list)
         elif sem_id in gt_id_list_per_class:
             gt_id_list = gt_id_list_per_class[sem_id]
-            fn[sem_id] += sum([np.sum(inst_gt == gt_id) for gt_id in gt_id_list if gt_id != 0])
+            fn[sem_id] += len(gt_id_list)
 
     return tp, fp, fn, iou
 
@@ -504,6 +550,7 @@ def pre_eval_to_bin_pq(pre_eval_results, nan_to_num=None):
 
     pq = dq * sq
 
+    analysis = {'pq_bTP': tp, 'pq_bFP': fp, 'pq_bFN': fn, 'pq_bIoU': np.round(iou, 2)}
     ret_metrics = {'bDQ': dq, 'bSQ': sq, 'bPQ': pq}
 
     if nan_to_num is not None:
@@ -511,7 +558,7 @@ def pre_eval_to_bin_pq(pre_eval_results, nan_to_num=None):
             {metric: np.nan_to_num(metric_value, nan=nan_to_num)
              for metric, metric_value in ret_metrics.items()})
 
-    return ret_metrics
+    return ret_metrics, analysis
 
 
 def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=True):
@@ -534,6 +581,7 @@ def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=Tr
     sq = iou / (tp + 1.0e-6)
     pq = dq * sq
 
+    analysis = {'pq_TP': tp, 'pq_FP': fp, 'pq_FN': fn, 'pq_IoU': np.round(iou, 2)}
     ret_metrics = {'DQ': dq, 'SQ': sq, 'PQ': pq}
 
     if reduce_zero_class_insts:
@@ -552,4 +600,4 @@ def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=Tr
             {metric: np.nan_to_num(metric_value, nan=nan_to_num)
              for metric, metric_value in ret_metrics.items()})
 
-    return ret_metrics
+    return ret_metrics, analysis
