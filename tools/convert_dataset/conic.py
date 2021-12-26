@@ -1,11 +1,13 @@
 import os
 import os.path as osp
-import random
 import argparse
 
+import joblib
+import pandas as pd
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+from sklearn.model_selection import StratifiedShuffleSplit
 
 
 def pillow_save(save_path, array, palette=None):
@@ -19,7 +21,7 @@ def pillow_save(save_path, array, palette=None):
 
 def parse_args():
     parser = argparse.ArgumentParser('Convert monuseg dataset.')
-    parser.add_argument('root_path', help='dataset root path.')
+    parser.add_argument('dataset_root', help='dataset root path.')
 
     return parser.parse_args()
 
@@ -54,12 +56,17 @@ def analysis_func(labels):
     print('valid slice of cell:', slice_count)
 
 
-def main():
-    args = parse_args()
-    data_root = args.root_path  # Change this according to the root path where the data is located # noqa
-
+def main(args):
+    import joblib
+    data_root = args.dataset_root  # Change this according to the root path where the data is located # noqa
     images_path = f'{data_root}/conic/images.npy'  # images array Nx256x256x3
     labels_path = f'{data_root}/conic/labels.npy'  # labels array Nx256x256x2
+
+    FOLD_IDX = 0
+    splits = joblib.load(f'{data_root}/splits.dat')
+    val_indices = splits[FOLD_IDX]['valid']
+    train_indices = splits[FOLD_IDX]['train']
+
     # counts_path = f"{data_root}/conic/counts.csv"  # csv of counts per nuclear type for each patch # noqa
     # info_path = f"{data_root}/conic/patch_info.csv"  # csv indicating which image from Lizard each patch comes from # noqa
 
@@ -68,12 +75,6 @@ def main():
 
     print('Images Shape:', images.shape)
     print('Labels Shape:', labels.shape)
-
-    total_indices = list(range(images.shape[0]))
-    random.shuffle(total_indices)
-
-    train_indices = total_indices[:4500]
-    val_indices = total_indices[4500:]
 
     for split, indices in [('train', train_indices), ('val', val_indices)]:
         new_root = osp.join(data_root, split)
@@ -95,5 +96,42 @@ def main():
             [fp.write(item + '\n') for item in item_list]
 
 
+def generate_split(args):
+    SEED = 5
+    info = pd.read_csv(f'{args.dataset_root}/conic/patch_info.csv')
+    file_names = np.squeeze(info.to_numpy()).tolist()
+
+    img_sources = [v.split('-')[0] for v in file_names]
+    img_sources = np.unique(img_sources)
+
+    cohort_sources = [v.split('_')[0] for v in img_sources]
+    _, cohort_sources = np.unique(cohort_sources, return_inverse=True)
+    num_trials = 10
+    splitter = StratifiedShuffleSplit(n_splits=num_trials, train_size=0.8, test_size=0.2, random_state=SEED)
+
+    splits = []
+    split_generator = splitter.split(img_sources, cohort_sources)
+    for train_indices, valid_indices in split_generator:
+        train_cohorts = img_sources[train_indices]
+        valid_cohorts = img_sources[valid_indices]
+        assert np.intersect1d(train_cohorts, valid_cohorts).size == 0
+        train_names = [
+            file_name for file_name in file_names for source in train_cohorts if source == file_name.split('-')[0]
+        ]
+        valid_names = [
+            file_name for file_name in file_names for source in valid_cohorts if source == file_name.split('-')[0]
+        ]
+        train_names = np.unique(train_names)
+        valid_names = np.unique(valid_names)
+        print(f'Train: {len(train_names):04d} - Valid: {len(valid_names):04d}')
+        assert np.intersect1d(train_names, valid_names).size == 0
+        train_indices = [file_names.index(v) for v in train_names]
+        valid_indices = [file_names.index(v) for v in valid_names]
+        splits.append({'train': train_indices, 'valid': valid_indices})
+    joblib.dump(splits, f'{args.dataset_root}/splits.dat')
+
+
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+    generate_split(args)
+    main(args)
