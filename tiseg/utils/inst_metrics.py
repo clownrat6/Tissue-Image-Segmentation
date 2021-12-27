@@ -601,3 +601,47 @@ def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=Tr
              for metric, metric_value in ret_metrics.items()})
 
     return ret_metrics, analysis
+
+
+
+def pre_eval_to_sample_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=True):
+    # convert list of tuples to tuple of lists, e.g.
+    # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
+    # ([A_1, ..., A_n], ..., [D_1, ..., D_n])
+    pre_eval_results = tuple(zip(*pre_eval_results))
+    assert len(pre_eval_results) == 4
+
+    # [0]: overall intersection
+    # [1]: overall union
+    tp = np.array(pre_eval_results[0])
+    fp = np.array(pre_eval_results[1])
+    fn = np.array(pre_eval_results[2])
+    iou = np.array(pre_eval_results[3])
+
+    # get the F1-score i.e DQ
+    dq = tp / (tp + 0.5 * fp + 0.5 * fn)
+    # get the SQ, no paired has 0 iou so not impact
+    sq = iou / (tp + 1.0e-6)
+    pq = dq * sq
+
+    if reduce_zero_class_insts:
+        dq = dq[:, 1]
+        sq = sq[:, 1]
+        pq = pq[:, 1]
+        iou = iou[:, 1] / 100
+        tp = tp[:, 1] / 100
+        fp = fp[:, 1] / 100
+        fn = fn[:, 1] / 100
+    analysis = {'pq_TP': tp, 'pq_FP': fp, 'pq_FN': fn, 'pq_IoU': np.round(iou, 2)}
+    ret_metrics = {'DQ': dq, 'SQ': sq, 'PQ': pq}
+
+
+
+    # ret_metrics.update({'mDQ': dq, 'mSQ': sq, 'mPQ': pq})
+
+    if nan_to_num is not None:
+        ret_metrics = OrderedDict(
+            {metric: np.nan_to_num(metric_value, nan=nan_to_num)
+             for metric, metric_value in ret_metrics.items()})
+
+    return ret_metrics, analysis

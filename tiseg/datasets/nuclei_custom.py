@@ -14,7 +14,13 @@ from skimage import measure, morphology
 from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
-from tiseg.utils import (binary_aggregated_jaccard_index, dice_similarity_coefficient, precision_recall)
+from tiseg.utils import dice_similarity_coefficient, precision_recall
+from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_sem_metrics, pre_eval_bin_aji, pre_eval_aji,
+                         pre_eval_bin_pq, pre_eval_pq, pre_eval_to_bin_aji, pre_eval_to_aji, pre_eval_to_bin_pq,
+                         pre_eval_to_pq, pre_eval_to_sample_pq)
+
+
+
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
 from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground
@@ -254,11 +260,13 @@ class NucleiCustomDataset(Dataset):
             img_name = osp.splitext(osp.basename(img_file_name))[0]
             sem_file_name = self.data_infos[index]['sem_file_name']
             # semantic level label make
-            sem_gt = mmcv.imread(sem_file_name, flag='unchanged', backend='pillow')
+            sem_seg = mmcv.imread(sem_file_name, flag='unchanged', backend='pillow')
             # instance level label make
             inst_file_name = self.data_infos[index]['inst_file_name']
             inst_seg = np.load(inst_file_name)
             inst_seg = re_instance(inst_seg)
+
+            data_id = osp.basename(self.data_infos[index]['sem_file_name']).replace(self.sem_suffix, '')
 
             # metric calculation post process codes:
             # extract inside
@@ -282,20 +290,48 @@ class NucleiCustomDataset(Dataset):
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
-            precision_metric, recall_metric = precision_recall(sem_pred, sem_gt, 2)
+            precision_metric, recall_metric = precision_recall(sem_pred, sem_seg, 2)
             precision_metric = precision_metric[1]
             recall_metric = recall_metric[1]
-            dice_metric = dice_similarity_coefficient(sem_pred, sem_gt, 2)[1]
+            dice_metric = dice_similarity_coefficient(sem_pred, sem_seg, 2)[1]
+
+            # # instance metric calculation
+            # aji_metric = binary_aggregated_jaccard_index(re_instance(inst_pred), inst_seg)
+
+
+            # semantic metric calculation (remove background class)
+            sem_gt = inst_seg > 0
+            sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
 
             # instance metric calculation
-            aji_metric = binary_aggregated_jaccard_index(re_instance(inst_pred), inst_seg)
+            inst_gt = inst_seg
+            inst_pred = re_instance(inst_pred)
 
+
+            bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
+            aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
+            if bin_aji_pre_eval_res[0] * bin_aji_pre_eval_res[1] == 0:
+                imw_aji = 0
+            else:
+                imw_aji = bin_aji_pre_eval_res[0] / bin_aji_pre_eval_res[1]
+
+            bin_pq_pre_eval_res = pre_eval_bin_pq(inst_pred, inst_gt)
+            pq_pre_eval_res = pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
+
+
+            
             single_loop_results = dict(
-                name=img_name,
-                Aji=aji_metric,
+                name=data_id,
+                Aji=imw_aji,
                 Dice=dice_metric,
                 Recall=recall_metric,
                 Precision=precision_metric,
+                imwAji=imw_aji,
+                bin_aji_pre_eval_res=bin_aji_pre_eval_res,
+                aji_pre_eval_res=aji_pre_eval_res,
+                bin_pq_pre_eval_res=bin_pq_pre_eval_res,
+                pq_pre_eval_res=pq_pre_eval_res,
+                sem_pre_eval_res=sem_pre_eval_res
             )
             pre_eval_results.append(single_loop_results)
 
@@ -371,31 +407,106 @@ class NucleiCustomDataset(Dataset):
             dict[str, float]: Default metrics.
         """
 
+        img_ret_metrics = {}
         ret_metrics = {}
+
+        img_keys = ['name', 'Aji', 'Dice', 'Recall', 'Precision']
         # list to dict
         for result in results:
             for key, value in result.items():
-                if key not in ret_metrics:
-                    ret_metrics[key] = [value]
+                if key in img_keys:
+                    if key not in img_ret_metrics:
+                        img_ret_metrics[key] = [value]
+                    else:
+                        img_ret_metrics[key].append(value)
                 else:
-                    ret_metrics[key].append(value)
+                    if key not in ret_metrics:
+                        ret_metrics[key] = [value]
+                    else:
+                        ret_metrics[key].append(value)
 
+        # per sample
         # calculate average metric
-        assert 'name' in ret_metrics
-        name_list = ret_metrics.pop('name')
+        assert 'name' in img_ret_metrics
+        name_list = img_ret_metrics.pop('name')
         name_list.append('Average')
+        
+
+
+        
+
+
+        # All dataset
+        sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
+        ret_metrics.update(pre_eval_to_sem_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
+        bin_aji_pre_eval_results = ret_metrics.pop('bin_aji_pre_eval_res')
+        ret_metrics.update(pre_eval_to_bin_aji(bin_aji_pre_eval_results))
+        aji_pre_eval_results = ret_metrics.pop('aji_pre_eval_res')
+        ret_metrics.update(pre_eval_to_aji(aji_pre_eval_results))
+        bin_pq_pre_eval_results = ret_metrics.pop('bin_pq_pre_eval_res')
+        [ret_metrics.update(x) for x in pre_eval_to_bin_pq(bin_pq_pre_eval_results)]
+        pq_pre_eval_results = ret_metrics.pop('pq_pre_eval_res')
+        [ret_metrics.update(x) for x in pre_eval_to_pq(pq_pre_eval_results)]
+
+        # update per sample PQ
+        [img_ret_metrics.update(x) for x in pre_eval_to_sample_pq(pq_pre_eval_results)]
+        for key in img_ret_metrics.keys():
+            # XXX: Using average value may have lower metric value than using
+            # confused matrix.
+            # if key in img_keys:
+            if isinstance(img_ret_metrics[key], list):
+                average_value = sum(img_ret_metrics[key]) / len(img_ret_metrics[key])
+                img_ret_metrics[key].append(average_value)
+                img_ret_metrics[key] = np.array(img_ret_metrics[key])
+            else:
+                img_ret_metrics[key] = img_ret_metrics[key].tolist()
+                # print(img_ret_metrics[key])
+                average_value = sum(img_ret_metrics[key]) / len(img_ret_metrics[key])
+                img_ret_metrics[key].append(average_value)
+                img_ret_metrics[key] = np.array(img_ret_metrics[key])
+
+
+
+        total_inst_keys = ['bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'mDQ', 'mSQ', 'mPQ']
+        total_inst_metrics = {}
+        total_analysis_keys = ['pq_bTP', 'pq_bFP', 'pq_bFN', 'pq_bIoU', 'pq_mTP', 'pq_mFP', 'pq_mFN', 'pq_mIoU']
+        total_analysis = {}
+        inst_analysis_keys = ['pq_TP', 'pq_FP', 'pq_FN', 'pq_IoU']
+        inst_analysis = {}
+        inst_keys = ['Aji', 'DQ', 'SQ', 'PQ']
+        inst_metrics = {}
+        sem_keys = ['Dice', 'Precision', 'Recall']
+        sem_metrics = {}
+        # calculate average metric
         for key in ret_metrics.keys():
             # XXX: Using average value may have lower metric value than using
             # confused matrix.
-            average_value = sum(ret_metrics[key]) / len(ret_metrics[key])
+            if key in total_inst_keys:
+                total_inst_metrics[key] = ret_metrics[key]
+            elif key in inst_keys:
+                # remove background class
+                inst_metrics[key] = ret_metrics[key][1:]
+            elif key in sem_keys:
+                # remove background class
+                sem_metrics[key] = ret_metrics[key][1:]
+            elif key in total_analysis_keys:
+                total_analysis[key] = ret_metrics[key]
+            elif key in inst_analysis_keys:
+                inst_analysis[key] = ret_metrics[key][1:]
+            elif key not in img_keys:
+                total_inst_metrics[key] = sum(ret_metrics[key]) / len(ret_metrics[key])
 
-            ret_metrics[key].append(average_value)
-            ret_metrics[key] = np.array(ret_metrics[key])
+
+
+
+
+
+
 
         # for logger
         ret_metrics_items = OrderedDict(
             {ret_metric: np.round(ret_metric_value * 100, 2)
-             for ret_metric, ret_metric_value in ret_metrics.items()})
+             for ret_metric, ret_metric_value in img_ret_metrics.items()})
         ret_metrics_items.update({'name': name_list})
         ret_metrics_items.move_to_end('name', last=False)
         items_table_data = PrettyTable()
@@ -405,20 +516,91 @@ class NucleiCustomDataset(Dataset):
         print_log('Per samples:', logger)
         print_log('\n' + items_table_data.get_string(), logger=logger)
 
+
+
+
+
+       # semantic table
+        classes_metrics = OrderedDict()
+        classes_metrics.update(
+            OrderedDict({sem_key: np.round(value * 100, 2)
+                         for sem_key, value in sem_metrics.items()}))
+        classes_metrics.update(
+            OrderedDict({inst_key: np.round(value * 100, 2)
+                         for inst_key, value in inst_metrics.items()}))
+        classes_metrics.update(OrderedDict({analysis_key: value for analysis_key, value in inst_analysis.items()}))
+
+        # remove background class
+        classes_metrics.update({'classes': self.CLASSES[1:]})
+        classes_metrics.move_to_end('classes', last=False)
+
+        classes_table_data = PrettyTable()
+        for key, val in classes_metrics.items():
+            classes_table_data.add_column(key, val)
+
+        # total table
+        sem_total_metrics = OrderedDict(
+            {'m' + sem_key: np.round(np.mean(value) * 100, 2)
+             for sem_key, value in sem_metrics.items()})
+
+        sem_total_table_data = PrettyTable()
+        for key, val in sem_total_metrics.items():
+            sem_total_table_data.add_column(key, [val])
+
+        inst_total_metrics = OrderedDict(
+            {inst_key: np.round(value * 100, 2)
+             for inst_key, value in total_inst_metrics.items()})
+
+        inst_total_table_data = PrettyTable()
+        for key, val in inst_total_metrics.items():
+            inst_total_table_data.add_column(key, [val])
+
+        total_analysis_table_data = PrettyTable()
+        for key, val in total_analysis.items():
+            total_analysis_table_data.add_column(key, [val])
+
+        print_log('Per classes:', logger)
+        print_log('\n' + classes_table_data.get_string(), logger=logger)
+        print_log('Semantic Total:', logger)
+        print_log('\n' + sem_total_table_data.get_string(), logger=logger)
+        print_log('Instance Total:', logger)
+        print_log('\n' + inst_total_table_data.get_string(), logger=logger)
+        print_log('Analysis Total:', logger)
+        print_log('\n' + total_analysis_table_data.get_string(), logger=logger)
+
+
+
+
+
+
+
         eval_results = {}
         # average results
-        if 'Aji' in ret_metrics:
-            eval_results['Aji'] = ret_metrics['Aji'][-1]
-        if 'Dice' in ret_metrics:
-            eval_results['Dice'] = ret_metrics['Dice'][-1]
-        if 'Recall' in ret_metrics:
-            eval_results['Recall'] = ret_metrics['Recall'][-1]
-        if 'Precision' in ret_metrics:
-            eval_results['Precision'] = ret_metrics['Precision'][-1]
+        if 'Aji' in img_ret_metrics:
+            eval_results['Aji'] = img_ret_metrics['Aji'][-1]
+        if 'Dice' in img_ret_metrics:
+            eval_results['Dice'] = img_ret_metrics['Dice'][-1]
+        if 'Recall' in img_ret_metrics:
+            eval_results['Recall'] = img_ret_metrics['Recall'][-1]
+        if 'Precision' in img_ret_metrics:
+            eval_results['Precision'] = img_ret_metrics['Precision'][-1]
 
         ret_metrics_items.pop('name', None)
         for key, value in ret_metrics_items.items():
             eval_results.update({key + '.' + str(name): f'{value[idx]:.3f}' for idx, name in enumerate(name_list)})
+
+
+
+
+
+        for k, v in sem_total_metrics.items():
+            eval_results[k] = v
+        for k, v in inst_total_metrics.items():
+            eval_results[k] = v
+
+        classes = classes_metrics.pop('classes', None)
+        for key, value in classes_metrics.items():
+            eval_results.update({key + '.' + str(name): f'{value[idx]:.3f}' for idx, name in enumerate(classes)})
 
         # This ret value is used for eval hook. Eval hook will add these
         # evaluation info to runner.log_buffer.output. Then when the
