@@ -126,8 +126,6 @@ class DGM(nn.Module):
 
         # mask branch
         tc_mask_feature_with_dir_logit = self.dir_to_tc_mask_attn(tc_mask_feature, dir_logit)
-        print(self.dir_to_tc_mask_attn)
-        exit(0)
         tc_mask_logit = self.tc_mask_conv(tc_mask_feature_with_dir_logit)
 
         # semantic mask branch

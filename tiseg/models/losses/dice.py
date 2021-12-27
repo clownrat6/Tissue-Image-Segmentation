@@ -45,7 +45,7 @@ def tdice(pred, target, num_classes, thresh=None, reduce_zero_label=True):
 
     area_union = area_pred + area_label - area_intersect
 
-    res = 2 * 100 * area_intersect.sum() / (area_union.sum())
+    res = 2 * 100 * area_intersect.sum() / (area_union.sum() + area_intersect.sum())
 
     # TODO: Make this to arg
     res[torch.isnan(res)] = 0
