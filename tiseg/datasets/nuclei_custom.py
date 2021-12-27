@@ -14,53 +14,49 @@ from skimage import measure, morphology
 from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
 
-from tiseg.utils import (aggregated_jaccard_index, dice_similarity_coefficient, precision_recall)
+from tiseg.utils import (binary_aggregated_jaccard_index, dice_similarity_coefficient, precision_recall)
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
 from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground
 
 
-def draw_semantic(save_folder, data_id, image, pred, label, edge_id=2):
-    """draw semantic level picture with FP & FN."""
+def draw_all(save_folder,
+             img_name,
+             img_file_name,
+             sem_pred,
+             sem_gt,
+             inst_pred,
+             inst_gt,
+             tc_sem_pred,
+             tc_sem_gt,
+             edge_id=2,
+             sem_palette=None):
 
-    plt.figure(figsize=(5 * 2, 5 * 2 + 3))
-
-    # prediction drawing
-    plt.subplot(221)
-    plt.imshow(pred)
-    plt.axis('off')
-    plt.title('Prediction', fontsize=15, color='black')
-
-    # ground truth drawing
-    plt.subplot(222)
-    plt.imshow(label)
-    plt.axis('off')
-    plt.title('Ground Truth', fontsize=15, color='black')
+    plt.figure(figsize=(5 * 4, 5 * 2 + 3))
 
     # image drawing
-    if isinstance(image, str):
-        image = cv2.imread(image)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    plt.subplot(223)
-    plt.imshow(image)
+    img = cv2.imread(img_file_name)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    plt.subplot(241)
+    plt.imshow(img)
     plt.axis('off')
     plt.title('Image', fontsize=15, color='black')
 
-    canvas = np.zeros((*pred.shape, 3), dtype=np.uint8)
-    canvas[label > 0, :] = (255, 255, 2)
+    canvas = np.zeros((*sem_pred.shape, 3), dtype=np.uint8)
+    canvas[(sem_pred > 0) * (sem_gt > 0), :] = (0, 0, 255)
     canvas[canvas == edge_id] = 0
-    canvas[(pred == 0) * (label > 0), :] = (2, 255, 255)
-    canvas[(pred > 0) * (label == 0), :] = (255, 2, 255)
-    plt.subplot(224)
+    canvas[(sem_pred == 0) * (sem_gt > 0), :] = (0, 255, 0)
+    canvas[(sem_pred > 0) * (sem_gt == 0), :] = (255, 0, 0)
+    plt.subplot(242)
     plt.imshow(canvas)
     plt.axis('off')
-    plt.title('FN-FP-Ground Truth', fontsize=15, color='black')
+    plt.title('Error Analysis: FN-FP-TP', fontsize=15, color='black')
 
     # get the colors of the values, according to the
     # colormap used by imshow
-    colors = [(255, 255, 2), (2, 255, 255), (255, 2, 255)]
+    colors = [(0, 0, 255), (0, 255, 0), (255, 0, 0)]
     label_list = [
-        'Ground Truth',
+        'TP',
         'FN',
         'FP',
     ]
@@ -70,26 +66,41 @@ def draw_semantic(save_folder, data_id, image, pred, label, edge_id=2):
         plt.plot(0, 0, '-', color=tuple(color), label=label)
     plt.legend(loc='upper center', fontsize=9, bbox_to_anchor=(0.5, 0), ncol=3)
 
+    plt.subplot(243)
+    plt.imshow(colorize_seg_map(inst_pred))
+    plt.axis('off')
+    plt.title('Instance Level Prediction')
+
+    plt.subplot(244)
+    plt.imshow(colorize_seg_map(inst_gt))
+    plt.axis('off')
+    plt.title('Instance Level Ground Truth')
+
+    plt.subplot(245)
+    plt.imshow(colorize_seg_map(sem_pred, sem_palette))
+    plt.axis('off')
+    plt.title('Semantic Level Prediction')
+
+    plt.subplot(246)
+    plt.imshow(colorize_seg_map(sem_gt, sem_palette))
+    plt.axis('off')
+    plt.title('Semantic Level Ground Truth')
+
+    tc_palette = [(0, 0, 0), (0, 255, 0), (255, 0, 0)]
+
+    plt.subplot(247)
+    plt.imshow(colorize_seg_map(tc_sem_pred, tc_palette))
+    plt.axis('off')
+    plt.title('Three-class Semantic Level Prediction')
+
+    plt.subplot(248)
+    plt.imshow(colorize_seg_map(tc_sem_gt, tc_palette))
+    plt.axis('off')
+    plt.title('Three-class Semantic Level Ground Truth')
+
     # results visulization
     plt.tight_layout()
-    plt.savefig(f'{save_folder}/{data_id}_semantic_compare.png', dpi=300)
-
-
-def draw_instance(save_folder, data_id, pred_instance, label_instance):
-    """draw instance level picture."""
-
-    plt.figure(figsize=(5 * 2, 5))
-
-    plt.subplot(121)
-    plt.imshow(colorize_seg_map(pred_instance))
-    plt.axis('off')
-
-    plt.subplot(122)
-    plt.imshow(colorize_seg_map(label_instance))
-    plt.axis('off')
-
-    plt.tight_layout()
-    plt.savefig(f'{save_folder}/{data_id}_instance_compare.png', dpi=300)
+    plt.savefig(f'{save_folder}/{img_name}_compare.png', dpi=300)
 
 
 @DATASETS.register_module()
@@ -204,7 +215,7 @@ class NucleiCustomDataset(Dataset):
 
         return data_infos
 
-    def pre_eval(self, preds, indices, show_semantic=False, show_instance=False, show_folder=None):
+    def pre_eval(self, preds, indices, show=False, show_folder=None):
         """Collect eval result from each iteration.
 
         Args:
@@ -212,9 +223,7 @@ class NucleiCustomDataset(Dataset):
                 after argmax, shape (N, H, W).
             indices (list[int] | int): the prediction related ground truth
                 indices.
-            show_semantic (bool): Illustrate semantic level prediction &
-                ground truth. Default: False
-            show_instance (bool): Illustrate instance level prediction &
+            show (bool): Illustrate semantic level & instance level prediction &
                 ground truth. Default: False
             show_folder (str | None, optional): The folder path of
                 illustration. Default: None
@@ -229,7 +238,7 @@ class NucleiCustomDataset(Dataset):
         if not isinstance(preds, list):
             preds = [preds]
 
-        if show_folder is None and (show_semantic or show_instance):
+        if show_folder is None and show:
             warnings.warn('show_semantic or show_instance is set to True, but the '
                           'show_folder is None. We will use default show_folder: '
                           '.nuclei_show')
@@ -241,17 +250,15 @@ class NucleiCustomDataset(Dataset):
 
         for pred, index in zip(preds, indices):
             # img related infos
-            # img_file_name = self.data_infos[index]['file_name']
-            # img_name = osp.splitext(osp.basename(img_file_name))[0]
+            img_file_name = self.data_infos[index]['file_name']
+            img_name = osp.splitext(osp.basename(img_file_name))[0]
             sem_file_name = self.data_infos[index]['sem_file_name']
             # semantic level label make
-            sem_seg = mmcv.imread(sem_file_name, flag='unchanged', backend='pillow')
+            sem_gt = mmcv.imread(sem_file_name, flag='unchanged', backend='pillow')
             # instance level label make
             inst_file_name = self.data_infos[index]['inst_file_name']
             inst_seg = np.load(inst_file_name)
             inst_seg = re_instance(inst_seg)
-
-            data_id = osp.basename(self.data_infos[index]['sem_file_name']).replace(self.sem_suffix, '')
 
             # metric calculation post process codes:
             # extract inside
@@ -275,16 +282,16 @@ class NucleiCustomDataset(Dataset):
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
-            precision_metric, recall_metric = precision_recall(sem_pred, sem_seg, 2)
+            precision_metric, recall_metric = precision_recall(sem_pred, sem_gt, 2)
             precision_metric = precision_metric[1]
             recall_metric = recall_metric[1]
-            dice_metric = dice_similarity_coefficient(sem_pred, sem_seg, 2)[1]
+            dice_metric = dice_similarity_coefficient(sem_pred, sem_gt, 2)[1]
 
             # instance metric calculation
-            aji_metric = aggregated_jaccard_index(re_instance(inst_pred), inst_seg)
+            aji_metric = binary_aggregated_jaccard_index(re_instance(inst_pred), inst_seg)
 
             single_loop_results = dict(
-                name=data_id,
+                name=img_name,
                 Aji=aji_metric,
                 Dice=dice_metric,
                 Recall=recall_metric,
@@ -292,14 +299,21 @@ class NucleiCustomDataset(Dataset):
             )
             pre_eval_results.append(single_loop_results)
 
-            # illustrating semantic level results
-            if show_semantic:
-                data_info = self.data_infos[index]
-                draw_semantic(show_folder, data_id, data_info['file_name'], sem_pred, sem_seg, single_loop_results)
-
-            # illustrating instance level results
-            if show_instance:
-                draw_instance(show_folder, data_id, inst_pred, inst_seg)
+            # illustrating semantic level & instance level results
+            if show:
+                tri_sem_pred = sem_pred.copy()
+                tri_sem_pred[(tri_sem_pred != 0) * (tri_sem_pred != len(self.CLASSES))] = 1
+                tri_sem_pred[tri_sem_pred > 1] = 2
+                tri_sem_gt = sem_gt.copy()
+                tri_sem_gt[(tri_sem_gt != 0) * (tri_sem_gt != len(self.CLASSES))] = 1
+                tri_sem_gt[tri_sem_gt > 1] = 2
+                draw_all(
+                    show_folder,
+                    img_name,
+                    img_file_name,
+                    sem_pred,
+                    sem_gt,
+                )
 
         return pre_eval_results
 
