@@ -124,7 +124,7 @@ def pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
 
         tp = np.sum(p_mask * sem_pred_one_hot, axis=(-2, -1))
 
-        if np.sum(tp[1:]) > 0:
+        if np.sum(tp[1:]) > 0 and p != 0:
             belong_sem_id = np.argmax(tp[1:]) + 1
         else:
             belong_sem_id = 0
@@ -143,7 +143,7 @@ def pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
 
         tp = np.sum(g_mask * sem_gt_one_hot, axis=(-2, -1))
 
-        if np.sum(tp[1:]) > 0:
+        if np.sum(tp[1:]) > 0 and g != 0:
             belong_sem_id = np.argmax(tp[1:]) + 1
         else:
             belong_sem_id = 0
@@ -319,7 +319,7 @@ def pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
 
         tp = np.sum(p_mask * sem_pred_one_hot, axis=(-2, -1))
 
-        if np.sum(tp[1:]) > 0:
+        if np.sum(tp[1:]) > 0 and p != 0:
             belong_sem_id = np.argmax(tp[1:]) + 1
         else:
             belong_sem_id = 0
@@ -338,7 +338,7 @@ def pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
 
         tp = np.sum(g_mask * sem_gt_one_hot, axis=(-2, -1))
 
-        if np.sum(tp[1:]) > 0:
+        if np.sum(tp[1:]) > 0 and g != 0:
             belong_sem_id = np.argmax(tp[1:]) + 1
         else:
             belong_sem_id = 0
