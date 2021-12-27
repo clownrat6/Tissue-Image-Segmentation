@@ -6,7 +6,7 @@ from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads import MultiTaskUNetHead
-from ..losses import MultiClassDiceLoss, mdice, tdice
+from ..losses import MultiClassDiceLoss, BatchMultiClassDiceLoss, GeneralizedDiceLoss, FocalLoss2d, RobustFocalLoss2d, mdice, tdice
 from .base import BaseSegmentor
 
 
@@ -182,18 +182,25 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
     def _mask_loss(self, mask_logit, mask_label):
         """calculate semantic mask branch loss."""
         mask_loss = {}
-        mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_classes)
+        
+        # loss weight
+        alpha = 3
+        beta = 1
+        use_focal = False
+        if use_focal:
+            mask_focal_loss_calculator = RobustFocalLoss2d(type='softmax')
+            mask_focal_loss = mask_focal_loss_calculator(mask_logit, mask_label)
+            mask_loss['mask_focal_loss'] = alpha * mask_focal_loss
+        else:
+            mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+            mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
+            mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
+        
+        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+        mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
+        mask_loss['mask_dice_loss'] = beta * mask_dice_loss
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
-        mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
-        mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
-        # loss weight
-        alpha = 1
-        beta = 1
-        mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
-        mask_loss['mask_dice_loss'] = beta * mask_dice_loss
-
         return mask_loss
 
     def _tc_mask_loss(self, tc_mask_logit, tc_mask_label):
