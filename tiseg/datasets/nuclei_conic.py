@@ -15,7 +15,7 @@ from tiseg.datasets.utils.draw import Drawer
 
 from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_sem_metrics, pre_eval_bin_aji, pre_eval_aji,
                          pre_eval_bin_pq, pre_eval_pq, pre_eval_to_bin_aji, pre_eval_to_aji, pre_eval_to_bin_pq,
-                         pre_eval_to_pq)
+                         pre_eval_to_pq, pre_eval_to_imw_bin_pq, pre_eval_pq_hover)
 from tiseg.models.utils import generate_direction_differential_map
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
@@ -208,6 +208,7 @@ class NucleiCoNICDataset(Dataset):
 
             bin_pq_pre_eval_res = pre_eval_bin_pq(inst_pred, inst_gt)
             pq_pre_eval_res = pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
+            # pq_pre_eval_res = pre_eval_pq_hover(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
 
             single_loop_results = dict(
                 imwAji=imw_aji,
@@ -371,10 +372,17 @@ class NucleiCoNICDataset(Dataset):
         ret_metrics.update(pre_eval_to_aji(aji_pre_eval_results))
         bin_pq_pre_eval_results = ret_metrics.pop('bin_pq_pre_eval_res')
         [ret_metrics.update(x) for x in pre_eval_to_bin_pq(bin_pq_pre_eval_results)]
+        # for x in pre_eval_to_bin_pq(bin_pq_pre_eval_results):
+        #     print('bqp', x)
+        # for x in pre_eval_to_imw_bin_pq(bin_pq_pre_eval_results):
+        #     print('imw', x)
+        ret_metrics.update(pre_eval_to_imw_bin_pq(bin_pq_pre_eval_results)) 
+
+
         pq_pre_eval_results = ret_metrics.pop('pq_pre_eval_res')
         [ret_metrics.update(x) for x in pre_eval_to_pq(pq_pre_eval_results)]
 
-        total_inst_keys = ['bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'mDQ', 'mSQ', 'mPQ']
+        total_inst_keys = ['bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwbDQ', 'imwbSQ', 'imwbPQ', 'mDQ', 'mSQ', 'mPQ']
         total_inst_metrics = {}
         total_analysis_keys = ['pq_bTP', 'pq_bFP', 'pq_bFN', 'pq_bIoU', 'pq_mTP', 'pq_mFP', 'pq_mFN', 'pq_mIoU']
         total_analysis = {}

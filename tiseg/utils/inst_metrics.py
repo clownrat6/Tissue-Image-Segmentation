@@ -3,6 +3,7 @@ from collections import OrderedDict
 import numpy as np
 from skimage import measure
 from scipy.optimize import linear_sum_assignment
+from tiseg.datasets.utils.instance_semantic import re_instance
 
 from .misc import get_bounding_box
 
@@ -193,12 +194,16 @@ def pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
     return overall_inter, overall_union
 
 
-def pre_eval_bin_pq(inst_pred, inst_gt, match_iou=0.5):
+def pre_eval_bin_pq(inst_pred, inst_gt, match_iou=0.5, relabel = True):
     assert match_iou >= 0.0, "Cant' be negative"
 
     # make instance id contiguous
-    inst_pred = measure.label(inst_pred.copy())
-    inst_gt = measure.label(inst_gt.copy())
+    if relabel:
+        inst_pred = measure.label(inst_pred.copy())
+        inst_gt = measure.label(inst_gt.copy())
+    else:
+        inst_pred = re_instance(inst_pred.copy())
+        inst_gt = re_instance(inst_gt.copy())
 
     pred_id_list = list(np.unique(inst_pred))
     gt_id_list = list(np.unique(inst_gt))
@@ -366,6 +371,8 @@ def pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
             gt_id_list = gt_id_list_per_class[sem_id]
             fp[sem_id] += len(pred_id_list)
             fn[sem_id] += len(gt_id_list)
+            # assert(len(gt_id_list) == 0)
+            # print('pred', len(pred_id_list), 'gt', len(gt_id_list))
             continue
 
         if sem_id in pred_id_list_per_class and sem_id in gt_id_list_per_class:
@@ -391,6 +398,45 @@ def pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
 
     return tp, fp, fn, iou
 
+
+def pre_eval_pq_hover(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
+    # make instance id contiguous
+    inst_pred = measure.label(inst_pred.copy())
+    inst_gt = measure.label(inst_gt.copy())
+
+    pred_id_list = list(np.unique(inst_pred))
+    gt_id_list = list(np.unique(inst_gt))
+
+    if 0 not in pred_id_list:
+        pred_id_list.insert(0, 0)
+
+    if 0 not in gt_id_list:
+        gt_id_list.insert(0, 0)
+
+    def to_one_hot(mask, num_classes):
+        ret = np.zeros((num_classes, *mask.shape))
+        for i in range(num_classes):
+            ret[i, mask == i] = 1
+
+        return ret
+
+    sem_pred_one_hot = to_one_hot(sem_pred, num_classes)
+    sem_gt_one_hot = to_one_hot(sem_gt, num_classes)
+
+    tp = np.zeros((num_classes), dtype=np.float32)
+    fp = np.zeros((num_classes), dtype=np.float32)
+    fn = np.zeros((num_classes), dtype=np.float32)
+    iou = np.zeros((num_classes), dtype=np.float32)
+    for sem_id in range(1, num_classes):
+        pred_inst_map = inst_pred * sem_pred_one_hot[sem_id]
+        gt_inst_map = inst_gt * sem_gt_one_hot[sem_id] 
+        res = pre_eval_bin_pq(pred_inst_map, gt_inst_map, match_iou=0.5, relabel=False)
+        tp[sem_id] += res[0]
+        fp[sem_id] += res[1]
+        fn[sem_id] += res[2]
+        iou[sem_id] += res[3]
+
+    return tp, fp, fn, iou
 
 def binary_aggregated_jaccard_index(inst_pred, inst_gt):
     """Two-class Aggregated Jaccard Index Calculation.
@@ -561,6 +607,41 @@ def pre_eval_to_bin_pq(pre_eval_results, nan_to_num=None):
     return ret_metrics, analysis
 
 
+def pre_eval_to_imw_bin_pq(pre_eval_results, nan_to_num=None):
+    # convert list of tuples to tuple of lists, e.g.
+    # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
+    # ([A_1, ..., A_n], ..., [D_1, ..., D_n])
+    pre_eval_results = tuple(zip(*pre_eval_results))
+    assert len(pre_eval_results) == 4
+
+    # [0]: overall intersection
+    # [1]: overall union
+    tp = np.array(pre_eval_results[0])
+    fp = np.array(pre_eval_results[1])
+    fn = np.array(pre_eval_results[2])
+    iou = np.array(pre_eval_results[3])
+
+    # get the F1-score i.e DQ
+    dq = tp / (tp + 0.5 * fp + 0.5 * fn + 1.0e-6)
+    # get the SQ, no paired has 0 iou so not impact
+    sq = iou / (tp + 1.0e-6)
+
+    pq = dq * sq
+
+    dq = np.mean(dq)
+    sq = np.mean(sq)
+    pq = np.mean(pq)
+
+    # analysis = {'pq_bTP': tp, 'pq_bFP': fp, 'pq_bFN': fn, 'pq_bIoU': np.round(iou, 2)}
+    ret_metrics = {'imwbDQ': dq, 'imwbSQ': sq, 'imwbPQ': pq}
+
+    if nan_to_num is not None:
+        ret_metrics = OrderedDict(
+            {metric: np.nan_to_num(metric_value, nan=nan_to_num)
+             for metric, metric_value in ret_metrics.items()})
+    return ret_metrics
+    # return ret_metrics, analysis
+
 def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=True):
     # convert list of tuples to tuple of lists, e.g.
     # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
@@ -619,7 +700,7 @@ def pre_eval_to_sample_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_i
     iou = np.array(pre_eval_results[3])
 
     # get the F1-score i.e DQ
-    dq = tp / (tp + 0.5 * fp + 0.5 * fn)
+    dq = tp / (tp + 0.5 * fp + 0.5 * fn + 1.0e-6)
     # get the SQ, no paired has 0 iou so not impact
     sq = iou / (tp + 1.0e-6)
     pq = dq * sq
