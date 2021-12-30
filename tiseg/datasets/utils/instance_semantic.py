@@ -55,3 +55,38 @@ def get_tc_from_inst(inst_seg):
         tc_sem_seg[bound > 0] = 2
 
     return tc_sem_seg
+
+
+def align_inst_to_sem(inst_seg, sem_seg, num_classes):
+    inst_id_list = list(np.unique(inst_seg))
+
+    if 0 not in inst_id_list:
+        inst_id_list.insert(0, 0)
+
+    def to_one_hot(mask, num_classes):
+        ret = np.zeros((num_classes, *mask.shape))
+        for i in range(num_classes):
+            ret[i, mask == i] = 1
+
+        return ret
+
+    sem_seg_one_hot = to_one_hot(sem_seg, num_classes)
+
+    # Remove background class
+    inst_id_list_per_class = {}
+    for inst_id in inst_id_list:
+        inst_mask = (inst_seg == inst_id).astype(np.uint8)
+
+        tp = np.sum(inst_mask * sem_seg_one_hot, axis=(-2, -1))
+
+        if np.sum(tp[1:]) > 0 and inst_id != 0:
+            belong_sem_id = np.argmax(tp[1:]) + 1
+        else:
+            belong_sem_id = 0
+
+        if belong_sem_id not in inst_id_list_per_class:
+            inst_id_list_per_class[belong_sem_id] = [inst_id]
+        else:
+            inst_id_list_per_class[belong_sem_id].append(inst_id)
+
+    return inst_id_list_per_class

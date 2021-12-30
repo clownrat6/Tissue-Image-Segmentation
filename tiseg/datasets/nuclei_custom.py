@@ -19,8 +19,6 @@ from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_sem_metrics, 
                          pre_eval_bin_pq, pre_eval_pq, pre_eval_to_bin_aji, pre_eval_to_aji, pre_eval_to_bin_pq,
                          pre_eval_to_pq, pre_eval_to_sample_pq)
 
-
-
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
 from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground
@@ -298,7 +296,6 @@ class NucleiCustomDataset(Dataset):
             # # instance metric calculation
             # aji_metric = binary_aggregated_jaccard_index(re_instance(inst_pred), inst_seg)
 
-
             # semantic metric calculation (remove background class)
             sem_gt = inst_seg > 0
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
@@ -306,7 +303,6 @@ class NucleiCustomDataset(Dataset):
             # instance metric calculation
             inst_gt = inst_seg
             inst_pred = re_instance(inst_pred)
-
 
             bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
             aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
@@ -318,8 +314,6 @@ class NucleiCustomDataset(Dataset):
             bin_pq_pre_eval_res = pre_eval_bin_pq(inst_pred, inst_gt)
             pq_pre_eval_res = pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
 
-
-            
             single_loop_results = dict(
                 name=data_id,
                 Aji=imw_aji,
@@ -331,8 +325,7 @@ class NucleiCustomDataset(Dataset):
                 aji_pre_eval_res=aji_pre_eval_res,
                 bin_pq_pre_eval_res=bin_pq_pre_eval_res,
                 pq_pre_eval_res=pq_pre_eval_res,
-                sem_pre_eval_res=sem_pre_eval_res
-            )
+                sem_pre_eval_res=sem_pre_eval_res)
             pre_eval_results.append(single_loop_results)
 
             # illustrating semantic level & instance level results
@@ -430,11 +423,6 @@ class NucleiCustomDataset(Dataset):
         assert 'name' in img_ret_metrics
         name_list = img_ret_metrics.pop('name')
         name_list.append('Average')
-        
-
-
-        
-
 
         # All dataset
         sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
@@ -465,8 +453,6 @@ class NucleiCustomDataset(Dataset):
                 img_ret_metrics[key].append(average_value)
                 img_ret_metrics[key] = np.array(img_ret_metrics[key])
 
-
-
         total_inst_keys = ['bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'mDQ', 'mSQ', 'mPQ']
         total_inst_metrics = {}
         total_analysis_keys = ['pq_bTP', 'pq_bFP', 'pq_bFN', 'pq_bIoU', 'pq_mTP', 'pq_mFP', 'pq_mFN', 'pq_mIoU']
@@ -496,17 +482,11 @@ class NucleiCustomDataset(Dataset):
             elif key not in img_keys:
                 total_inst_metrics[key] = sum(ret_metrics[key]) / len(ret_metrics[key])
 
-
-
-
-
-
-
-
         # for logger
-        ret_metrics_items = OrderedDict(
-            {ret_metric: np.round(ret_metric_value * 100, 2)
-             for ret_metric, ret_metric_value in img_ret_metrics.items()})
+        ret_metrics_items = OrderedDict({
+            ret_metric: np.round(ret_metric_value * 100, 2)
+            for ret_metric, ret_metric_value in img_ret_metrics.items()
+        })
         ret_metrics_items.update({'name': name_list})
         ret_metrics_items.move_to_end('name', last=False)
         items_table_data = PrettyTable()
@@ -516,11 +496,7 @@ class NucleiCustomDataset(Dataset):
         print_log('Per samples:', logger)
         print_log('\n' + items_table_data.get_string(), logger=logger)
 
-
-
-
-
-       # semantic table
+        # semantic table
         classes_metrics = OrderedDict()
         classes_metrics.update(
             OrderedDict({sem_key: np.round(value * 100, 2)
@@ -568,12 +544,6 @@ class NucleiCustomDataset(Dataset):
         print_log('Analysis Total:', logger)
         print_log('\n' + total_analysis_table_data.get_string(), logger=logger)
 
-
-
-
-
-
-
         eval_results = {}
         # average results
         if 'Aji' in img_ret_metrics:
@@ -588,10 +558,6 @@ class NucleiCustomDataset(Dataset):
         ret_metrics_items.pop('name', None)
         for key, value in ret_metrics_items.items():
             eval_results.update({key + '.' + str(name): f'{value[idx]:.3f}' for idx, name in enumerate(name_list)})
-
-
-
-
 
         for k, v in sem_total_metrics.items():
             eval_results[k] = v

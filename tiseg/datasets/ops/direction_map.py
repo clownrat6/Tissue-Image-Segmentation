@@ -125,7 +125,7 @@ class DirectionLabelMake(object):
 
         # point map calculation & gradient map calculation
         point_map, gradient_map, dist_map = self.calculate_point_map(inst_map, to_center=self.to_center)
-        
+
         # direction map calculation
         dir_map = self.calculate_dir_map(inst_map, gradient_map, self.num_angles)
         reg_dir_map = self.calculate_regression_dir_map(inst_map, gradient_map)
@@ -240,10 +240,9 @@ class DirectionLabelMake(object):
         # Only calculate distance (to center) in distance region
         distance_to_centralridge = distance_to_centralridge * single_instance_map
         distance_to_centralridge_instance = (distance_to_centralridge /
-                                       (distance_to_centralridge.max() + 0.0000001)) * single_instance_map
+                                             (distance_to_centralridge.max() + 0.0000001)) * single_instance_map
 
         return distance_to_centralridge_instance
-
 
     @classmethod
     def calculate_gradient(self, single_instance_map, distance_to_center_instance):

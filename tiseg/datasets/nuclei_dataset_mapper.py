@@ -51,7 +51,9 @@ class NucleiDatasetMapper(object):
         self.bluer = RandomBlur(prob=0.5) if self.if_blur else Identity()
         self.cropper = RandomCrop((self.min_size, self.min_size)) if self.if_crop else Identity()
         self.padder = Pad(self.min_size) if self.if_pad else Identity()
-        self.label_maker = DirectionLabelMake(edge_id=self.edge_id, to_center=self.to_center, num_angles = self.num_angles) if self.with_dir else GenBound(edge_id=self.edge_id)
+        self.label_maker = DirectionLabelMake(
+            edge_id=self.edge_id, to_center=self.to_center, num_angles=self.num_angles) if self.with_dir else GenBound(
+                edge_id=self.edge_id)
         # monuseg dataset tissue image mean & std
         nuclei_mean = [0.68861804, 0.46102882, 0.61138992]
         nuclei_std = [0.19204499, 0.20979484, 0.1658672]

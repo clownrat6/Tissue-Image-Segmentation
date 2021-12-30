@@ -15,11 +15,12 @@ from tiseg.datasets.utils.draw import Drawer
 
 from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_sem_metrics, pre_eval_bin_aji, pre_eval_aji,
                          pre_eval_bin_pq, pre_eval_pq, pre_eval_to_bin_aji, pre_eval_to_aji, pre_eval_to_bin_pq,
-                         pre_eval_to_pq, pre_eval_to_imw_bin_pq, pre_eval_pq_hover)
+                         pre_eval_to_pq, pre_eval_to_imw_pq, pre_eval_to_imw_aji)
 from tiseg.models.utils import generate_direction_differential_map
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
-from .utils import (re_instance, mudslide_watershed, align_foreground, get_tc_from_inst, get_dir_from_inst)
+from .utils import (re_instance, mudslide_watershed, align_foreground, get_tc_from_inst, get_dir_from_inst,
+                    align_inst_to_sem)
 
 
 @DATASETS.register_module()
@@ -198,20 +199,22 @@ class NucleiCoNICDataset(Dataset):
             # semantic metric calculation (remove background class)
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
 
+            # make contiguous ids
+            inst_pred = measure.label(inst_pred.copy())
+            inst_gt = measure.label(inst_gt.copy())
+
+            pred_id_list_per_class = align_inst_to_sem(inst_pred, sem_pred, len(self.CLASSES))
+            gt_id_list_per_class = align_inst_to_sem(inst_gt, sem_gt, len(self.CLASSES))
+
             # instance metric calculation
             bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
-            aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
-            if bin_aji_pre_eval_res[0] * bin_aji_pre_eval_res[1] == 0:
-                imw_aji = 0
-            else:
-                imw_aji = bin_aji_pre_eval_res[0] / bin_aji_pre_eval_res[1]
-
+            aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, pred_id_list_per_class, gt_id_list_per_class,
+                                            len(self.CLASSES))
             bin_pq_pre_eval_res = pre_eval_bin_pq(inst_pred, inst_gt)
-            pq_pre_eval_res = pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
-            # pq_pre_eval_res = pre_eval_pq_hover(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
+            pq_pre_eval_res = pre_eval_pq(inst_pred, inst_gt, pred_id_list_per_class, gt_id_list_per_class,
+                                          len(self.CLASSES))
 
             single_loop_results = dict(
-                imwAji=imw_aji,
                 bin_aji_pre_eval_res=bin_aji_pre_eval_res,
                 aji_pre_eval_res=aji_pre_eval_res,
                 bin_pq_pre_eval_res=bin_pq_pre_eval_res,
@@ -242,15 +245,16 @@ class NucleiCoNICDataset(Dataset):
                     gt_collect.update({'dir_gt': dir_gt, 'ddm_gt': ddm_gt})
 
                 self.drawer = Drawer(show_folder, sem_palette=self.PALETTE)
-                metrics = {
-                    'imwAji': imw_aji,
-                    'pixel_TP': sem_pre_eval_res[0],
-                    'pixel_FP': sem_pre_eval_res[2],
-                    'pixel_FN': sem_pre_eval_res[3],
-                    'inst_TP': pq_pre_eval_res[0],
-                    'inst_FP': pq_pre_eval_res[1],
-                    'inst_FN': pq_pre_eval_res[2],
-                }
+                # metrics = {
+                #     'imwAji': imw_aji,
+                #     'pixel_TP': sem_pre_eval_res[0],
+                #     'pixel_FP': sem_pre_eval_res[2],
+                #     'pixel_FN': sem_pre_eval_res[3],
+                #     'inst_TP': pq_pre_eval_res[0],
+                #     'inst_FP': pq_pre_eval_res[1],
+                #     'inst_FN': pq_pre_eval_res[2],
+                # }
+                metrics = {}
                 if 'dir_pred' in pred_collect and 'dir_gt' in gt_collect:
                     self.drawer.draw_direction(img_name, img_file_name, pred_collect, gt_collect, metrics)
                 else:
@@ -364,25 +368,27 @@ class NucleiCoNICDataset(Dataset):
                 else:
                     ret_metrics[key].append(value)
 
+        # semantic metrics
         sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
         ret_metrics.update(pre_eval_to_sem_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
+
+        # aji metrics
         bin_aji_pre_eval_results = ret_metrics.pop('bin_aji_pre_eval_res')
         ret_metrics.update(pre_eval_to_bin_aji(bin_aji_pre_eval_results))
+        ret_metrics.update(pre_eval_to_imw_aji(bin_aji_pre_eval_results))
         aji_pre_eval_results = ret_metrics.pop('aji_pre_eval_res')
         ret_metrics.update(pre_eval_to_aji(aji_pre_eval_results))
+
+        # pq metrics
         bin_pq_pre_eval_results = ret_metrics.pop('bin_pq_pre_eval_res')
         [ret_metrics.update(x) for x in pre_eval_to_bin_pq(bin_pq_pre_eval_results)]
-        # for x in pre_eval_to_bin_pq(bin_pq_pre_eval_results):
-        #     print('bqp', x)
-        # for x in pre_eval_to_imw_bin_pq(bin_pq_pre_eval_results):
-        #     print('imw', x)
-        ret_metrics.update(pre_eval_to_imw_bin_pq(bin_pq_pre_eval_results)) 
-
-
+        ret_metrics.update(pre_eval_to_imw_pq(bin_pq_pre_eval_results))
         pq_pre_eval_results = ret_metrics.pop('pq_pre_eval_res')
         [ret_metrics.update(x) for x in pre_eval_to_pq(pq_pre_eval_results)]
 
-        total_inst_keys = ['bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwbDQ', 'imwbSQ', 'imwbPQ', 'mDQ', 'mSQ', 'mPQ']
+        total_inst_keys = [
+            'bAji', 'imwAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ'
+        ]
         total_inst_metrics = {}
         total_analysis_keys = ['pq_bTP', 'pq_bFP', 'pq_bFN', 'pq_bIoU', 'pq_mTP', 'pq_mFP', 'pq_mFN', 'pq_mIoU']
         total_analysis = {}
@@ -409,7 +415,12 @@ class NucleiCoNICDataset(Dataset):
             elif key in inst_analysis_keys:
                 inst_analysis[key] = ret_metrics[key][1:]
             else:
+                print(key)
                 total_inst_metrics[key] = sum(ret_metrics[key]) / len(ret_metrics[key])
+
+        total_sem_metrics = OrderedDict(
+            {'m' + sem_key: np.round(np.mean(value) * 100, 2)
+             for sem_key, value in sem_metrics.items()})
 
         # semantic table
         classes_metrics = OrderedDict()
@@ -430,12 +441,8 @@ class NucleiCoNICDataset(Dataset):
             classes_table_data.add_column(key, val)
 
         # total table
-        sem_total_metrics = OrderedDict(
-            {'m' + sem_key: np.round(np.mean(value) * 100, 2)
-             for sem_key, value in sem_metrics.items()})
-
         sem_total_table_data = PrettyTable()
-        for key, val in sem_total_metrics.items():
+        for key, val in total_sem_metrics.items():
             sem_total_table_data.add_column(key, [val])
 
         inst_total_metrics = OrderedDict(
@@ -461,7 +468,7 @@ class NucleiCoNICDataset(Dataset):
 
         eval_results = {}
         # average results
-        for k, v in sem_total_metrics.items():
+        for k, v in total_sem_metrics.items():
             eval_results[k] = v
         for k, v in inst_total_metrics.items():
             eval_results[k] = v

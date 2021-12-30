@@ -93,69 +93,7 @@ def pre_eval_bin_aji(inst_pred, inst_gt):
     return overall_inter, overall_union
 
 
-def pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
-    # make instance id contiguous
-    inst_pred = measure.label(inst_pred.copy())
-    inst_gt = measure.label(inst_gt.copy())
-
-    pred_id_list = list(np.unique(inst_pred))
-    gt_id_list = list(np.unique(inst_gt))
-
-    if 0 not in pred_id_list:
-        pred_id_list.insert(0, 0)
-
-    if 0 not in gt_id_list:
-        gt_id_list.insert(0, 0)
-
-    def to_one_hot(mask, num_classes):
-        ret = np.zeros((num_classes, *mask.shape))
-        for i in range(num_classes):
-            ret[i, mask == i] = 1
-
-        return ret
-
-    sem_pred_one_hot = to_one_hot(sem_pred, num_classes)
-    sem_gt_one_hot = to_one_hot(sem_gt, num_classes)
-
-    # Remove background class
-    pred_masks = []
-    pred_id_list_per_class = {}
-    for p in pred_id_list:
-        p_mask = (inst_pred == p).astype(np.uint8)
-
-        tp = np.sum(p_mask * sem_pred_one_hot, axis=(-2, -1))
-
-        if np.sum(tp[1:]) > 0 and p != 0:
-            belong_sem_id = np.argmax(tp[1:]) + 1
-        else:
-            belong_sem_id = 0
-
-        if belong_sem_id not in pred_id_list_per_class:
-            pred_id_list_per_class[belong_sem_id] = [p]
-        else:
-            pred_id_list_per_class[belong_sem_id].append(p)
-
-        pred_masks.append(p_mask)
-
-    gt_masks = []
-    gt_id_list_per_class = {}
-    for g in gt_id_list:
-        g_mask = (inst_gt == g).astype(np.uint8)
-
-        tp = np.sum(g_mask * sem_gt_one_hot, axis=(-2, -1))
-
-        if np.sum(tp[1:]) > 0 and g != 0:
-            belong_sem_id = np.argmax(tp[1:]) + 1
-        else:
-            belong_sem_id = 0
-
-        if belong_sem_id not in gt_id_list_per_class:
-            gt_id_list_per_class[belong_sem_id] = [g]
-        else:
-            gt_id_list_per_class[belong_sem_id].append(g)
-
-        gt_masks.append(g_mask)
-
+def pre_eval_aji(inst_pred, inst_gt, pred_id_list_per_class, gt_id_list_per_class, num_classes):
     pred_sem_ids = list(pred_id_list_per_class.keys())
     gt_sem_ids = list(gt_id_list_per_class.keys())
 
@@ -194,7 +132,7 @@ def pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
     return overall_inter, overall_union
 
 
-def pre_eval_bin_pq(inst_pred, inst_gt, match_iou=0.5, relabel = True):
+def pre_eval_bin_pq(inst_pred, inst_gt, match_iou=0.5, relabel=True):
     assert match_iou >= 0.0, "Cant' be negative"
 
     # make instance id contiguous
@@ -292,69 +230,7 @@ def pre_eval_bin_pq(inst_pred, inst_gt, match_iou=0.5, relabel = True):
     return tp, fp, fn, iou
 
 
-def pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
-    # make instance id contiguous
-    inst_pred = measure.label(inst_pred.copy())
-    inst_gt = measure.label(inst_gt.copy())
-
-    pred_id_list = list(np.unique(inst_pred))
-    gt_id_list = list(np.unique(inst_gt))
-
-    if 0 not in pred_id_list:
-        pred_id_list.insert(0, 0)
-
-    if 0 not in gt_id_list:
-        gt_id_list.insert(0, 0)
-
-    def to_one_hot(mask, num_classes):
-        ret = np.zeros((num_classes, *mask.shape))
-        for i in range(num_classes):
-            ret[i, mask == i] = 1
-
-        return ret
-
-    sem_pred_one_hot = to_one_hot(sem_pred, num_classes)
-    sem_gt_one_hot = to_one_hot(sem_gt, num_classes)
-
-    # Remove background class
-    pred_masks = []
-    pred_id_list_per_class = {}
-    for p in pred_id_list:
-        p_mask = (inst_pred == p).astype(np.uint8)
-
-        tp = np.sum(p_mask * sem_pred_one_hot, axis=(-2, -1))
-
-        if np.sum(tp[1:]) > 0 and p != 0:
-            belong_sem_id = np.argmax(tp[1:]) + 1
-        else:
-            belong_sem_id = 0
-
-        if belong_sem_id not in pred_id_list_per_class:
-            pred_id_list_per_class[belong_sem_id] = [p]
-        else:
-            pred_id_list_per_class[belong_sem_id].append(p)
-
-        pred_masks.append(p_mask)
-
-    gt_masks = []
-    gt_id_list_per_class = {}
-    for g in gt_id_list:
-        g_mask = (inst_gt == g).astype(np.uint8)
-
-        tp = np.sum(g_mask * sem_gt_one_hot, axis=(-2, -1))
-
-        if np.sum(tp[1:]) > 0 and g != 0:
-            belong_sem_id = np.argmax(tp[1:]) + 1
-        else:
-            belong_sem_id = 0
-
-        if belong_sem_id not in gt_id_list_per_class:
-            gt_id_list_per_class[belong_sem_id] = [g]
-        else:
-            gt_id_list_per_class[belong_sem_id].append(g)
-
-        gt_masks.append(g_mask)
-
+def pre_eval_pq(inst_pred, inst_gt, pred_id_list_per_class, gt_id_list_per_class, num_classes):
     pred_sem_ids = list(pred_id_list_per_class.keys())
     gt_sem_ids = list(gt_id_list_per_class.keys())
 
@@ -429,7 +305,7 @@ def pre_eval_pq_hover(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
     iou = np.zeros((num_classes), dtype=np.float32)
     for sem_id in range(1, num_classes):
         pred_inst_map = inst_pred * sem_pred_one_hot[sem_id]
-        gt_inst_map = inst_gt * sem_gt_one_hot[sem_id] 
+        gt_inst_map = inst_gt * sem_gt_one_hot[sem_id]
         res = pre_eval_bin_pq(pred_inst_map, gt_inst_map, match_iou=0.5, relabel=False)
         tp[sem_id] += res[0]
         fp[sem_id] += res[1]
@@ -437,6 +313,7 @@ def pre_eval_pq_hover(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
         iou[sem_id] += res[3]
 
     return tp, fp, fn, iou
+
 
 def binary_aggregated_jaccard_index(inst_pred, inst_gt):
     """Two-class Aggregated Jaccard Index Calculation.
@@ -545,6 +422,31 @@ def pre_eval_to_bin_aji(pre_eval_results, nan_to_num=None):
     return ret_metrics
 
 
+def pre_eval_to_imw_aji(pre_eval_results, nan_to_num=None):
+    """Convert aji pre-eval overall intersection & pre-eval overall union to aji score."""
+    # convert list of tuples to tuple of lists, e.g.
+    # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
+    # ([A_1, ..., A_n], ..., [D_1, ..., D_n])
+    pre_eval_results = tuple(zip(*pre_eval_results))
+    assert len(pre_eval_results) == 2
+
+    inter = np.array(pre_eval_results[0])
+    union = np.array(pre_eval_results[1])
+
+    aji = np.mean(inter / union)
+
+    # [0]: overall intersection
+    # [1]: overall union
+    ret_metrics = {'imwAji': aji}
+
+    if nan_to_num is not None:
+        ret_metrics = OrderedDict(
+            {metric: np.nan_to_num(metric_value, nan=nan_to_num)
+             for metric, metric_value in ret_metrics.items()})
+
+    return ret_metrics
+
+
 def pre_eval_to_aji(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=True):
     """Convert aji pre-eval overall intersection & pre-eval overall union to aji score."""
     # convert list of tuples to tuple of lists, e.g.
@@ -607,7 +509,7 @@ def pre_eval_to_bin_pq(pre_eval_results, nan_to_num=None):
     return ret_metrics, analysis
 
 
-def pre_eval_to_imw_bin_pq(pre_eval_results, nan_to_num=None):
+def pre_eval_to_imw_pq(pre_eval_results, nan_to_num=None):
     # convert list of tuples to tuple of lists, e.g.
     # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
     # ([A_1, ..., A_n], ..., [D_1, ..., D_n])
@@ -632,15 +534,14 @@ def pre_eval_to_imw_bin_pq(pre_eval_results, nan_to_num=None):
     sq = np.mean(sq)
     pq = np.mean(pq)
 
-    # analysis = {'pq_bTP': tp, 'pq_bFP': fp, 'pq_bFN': fn, 'pq_bIoU': np.round(iou, 2)}
-    ret_metrics = {'imwbDQ': dq, 'imwbSQ': sq, 'imwbPQ': pq}
+    ret_metrics = {'imwDQ': dq, 'imwSQ': sq, 'imwPQ': pq}
 
     if nan_to_num is not None:
         ret_metrics = OrderedDict(
             {metric: np.nan_to_num(metric_value, nan=nan_to_num)
              for metric, metric_value in ret_metrics.items()})
     return ret_metrics
-    # return ret_metrics, analysis
+
 
 def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=True):
     # convert list of tuples to tuple of lists, e.g.
@@ -684,7 +585,6 @@ def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=Tr
     return ret_metrics, analysis
 
 
-
 def pre_eval_to_sample_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=True):
     # convert list of tuples to tuple of lists, e.g.
     # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
@@ -715,10 +615,6 @@ def pre_eval_to_sample_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_i
         fn = fn[:, 1] / 100
     analysis = {'pq_TP': tp, 'pq_FP': fp, 'pq_FN': fn, 'pq_IoU': np.round(iou, 2)}
     ret_metrics = {'DQ': dq, 'SQ': sq, 'PQ': pq}
-
-
-
-    # ret_metrics.update({'mDQ': dq, 'mSQ': sq, 'mPQ': pq})
 
     if nan_to_num is not None:
         ret_metrics = OrderedDict(
