@@ -36,15 +36,14 @@ class NucleiDatasetMapper(object):
         self.if_crop = process_cfg.get('if_crop', False)
         self.if_pad = process_cfg.get('if_pad', False)
         self.if_norm = process_cfg.get('if_norm', False)
+        self.to_center = process_cfg.get('to_center', True)
+        self.num_angles = process_cfg.get('num_angles', 8)
 
         self.min_size = process_cfg['min_size']
         self.max_size = process_cfg['max_size']
         self.resize_mode = process_cfg['resize_mode']
         self.with_dir = process_cfg['with_dir']
         self.edge_id = process_cfg['edge_id']
-        self.to_center = process_cfg['to_center']
-        self.num_angles = process_cfg['num_angles']
-
 
         self.color_jitter = ColorJitter() if self.if_jitter else Identity()
         self.flipper = RandomFlip(prob=0.5, direction=['horizontal']) if self.if_flip else Identity()
