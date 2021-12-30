@@ -14,6 +14,8 @@ process_cfg = dict(
     max_size=2048,
     resize_mode='fix',
     edge_id=7,
+    to_center=True,
+    num_angles=8,
 )
 data = dict(
     samples_per_gpu=16,

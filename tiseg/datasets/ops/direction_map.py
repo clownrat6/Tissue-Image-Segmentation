@@ -69,12 +69,13 @@ class GenBound:
 class DirectionLabelMake(object):
     """build direction label & point label for any dataset."""
 
-    def __init__(self, edge_id, num_angle_types=8):
+    def __init__(self, edge_id, to_center=True, num_angles=8):
         # If input with edge, re_edge can be set to False.
         # However, in order to generate better boundary, we will re-generate
         # edge.
         self.edge_id = edge_id
-        self.num_angle_types = num_angle_types
+        self.to_center = to_center
+        self.num_angles = num_angles
 
     def __call__(self, sem_map, inst_map):
         """generate boundary label & direction from instance map and pure semantic map.
@@ -123,12 +124,12 @@ class DirectionLabelMake(object):
         results['sem_gt_w_bound'] = sem_map_w_bound
 
         # point map calculation & gradient map calculation
-        point_map, gradient_map, dist_map = self.calculate_point_map(inst_map)
+        point_map, gradient_map, dist_map = self.calculate_point_map(inst_map, to_center=self.to_center)
 
         # direction map calculation
-        dir_map = self.calculate_dir_map(inst_map, gradient_map, self.num_angle_types)
+        dir_map = self.calculate_dir_map(inst_map, gradient_map, self.num_angles)
         reg_dir_map = self.calculate_regression_dir_map(inst_map, gradient_map)
-        weight_map = self.calculate_weight_map(dir_map, dist_map, self.num_angle_types)
+        weight_map = self.calculate_weight_map(dir_map, dist_map, self.num_angles)
         weight_map = weight_map * 10.
 
         results['point_gt'] = point_map
@@ -173,7 +174,7 @@ class DirectionLabelMake(object):
         return angle_map / 180 * np.pi
 
     @classmethod
-    def calculate_point_map(self, instance_map):
+    def calculate_point_map(self, instance_map, to_center=True):
         H, W = instance_map.shape[:2]
         # distance_center_map: The min distance between center and point
         distance_to_center_map = np.zeros((H, W), dtype=np.float32)
@@ -196,8 +197,12 @@ class DirectionLabelMake(object):
             point_map[center[0], center[1]] = 1
 
             # Calculate distance from points of instance to instance center.
-            distance_to_center_instance = self.calculate_distance_to_center(single_instance_map, center)
-            distance_to_center_map += distance_to_center_instance
+            if to_center:
+                distance_to_center_instance = self.calculate_distance_to_center(single_instance_map, center)
+                distance_to_center_map += distance_to_center_instance
+            else:
+                distance_to_center_instance = self.calculate_distance_to_centralridge(single_instance_map)
+                distance_to_center_map += distance_to_center_instance
 
             # Calculate gradient of (to center) distance
             gradient_map_instance = self.calculate_gradient(single_instance_map, distance_to_center_instance)
@@ -223,6 +228,19 @@ class DirectionLabelMake(object):
                                        (distance_to_center.max() + 0.0000001)) * single_instance_map
 
         return distance_to_center_instance
+
+    @classmethod
+    def calculate_distance_to_centralridge(self, single_instance_map):
+        H, W = single_instance_map.shape[:2]
+        # Calculate distance (to center) map for single instance
+        distance_to_centralridge = distance_transform_edt(single_instance_map)
+        # Only calculate distance (to center) in distance region
+        distance_to_centralridge = distance_to_centralridge * single_instance_map
+        distance_to_centralridge_instance = (distance_to_centralridge /
+                                       (distance_to_centralridge.max() + 0.0000001)) * single_instance_map
+
+        return distance_to_centralridge_instance
+
 
     @classmethod
     def calculate_gradient(self, single_instance_map, distance_to_center_instance):
