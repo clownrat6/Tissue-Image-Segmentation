@@ -125,12 +125,15 @@ class DirectionLabelMake(object):
 
         # point map calculation & gradient map calculation
         point_map, gradient_map, dist_map = self.calculate_point_map(inst_map, to_center=self.to_center)
-
+        
         # direction map calculation
         dir_map = self.calculate_dir_map(inst_map, gradient_map, self.num_angles)
         reg_dir_map = self.calculate_regression_dir_map(inst_map, gradient_map)
-        weight_map = self.calculate_weight_map(dir_map, dist_map, self.num_angles)
-        weight_map = weight_map * 10.
+        if self.num_angles == 8:
+            weight_map = self.calculate_weight_map(dir_map, dist_map, self.num_angles)
+            weight_map = weight_map * 10.
+        else:
+            weight_map = np.zeros_like(dir_map)
 
         results['point_gt'] = point_map
         results['dir_gt'] = dir_map

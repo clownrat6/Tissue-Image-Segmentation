@@ -20,12 +20,13 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
-        self.num_angles = 8
+        
 
         # argument
         self.if_weighted_loss = self.train_cfg.get('if_weighted_loss', False)
         self.if_ddm = self.test_cfg.get('if_ddm', False)
         self.if_mudslide = self.test_cfg.get('if_mudslide', False)
+        self.num_angles = self.train_cfg.get('num_angles', 8)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = MultiTaskCDHeadNoPoint(
@@ -157,7 +158,10 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         for dir_logit in dir_logit_list:
             dir_logit[:, 0] = dir_logit[:, 0] * tc_sem_logit[:, 0]
             dir_map = torch.argmax(dir_logit, dim=1)
-            dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
+            if self.num_angles == 8:
+                dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
+            else:
+                dd_map = torch.zeros_like(dir_map).cuda()
             dir_map_list.append(dir_map)
             dd_map_list.append(dd_map)
 
