@@ -94,7 +94,8 @@ class DGM(nn.Module):
                  num_angles=8,
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU'),
-                 noau=False):
+                 noau=False,
+                 use_regression=False):
         super().__init__()
         self.in_dims = in_dims
         self.feed_dims = feed_dims
@@ -112,7 +113,10 @@ class DGM(nn.Module):
             self.dir_to_tc_mask_attn = AU(self.num_angles + 1)
 
         # Prediction Operations
-        self.dir_conv = nn.Conv2d(self.feed_dims, self.num_angles + 1, kernel_size=1)
+        if use_regression:
+            self.dir_conv = nn.Conv2d(self.feed_dims, 1, kernel_size=1)
+        else:
+            self.dir_conv = nn.Conv2d(self.feed_dims, self.num_angles + 1, kernel_size=1)
         self.tc_mask_conv = nn.Conv2d(self.feed_dims, 3, kernel_size=1)
         self.mask_conv = nn.Conv2d(self.feed_dims, self.num_classes, kernel_size=1)
 
@@ -137,7 +141,7 @@ class DGM(nn.Module):
 
 class MultiTaskCDHeadNoPoint(UNetHead):
 
-    def __init__(self, num_classes, num_angles=8, dgm_dims=64, noau=False, **kwargs):
+    def __init__(self, num_classes, num_angles=8, dgm_dims=64, noau=False, use_regression=False, **kwargs):
         super().__init__(num_classes=num_classes, **kwargs)
         self.num_classes = num_classes
         self.num_angles = num_angles
@@ -149,4 +153,5 @@ class MultiTaskCDHeadNoPoint(UNetHead):
             num_angles=self.num_angles,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg,
-            noau=noau)
+            noau=noau,
+            use_regression=use_regression)

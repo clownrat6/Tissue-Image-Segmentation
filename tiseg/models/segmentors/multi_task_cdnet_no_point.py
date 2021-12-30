@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
@@ -9,6 +10,7 @@ from ..builder import SEGMENTORS
 from ..losses import BatchMultiClassDiceLoss, MultiClassDiceLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
+from ...datasets.utils import (angle_to_vector, vector_to_label)
 
 
 @SEGMENTORS.register_module()
@@ -27,6 +29,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         self.if_ddm = self.test_cfg.get('if_ddm', False)
         self.if_mudslide = self.test_cfg.get('if_mudslide', False)
         self.num_angles = self.train_cfg.get('num_angles', 8)
+        self.use_regression = self.train_cfg.get('use_regression', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = MultiTaskCDHeadNoPoint(
@@ -38,7 +41,8 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             stage_dims=[16, 32, 64, 128, 256],
             act_cfg=dict(type='ReLU'),
             norm_cfg=dict(type='BN'),
-            noau=self.train_cfg.get('noau', False))
+            noau=self.train_cfg.get('noau', False),
+            use_regression=self.use_regression)
 
     def calculate(self, img, rescale=False):
         img_feats = self.backbone(img)
@@ -64,14 +68,18 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             tc_mask_gt[(tc_mask_gt != 0) * (tc_mask_gt != self.num_classes)] = 1
             tc_mask_gt[tc_mask_gt > 1] = 2
             mask_gt = label['sem_gt']
-            dir_gt = label['dir_gt']
+            if self.use_regression:
+                dir_gt = label['reg_dir_gt']
+            else:
+                dir_gt = label['dir_gt']
+                dir_gt = dir_gt.squeeze(1)
             weight_map = label['loss_weight_map'] if self.if_weighted_loss else None
 
             loss = dict()
 
             tc_mask_gt = tc_mask_gt.squeeze(1)
             mask_gt = mask_gt.squeeze(1)
-            dir_gt = dir_gt.squeeze(1)
+            
 
             # TODO: Conside to remove some edge loss value.
             # mask branch loss calculation
@@ -144,7 +152,8 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
 
                 tc_sem_logit = F.softmax(tc_sem_logit, dim=1)
                 sem_logit = F.softmax(sem_logit, dim=1)
-                dir_logit = F.softmax(dir_logit, dim=1)
+                if not self.use_regression:
+                    dir_logit = F.softmax(dir_logit, dim=1)
 
                 tc_sem_logit_list.append(tc_sem_logit)
                 sem_logit_list.append(sem_logit)
@@ -156,12 +165,26 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         dd_map_list = []
         dir_map_list = []
         for dir_logit in dir_logit_list:
-            dir_logit[:, 0] = dir_logit[:, 0] * tc_sem_logit[:, 0]
-            dir_map = torch.argmax(dir_logit, dim=1)
-            if self.num_angles == 8:
+            if self.use_regression:
+                dir_logit[dir_logit < 0] = 0
+                dir_logit[dir_logit > 2 * np.pi] = 2 * np.pi
+                background = (torch.argmax(tc_sem_logit, dim=1)[0] == 0).cpu().numpy()
+                angle_map = dir_logit * 180 / np.pi
+                angle_map = angle_map[0, 0].cpu().numpy()  #[H, W]
+                angle_map[angle_map > 180] -= 360
+                angle_map[background] = 0
+                vector_map = angle_to_vector(angle_map, self.num_angles)
+                dir_map = vector_to_label(vector_map, self.num_angles)
+                dir_map[background] = -1
+                dir_map = dir_map + 1
                 dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
             else:
-                dd_map = torch.zeros_like(dir_map).cuda()
+                dir_logit[:, 0] = dir_logit[:, 0] * tc_sem_logit[:, 0]
+                dir_map = torch.argmax(dir_logit, dim=1)
+                if self.num_angles == 8:
+                    dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
+                else:
+                    dd_map = torch.zeros_like(dir_map).cuda()
             dir_map_list.append(dir_map)
             dd_map_list.append(dd_map)
 
@@ -197,7 +220,10 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
 
         tc_sem_logit = torch.zeros((B, 3, H1, W1), dtype=img.dtype, device=img.device)
         sem_logit = torch.zeros((B, self.num_classes, H1, W1), dtype=img.dtype, device=img.device)
-        dir_logit = torch.zeros((B, self.num_angles + 1, H1, W1), dtype=img.dtype, device=img.device)
+        if self.use_regression:
+            dir_logit = torch.zeros((B, 1, H1, W1), dtype=img.dtype, device=img.device)
+        else:
+            dir_logit = torch.zeros((B, self.num_angles + 1, H1, W1), dtype=img.dtype, device=img.device)
         for i in range(0, H1 - overlap_size, window_size - overlap_size):
             r_end = i + window_size if i + window_size < H1 else H1
             ind1_s = i + overlap_size // 2 if i > 0 else 0
@@ -275,19 +301,27 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
 
     def _dir_loss(self, dir_logit, dir_gt, weight_map=None):
         dir_loss = {}
-        dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        dir_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_angles + 1)
-        # Assign weight map for each pixel position
-        dir_ce_loss = dir_ce_loss_calculator(dir_logit, dir_gt)
-        if weight_map is not None:
-            dir_ce_loss *= weight_map[:, 0]
-        dir_ce_loss = torch.mean(dir_ce_loss)
-        dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
-        # loss weight
-        alpha = 1
-        beta = 1
-        dir_loss['dir_ce_loss'] = alpha * dir_ce_loss
-        dir_loss['dir_dice_loss'] = beta * dir_dice_loss
+        if self.use_regression:
+            dir_mse_loss_calculator = nn.MSELoss(reduction='none')
+            dir_degree_mse_loss = dir_mse_loss_calculator(dir_logit, dir_gt)
+            if weight_map is not None:
+                dir_degree_mse_loss *= weight_map[:, 0]
+            dir_degree_mse_loss = torch.mean(dir_degree_mse_loss)
+            dir_loss['dir_degree_mse_loss'] = dir_degree_mse_loss
+        else:
+            dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+            dir_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_angles + 1)
+            # Assign weight map for each pixel position
+            dir_ce_loss = dir_ce_loss_calculator(dir_logit, dir_gt)
+            if weight_map is not None:
+                dir_ce_loss *= weight_map[:, 0]
+            dir_ce_loss = torch.mean(dir_ce_loss)
+            dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
+            # loss weight
+            alpha = 1
+            beta = 1
+            dir_loss['dir_ce_loss'] = alpha * dir_ce_loss
+            dir_loss['dir_dice_loss'] = beta * dir_dice_loss
 
         return dir_loss
 
@@ -296,14 +330,14 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         # detach these training variable to avoid gradient noise.
         clean_mask_logit = mask_logit.clone().detach()
         clean_mask_gt = mask_gt.clone().detach()
-        clean_dir_logit = dir_logit.clone().detach()
-        clean_dir_gt = dir_gt.clone().detach()
-
         wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_gt, self.num_classes)
-        wrap_dict['dir_mdice'] = mdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
-
         wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_gt, self.num_classes)
-        wrap_dict['dir_tdice'] = tdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
+
+        if not self.use_regression:
+            clean_dir_logit = dir_logit.clone().detach()
+            clean_dir_gt = dir_gt.clone().detach()
+            wrap_dict['dir_mdice'] = mdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
+            wrap_dict['dir_tdice'] = tdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
         # NOTE: training aji calculation metric calculate (This will be deprecated.)
         # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
