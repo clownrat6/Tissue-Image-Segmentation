@@ -20,7 +20,7 @@ from tiseg.models.utils import generate_direction_differential_map
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
 from .utils import (re_instance, mudslide_watershed, align_foreground, get_tc_from_inst, get_dir_from_inst,
-                    align_inst_to_sem)
+                    assign_sem_class_to_insts)
 
 
 @DATASETS.register_module()
@@ -203,8 +203,8 @@ class NucleiCoNICDataset(Dataset):
             inst_pred = measure.label(inst_pred.copy())
             inst_gt = measure.label(inst_gt.copy())
 
-            pred_id_list_per_class = align_inst_to_sem(inst_pred, sem_pred, len(self.CLASSES))
-            gt_id_list_per_class = align_inst_to_sem(inst_gt, sem_gt, len(self.CLASSES))
+            pred_id_list_per_class = assign_sem_class_to_insts(inst_pred, sem_pred, len(self.CLASSES))
+            gt_id_list_per_class = assign_sem_class_to_insts(inst_gt, sem_gt, len(self.CLASSES))
 
             # instance metric calculation
             bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
