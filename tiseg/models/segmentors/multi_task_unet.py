@@ -223,7 +223,8 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
             mask_loss['mask_level_loss'] = sum(loss_collect) / len(loss_collect)
 
         if use_ac:
-            ac_loss_calculator = ActiveContourLoss()
+            ac_w_area = self.train_cfg.get('ac_w_area')
+            ac_loss_calculator = ActiveContourLoss(w_area=ac_w_area)
             ac_loss_collect = []
             for i in range(1, self.num_classes):
                 mask_logit_cls = mask_logit[:, i:i + 1].sigmoid()
