@@ -428,7 +428,7 @@ def pre_eval_to_imw_aji(pre_eval_results, nan_to_num=None):
     inter = np.array(pre_eval_results[0])
     union = np.array(pre_eval_results[1])
 
-    aji = np.mean(inter / union)
+    aji = np.mean(inter / (union + 1e-6))
 
     # [0]: overall intersection
     # [1]: overall union
@@ -455,7 +455,7 @@ def pre_eval_to_aji(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=T
     overall_inter = sum(pre_eval_results[0])
     overall_union = sum(pre_eval_results[1])
 
-    aji = overall_inter / overall_union
+    aji = overall_inter / (overall_union + + 1e-6)
 
     if reduce_zero_class_insts:
         maji = np.mean(aji[1:])

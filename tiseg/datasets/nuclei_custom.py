@@ -17,11 +17,11 @@ from torch.utils.data import Dataset
 from tiseg.utils import (dice_similarity_coefficient, precision_recall, pre_eval_all_semantic_metric,
                          pre_eval_to_sem_metrics, pre_eval_bin_aji, pre_eval_aji, pre_eval_bin_pq, pre_eval_pq,
                          pre_eval_to_bin_aji, pre_eval_to_aji, pre_eval_to_bin_pq, pre_eval_to_pq,
-                         pre_eval_to_sample_pq)
+                         pre_eval_to_sample_pq, pre_eval_to_imw_pq, pre_eval_to_imw_aji)
 
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
-from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground
+from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground, assign_sem_class_to_insts
 
 
 def draw_all(save_folder,
@@ -268,15 +268,18 @@ class NucleiCustomDataset(Dataset):
 
             # metric calculation post process codes:
             # extract inside
-            sem_pred = pred['sem_pred']
-            fore_pred = (sem_pred > 0).astype(np.uint8)
-            sem_pred_in = (sem_pred == 1).astype(np.uint8)
-
+            if 'sem_pred' in pred:
+                sem_pred = pred['sem_pred']
+            else:
+                sem_pred = pred['tc_sem_pred'] > 0
+            tc_sem_pred = pred['tc_sem_pred']                
+            sem_pred_in = (tc_sem_pred == 1).astype(np.uint8)
             if 'dir_pred' in pred:
                 dir_pred = pred['dir_pred']
-
                 # model-agnostic post process operations
-                sem_pred, inst_pred, fore_pred = self.model_agnostic_postprocess_w_dir(sem_pred_in, fore_pred, dir_pred)
+                sem_pred, inst_pred, fore_pred = self.model_agnostic_postprocess_w_dir(sem_pred_in, sem_pred > 0, dir_pred)
+            elif 'sem_pred' in pred:
+                sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_sem_pred, sem_pred)
             else:
                 sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred_in)
 
@@ -293,26 +296,31 @@ class NucleiCustomDataset(Dataset):
             recall_metric = recall_metric[1]
             dice_metric = dice_similarity_coefficient(sem_pred, sem_seg, 2)[1]
 
-            # # instance metric calculation
-            # aji_metric = binary_aggregated_jaccard_index(re_instance(inst_pred), inst_seg)
 
-            # semantic metric calculation (remove background class)
+
             sem_gt = inst_seg > 0
+            inst_gt = inst_seg
+            # semantic metric calculation (remove background class)
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
 
-            # instance metric calculation
-            inst_gt = inst_seg
-            inst_pred = re_instance(inst_pred)
+            # make contiguous ids
+            inst_pred = measure.label(inst_pred.copy())
+            inst_gt = measure.label(inst_gt.copy())
 
+            pred_id_list_per_class = assign_sem_class_to_insts(inst_pred, sem_pred, len(self.CLASSES))
+            gt_id_list_per_class = assign_sem_class_to_insts(inst_gt, sem_gt, len(self.CLASSES))
+
+            # instance metric calculation
             bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
-            aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
             if bin_aji_pre_eval_res[0] * bin_aji_pre_eval_res[1] == 0:
                 imw_aji = 0
             else:
                 imw_aji = bin_aji_pre_eval_res[0] / bin_aji_pre_eval_res[1]
-
+            aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, pred_id_list_per_class, gt_id_list_per_class,
+                                            len(self.CLASSES))
             bin_pq_pre_eval_res = pre_eval_bin_pq(inst_pred, inst_gt)
-            pq_pre_eval_res = pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, len(self.CLASSES))
+            pq_pre_eval_res = pre_eval_pq(inst_pred, inst_gt, pred_id_list_per_class, gt_id_list_per_class,
+                                          len(self.CLASSES))
 
             single_loop_results = dict(
                 name=data_id,
@@ -320,7 +328,6 @@ class NucleiCustomDataset(Dataset):
                 Dice=dice_metric,
                 Recall=recall_metric,
                 Precision=precision_metric,
-                imwAji=imw_aji,
                 bin_aji_pre_eval_res=bin_aji_pre_eval_res,
                 aji_pre_eval_res=aji_pre_eval_res,
                 bin_pq_pre_eval_res=bin_pq_pre_eval_res,
@@ -358,6 +365,33 @@ class NucleiCustomDataset(Dataset):
         inst_pred = measure.label(sem_pred, connectivity=1)
         # if re_edge=True, dilation pixel length should be 2
         inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(2))
+
+        return sem_pred, inst_pred
+
+    def model_agnostic_postprocess_w_tc(self, tc_sem_pred, sem_pred):
+        """model free post-process for both instance-level & semantic-level."""
+        sem_id_list = list(np.unique(sem_pred))
+        sem_canvas = np.zeros_like(sem_pred).astype(np.uint8)
+        for sem_id in sem_id_list:
+            # 0 is background semantic class.
+            if sem_id == 0:
+                continue
+            sem_id_mask = sem_pred == sem_id
+            # fill instance holes
+            sem_id_mask = binary_fill_holes(sem_id_mask)
+            sem_id_mask = remove_small_objects(sem_id_mask, 20)
+            sem_canvas[sem_id_mask > 0] = sem_id
+
+        # instance process & dilation
+        bin_sem_pred = tc_sem_pred.copy()
+        bin_sem_pred[bin_sem_pred == 2] = 0
+
+        bin_sem_pred = binary_fill_holes(bin_sem_pred)
+        bin_sem_pred = remove_small_objects(bin_sem_pred, 20)
+        inst_pred = measure.label(bin_sem_pred, connectivity=1)
+        # if re_edge=True, dilation pixel length should be 2
+        # inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(2))
+        inst_pred = align_foreground(inst_pred, sem_canvas > 0, 20)
 
         return sem_pred, inst_pred
 
@@ -418,42 +452,33 @@ class NucleiCustomDataset(Dataset):
                     else:
                         ret_metrics[key].append(value)
 
-        # per sample
-        # calculate average metric
-        assert 'name' in img_ret_metrics
-        name_list = img_ret_metrics.pop('name')
-        name_list.append('Average')
 
         # All dataset
+        # semantic metrics
         sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
         ret_metrics.update(pre_eval_to_sem_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
+
+        # aji metrics
         bin_aji_pre_eval_results = ret_metrics.pop('bin_aji_pre_eval_res')
+        ret_metrics.update(pre_eval_to_imw_aji(bin_aji_pre_eval_results))
         ret_metrics.update(pre_eval_to_bin_aji(bin_aji_pre_eval_results))
         aji_pre_eval_results = ret_metrics.pop('aji_pre_eval_res')
         ret_metrics.update(pre_eval_to_aji(aji_pre_eval_results))
+
+        # pq metrics
         bin_pq_pre_eval_results = ret_metrics.pop('bin_pq_pre_eval_res')
         [ret_metrics.update(x) for x in pre_eval_to_bin_pq(bin_pq_pre_eval_results)]
+        ret_metrics.update(pre_eval_to_imw_pq(bin_pq_pre_eval_results))
         pq_pre_eval_results = ret_metrics.pop('pq_pre_eval_res')
         [ret_metrics.update(x) for x in pre_eval_to_pq(pq_pre_eval_results)]
-
         # update per sample PQ
         [img_ret_metrics.update(x) for x in pre_eval_to_sample_pq(pq_pre_eval_results)]
-        for key in img_ret_metrics.keys():
-            # XXX: Using average value may have lower metric value than using
-            # confused matrix.
-            # if key in img_keys:
-            if isinstance(img_ret_metrics[key], list):
-                average_value = sum(img_ret_metrics[key]) / len(img_ret_metrics[key])
-                img_ret_metrics[key].append(average_value)
-                img_ret_metrics[key] = np.array(img_ret_metrics[key])
-            else:
-                img_ret_metrics[key] = img_ret_metrics[key].tolist()
-                # print(img_ret_metrics[key])
-                average_value = sum(img_ret_metrics[key]) / len(img_ret_metrics[key])
-                img_ret_metrics[key].append(average_value)
-                img_ret_metrics[key] = np.array(img_ret_metrics[key])
 
-        total_inst_keys = ['bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'mDQ', 'mSQ', 'mPQ']
+
+
+        total_inst_keys = [
+            'bAji', 'imwAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ'
+        ]
         total_inst_metrics = {}
         total_analysis_keys = ['pq_bTP', 'pq_bFP', 'pq_bFN', 'pq_bIoU', 'pq_mTP', 'pq_mFP', 'pq_mFN', 'pq_mIoU']
         total_analysis = {}
@@ -479,10 +504,35 @@ class NucleiCustomDataset(Dataset):
                 total_analysis[key] = ret_metrics[key]
             elif key in inst_analysis_keys:
                 inst_analysis[key] = ret_metrics[key][1:]
-            elif key not in img_keys:
+            else:
+                print(key)
                 total_inst_metrics[key] = sum(ret_metrics[key]) / len(ret_metrics[key])
 
-        # for logger
+
+
+
+
+        # per sample
+        # calculate average metric
+        assert 'name' in img_ret_metrics
+        name_list = img_ret_metrics.pop('name')
+        name_list.append('Average')
+
+        for key in img_ret_metrics.keys():
+            # XXX: Using average value may have lower metric value than using
+            # confused matrix.
+            # if key in img_keys:
+            if isinstance(img_ret_metrics[key], list):
+                average_value = sum(img_ret_metrics[key]) / len(img_ret_metrics[key])
+                img_ret_metrics[key].append(average_value)
+                img_ret_metrics[key] = np.array(img_ret_metrics[key])
+            else:
+                img_ret_metrics[key] = img_ret_metrics[key].tolist()
+                # print(img_ret_metrics[key])
+                average_value = sum(img_ret_metrics[key]) / len(img_ret_metrics[key])
+                img_ret_metrics[key].append(average_value)
+                img_ret_metrics[key] = np.array(img_ret_metrics[key])
+
         ret_metrics_items = OrderedDict({
             ret_metric: np.round(ret_metric_value * 100, 2)
             for ret_metric, ret_metric_value in img_ret_metrics.items()
@@ -495,6 +545,12 @@ class NucleiCustomDataset(Dataset):
 
         print_log('Per samples:', logger)
         print_log('\n' + items_table_data.get_string(), logger=logger)
+        
+
+
+        total_sem_metrics = OrderedDict(
+            {'m' + sem_key: np.round(np.mean(value) * 100, 2)
+             for sem_key, value in sem_metrics.items()})
 
         # semantic table
         classes_metrics = OrderedDict()
@@ -515,12 +571,8 @@ class NucleiCustomDataset(Dataset):
             classes_table_data.add_column(key, val)
 
         # total table
-        sem_total_metrics = OrderedDict(
-            {'m' + sem_key: np.round(np.mean(value) * 100, 2)
-             for sem_key, value in sem_metrics.items()})
-
         sem_total_table_data = PrettyTable()
-        for key, val in sem_total_metrics.items():
+        for key, val in total_sem_metrics.items():
             sem_total_table_data.add_column(key, [val])
 
         inst_total_metrics = OrderedDict(
@@ -559,7 +611,7 @@ class NucleiCustomDataset(Dataset):
         for key, value in ret_metrics_items.items():
             eval_results.update({key + '.' + str(name): f'{value[idx]:.3f}' for idx, name in enumerate(name_list)})
 
-        for k, v in sem_total_metrics.items():
+        for k, v in total_sem_metrics.items():
             eval_results[k] = v
         for k, v in inst_total_metrics.items():
             eval_results[k] = v

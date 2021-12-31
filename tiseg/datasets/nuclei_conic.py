@@ -313,9 +313,10 @@ class NucleiCoNICDataset(Dataset):
         bin_sem_pred = tc_sem_pred.copy()
         bin_sem_pred[bin_sem_pred == 2] = 0
 
-        inst_pred = measure.label(bin_sem_pred)
+        inst_pred = measure.label(bin_sem_pred, connectivity=1)
         # if re_edge=True, dilation pixel length should be 2
-        inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(2))
+        # inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(2))
+        inst_pred = align_foreground(inst_pred, sem_canvas > 0, 20)
 
         return sem_pred, inst_pred
 
@@ -374,8 +375,8 @@ class NucleiCoNICDataset(Dataset):
 
         # aji metrics
         bin_aji_pre_eval_results = ret_metrics.pop('bin_aji_pre_eval_res')
-        ret_metrics.update(pre_eval_to_bin_aji(bin_aji_pre_eval_results))
         ret_metrics.update(pre_eval_to_imw_aji(bin_aji_pre_eval_results))
+        ret_metrics.update(pre_eval_to_bin_aji(bin_aji_pre_eval_results))
         aji_pre_eval_results = ret_metrics.pop('aji_pre_eval_res')
         ret_metrics.update(pre_eval_to_aji(aji_pre_eval_results))
 
