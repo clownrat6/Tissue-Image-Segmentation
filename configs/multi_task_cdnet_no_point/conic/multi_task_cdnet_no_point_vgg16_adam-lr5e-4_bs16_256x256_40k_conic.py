@@ -1,6 +1,6 @@
 _base_ = [
-    '../_base_/datasets/conic_w_dir.py',
-    '../_base_/default_runtime.py',
+    '../../_base_/datasets/conic_w_dir.py',
+    '../../_base_/default_runtime.py',
 ]
 
 # runtime settings
@@ -32,7 +32,7 @@ model = dict(
     type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=7,
-    train_cfg=dict(if_weighted_loss=False, noau=True),
+    train_cfg=dict(if_weighted_loss=False),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
