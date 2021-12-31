@@ -30,6 +30,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         self.if_mudslide = self.test_cfg.get('if_mudslide', False)
         self.num_angles = self.train_cfg.get('num_angles', 8)
         self.use_regression = self.train_cfg.get('use_regression', False)
+        self.use_semantic = self.train_cfg.get('use_semantic', True)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = MultiTaskCDHeadNoPoint(
@@ -82,9 +83,12 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             
 
             # TODO: Conside to remove some edge loss value.
+
             # mask branch loss calculation
-            mask_loss = self._mask_loss(mask_logit, mask_gt, None)
-            loss.update(mask_loss)
+            if self.use_semantic:
+                mask_loss = self._mask_loss(mask_logit, mask_gt, None)
+                loss.update(mask_loss)
+
             # three classes mask branch loss calculation
             tc_mask_loss = self._tc_mask_loss(tc_mask_logit, tc_mask_gt, weight_map)
             loss.update(tc_mask_loss)
@@ -93,7 +97,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             loss.update(dir_loss)
 
             # calculate training metric
-            training_metric_dict = self._training_metric(mask_logit, dir_logit, mask_gt, dir_gt)
+            training_metric_dict = self._training_metric(mask_logit, dir_logit, tc_mask_logit, mask_gt, dir_gt, tc_mask_gt)
             loss.update(training_metric_dict)
             return loss
         else:
@@ -111,7 +115,9 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             dir_map = list(dir_map)
             ret_list = []
             for tc_seg, seg, dir in zip(tc_seg_pred, seg_pred, dir_map):
-                ret_dict = {'tc_sem_pred': tc_seg, 'sem_pred': seg}
+                ret_dict = {'tc_sem_pred': tc_seg}
+                if self.use_semantic:
+                    ret_dict['sem_pred'] = seg
                 if self.if_mudslide:
                     ret_dict['dir_pred'] = dir
                 ret_list.append(ret_dict)
@@ -177,6 +183,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
                 dir_map = vector_to_label(vector_map, self.num_angles)
                 dir_map[background] = -1
                 dir_map = dir_map + 1
+                dir_map = torch.from_numpy(dir_map[None, :, :]).cuda()
                 dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
             else:
                 dir_logit[:, 0] = dir_logit[:, 0] * tc_sem_logit[:, 0]
@@ -325,13 +332,19 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
 
         return dir_loss
 
-    def _training_metric(self, mask_logit, dir_logit, mask_gt, dir_gt):
+    def _training_metric(self, mask_logit, dir_logit, tc_mask_logit, mask_gt, dir_gt, tc_mask_gt):
         wrap_dict = {}
         # detach these training variable to avoid gradient noise.
-        clean_mask_logit = mask_logit.clone().detach()
-        clean_mask_gt = mask_gt.clone().detach()
-        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_gt, self.num_classes)
-        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        if self.use_semantic:
+            clean_mask_logit = mask_logit.clone().detach()
+            clean_mask_gt = mask_gt.clone().detach()
+            wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+            wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        else:
+            clean_mask_logit = tc_mask_logit.clone().detach()
+            clean_mask_gt = tc_mask_gt.clone().detach()
+            wrap_dict['tc_mask_mdice'] = mdice(clean_mask_logit, clean_mask_gt, 3)
+            wrap_dict['tc_mask_tdice'] = tdice(clean_mask_logit, clean_mask_gt, 3)
 
         if not self.use_regression:
             clean_dir_logit = dir_logit.clone().detach()
