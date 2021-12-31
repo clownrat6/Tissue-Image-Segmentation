@@ -3,7 +3,6 @@ from collections import OrderedDict
 import numpy as np
 from skimage import measure
 from scipy.optimize import linear_sum_assignment
-from tiseg.datasets.utils.instance_semantic import re_instance
 
 from .misc import get_bounding_box
 
@@ -132,16 +131,12 @@ def pre_eval_aji(inst_pred, inst_gt, pred_id_list_per_class, gt_id_list_per_clas
     return overall_inter, overall_union
 
 
-def pre_eval_bin_pq(inst_pred, inst_gt, match_iou=0.5, relabel=True):
+def pre_eval_bin_pq(inst_pred, inst_gt, match_iou=0.5):
     assert match_iou >= 0.0, "Cant' be negative"
 
     # make instance id contiguous
-    if relabel:
-        inst_pred = measure.label(inst_pred.copy())
-        inst_gt = measure.label(inst_gt.copy())
-    else:
-        inst_pred = re_instance(inst_pred.copy())
-        inst_gt = re_instance(inst_gt.copy())
+    inst_pred = measure.label(inst_pred.copy())
+    inst_gt = measure.label(inst_gt.copy())
 
     pred_id_list = list(np.unique(inst_pred))
     gt_id_list = list(np.unique(inst_gt))
@@ -306,7 +301,7 @@ def pre_eval_pq_hover(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
     for sem_id in range(1, num_classes):
         pred_inst_map = inst_pred * sem_pred_one_hot[sem_id]
         gt_inst_map = inst_gt * sem_gt_one_hot[sem_id]
-        res = pre_eval_bin_pq(pred_inst_map, gt_inst_map, match_iou=0.5, relabel=False)
+        res = pre_eval_bin_pq(pred_inst_map, gt_inst_map, match_iou=0.5)
         tp[sem_id] += res[0]
         fp[sem_id] += res[1]
         fn[sem_id] += res[2]
