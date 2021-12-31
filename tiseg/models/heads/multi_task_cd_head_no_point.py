@@ -95,16 +95,23 @@ class DGM(nn.Module):
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU'),
                  noau=False,
-                 use_regression=False):
+                 use_regression=False,
+                 parallel=False):
         super().__init__()
         self.in_dims = in_dims
         self.feed_dims = feed_dims
         self.num_classes = num_classes
         self.num_angles = num_angles
+        self.parallel = parallel
 
-        self.tc_mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
-        self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
-        self.dir_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
+        if self.parallel:
+            self.tc_mask_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
+            self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+            self.dir_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+        else:
+            self.tc_mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+            self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+            self.dir_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
 
         # Cross Branch Attention
         if noau:
@@ -122,26 +129,28 @@ class DGM(nn.Module):
 
     def forward(self, x):
 
-        tc_mask_feature = self.tc_mask_feats(x)
-        dir_feature = self.dir_feats(tc_mask_feature)
-
+        if self.parallel:
+            dir_feature = self.dir_feats(x)
+            mask_feature = self.mask_feats(x)
+            tc_mask_feature = self.tc_mask_feats(mask_feature)
+        else:
+            tc_mask_feature = self.tc_mask_feats(x)
+            dir_feature = self.dir_feats(tc_mask_feature)
+            mask_feature = self.mask_feats(x)
         # direction branch
         dir_logit = self.dir_conv(dir_feature)
-
+        # semantic mask branch
+        mask_logit = self.mask_conv(mask_feature)
         # mask branch
         tc_mask_feature_with_dir_logit = self.dir_to_tc_mask_attn(tc_mask_feature, dir_logit)
         tc_mask_logit = self.tc_mask_conv(tc_mask_feature_with_dir_logit)
-
-        # semantic mask branch
-        mask_feature = self.mask_feats(x)
-        mask_logit = self.mask_conv(mask_feature)
 
         return tc_mask_logit, mask_logit, dir_logit
 
 
 class MultiTaskCDHeadNoPoint(UNetHead):
 
-    def __init__(self, num_classes, num_angles=8, dgm_dims=64, noau=False, use_regression=False, **kwargs):
+    def __init__(self, num_classes, num_angles=8, dgm_dims=64, noau=False, use_regression=False, parallel=False, **kwargs):
         super().__init__(num_classes=num_classes, **kwargs)
         self.num_classes = num_classes
         self.num_angles = num_angles
@@ -154,4 +163,5 @@ class MultiTaskCDHeadNoPoint(UNetHead):
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg,
             noau=noau,
-            use_regression=use_regression)
+            use_regression=use_regression,
+            parallel=parallel)

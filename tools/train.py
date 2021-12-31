@@ -62,7 +62,7 @@ def main():
         cfg.work_dir = args.work_dir
     elif cfg.get('work_dir', None) is None:
         # use config filename as default work_dir if cfg.work_dir is None
-        model_name = osp.split(osp.dirname(args.config))[1]
+        model_name = osp.dirname(args.config).replace('configs/', '')
         config_name = osp.splitext(osp.basename(args.config))[0]
         cfg.work_dir = f'./work_dirs/{model_name}/{config_name}'
 
@@ -112,6 +112,7 @@ def main():
         # results is surely reproducibility
         # set_random_seed(args.seed, deterministic=args.deterministic)
     else:
+        print('seed is ', 2021)
         args.seed = 2021
         torch.manual_seed(args.seed)
         torch.cuda.manual_seed_all(args.seed)

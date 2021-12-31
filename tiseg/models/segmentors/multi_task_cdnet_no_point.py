@@ -31,6 +31,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         self.num_angles = self.train_cfg.get('num_angles', 8)
         self.use_regression = self.train_cfg.get('use_regression', False)
         self.use_semantic = self.train_cfg.get('use_semantic', True)
+        self.parallel = self.train_cfg.get('parallel', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = MultiTaskCDHeadNoPoint(
@@ -43,7 +44,8 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             act_cfg=dict(type='ReLU'),
             norm_cfg=dict(type='BN'),
             noau=self.train_cfg.get('noau', False),
-            use_regression=self.use_regression)
+            use_regression=self.use_regression,
+            parallel=self.parallel)
 
     def calculate(self, img, rescale=False):
         img_feats = self.backbone(img)

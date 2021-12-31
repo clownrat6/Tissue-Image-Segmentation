@@ -19,7 +19,7 @@ process_cfg = dict(
     max_size=2048,
     resize_mode='fix',
     edge_id=2,
-    to_center=True,
+    to_center=False,
     num_angles=8,
 )
 data = dict(
@@ -79,7 +79,7 @@ model = dict(
     type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(if_weighted_loss=False, noau=True),
+    train_cfg=dict(if_weighted_loss=False, noau=True, parallel=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),

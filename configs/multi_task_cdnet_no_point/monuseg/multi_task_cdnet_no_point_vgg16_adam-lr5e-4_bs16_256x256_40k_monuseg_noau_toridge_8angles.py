@@ -54,7 +54,7 @@ data = dict(
 runner = dict(type='IterBasedRunner', max_iters=4000)
 
 evaluation = dict(
-    interval=1000,
+    interval=500,
     metric='all',
     save_best='mDice',
     rule='greater',
