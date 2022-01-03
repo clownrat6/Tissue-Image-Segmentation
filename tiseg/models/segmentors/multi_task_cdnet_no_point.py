@@ -7,7 +7,7 @@ from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..heads import MultiTaskCDHeadNoPoint
 from ..builder import SEGMENTORS
-from ..losses import BatchMultiClassDiceLoss, MultiClassDiceLoss, TopologicalLoss, mdice, tdice
+from ..losses import BatchMultiClassDiceLoss, MultiClassDiceLoss, TopologicalLoss, RobustFocalLoss2d, LevelsetLoss, ActiveContourLoss,mdice, tdice
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 from ...datasets.utils import (angle_to_vector, vector_to_label)
@@ -291,23 +291,59 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
 
         return mask_loss
 
-    def _mask_loss(self, mask_logit, mask_gt, weight_map=None):
+    def _mask_loss(self, img, mask_logit, mask_label):
+        """calculate semantic mask branch loss."""
         mask_loss = {}
-        mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
-        # Assign weight map for each pixel position
-        mask_ce_loss = mask_ce_loss_calculator(mask_logit, mask_gt)
-        if weight_map is not None:
-            mask_ce_loss *= weight_map[:, 0]
-        mask_ce_loss = torch.mean(mask_ce_loss)
-        mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_gt)
+
         # loss weight
         alpha = 3
         beta = 1
-        mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
-        mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+        use_focal = self.train_cfg.get('use_focal', False)
+        use_level = self.train_cfg.get('use_level', False)
+        use_ac = self.train_cfg.get('use_ac', False)
+        assert not (use_focal and use_level and use_ac), 'Can\'t use focal loss & deep level set loss at the same time.'
+        if use_focal:
+            mask_focal_loss_calculator = RobustFocalLoss2d(type='softmax')
+            mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+            mask_focal_loss = mask_focal_loss_calculator(mask_logit, mask_label)
+            mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
+            mask_loss['mask_focal_loss'] = alpha * mask_focal_loss
+            mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+        else:
+            mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+            mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+            mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
+            mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
+            mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
+            mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+
+        if use_level:
+            # calculate deep level set loss for each semantic class.
+            loss_collect = []
+            weights = [1 for i in range(1, self.num_classes)]
+            for i in range(1, self.num_classes):
+                mask_logit_cls = mask_logit[:, i:i + 1].sigmoid()
+                bg_mask_logit_cls = -mask_logit[:, i:i + 1].sigmoid()
+                overall_mask_logits = torch.cat([mask_logit_cls, bg_mask_logit_cls], dim=1)
+                mask_label_cls = (mask_label == i)[:, None]
+                overall_mask_logits = overall_mask_logits * mask_label_cls
+                img_region = mask_label_cls * img
+                level_loss_calculator = LevelsetLoss()
+                loss_collect.append(level_loss_calculator(mask_logit_cls, img_region, weights[i]))
+            mask_loss['mask_level_loss'] = sum(loss_collect) / len(loss_collect)
+
+        if use_ac:
+            ac_w_area = self.train_cfg.get('ac_w_area')
+            ac_loss_calculator = ActiveContourLoss(w_area=ac_w_area)
+            ac_loss_collect = []
+            for i in range(1, self.num_classes):
+                mask_logit_cls = mask_logit[:, i:i + 1].sigmoid()
+                mask_label_cls = (mask_label == i)[:, None].float()
+                ac_loss_collect.append(ac_loss_calculator(mask_logit_cls, mask_label_cls))
+            mask_loss['mask_ac_loss'] = sum(ac_loss_collect) / len(ac_loss_collect)
 
         return mask_loss
+
 
     def _dir_loss(self, dir_logit, dir_gt, tc_mask_logit=None, tc_mask_gt=None, weight_map=None):
         dir_loss = {}
