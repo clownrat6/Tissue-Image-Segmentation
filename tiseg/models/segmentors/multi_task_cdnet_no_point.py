@@ -66,7 +66,8 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         """
         if self.training:
             tc_mask_logit, mask_logit, dir_logit = self.calculate(data['img'])
-
+            img = data['img']
+            downsampled_img = F.interpolate(img, mask_logit.shape[2:], mode='bilinear', align_corners=True)
             assert label is not None
             tc_mask_gt = label['sem_gt_w_bound']
             tc_mask_gt[(tc_mask_gt != 0) * (tc_mask_gt != self.num_classes)] = 1
@@ -89,7 +90,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
 
             # mask branch loss calculation
             if self.use_semantic:
-                mask_loss = self._mask_loss(mask_logit, mask_gt, None)
+                mask_loss = self._mask_loss(downsampled_img, mask_logit, mask_gt)
                 loss.update(mask_loss)
 
             # three classes mask branch loss calculation
