@@ -7,7 +7,7 @@ from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..heads import MultiTaskCDHeadNoPoint
 from ..builder import SEGMENTORS
-from ..losses import BatchMultiClassDiceLoss, MultiClassDiceLoss, mdice, tdice
+from ..losses import BatchMultiClassDiceLoss, MultiClassDiceLoss, TopologicalLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 from ...datasets.utils import (angle_to_vector, vector_to_label)
@@ -32,6 +32,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         self.use_regression = self.train_cfg.get('use_regression', False)
         self.use_semantic = self.train_cfg.get('use_semantic', True)
         self.parallel = self.train_cfg.get('parallel', False)
+        self.use_tploss = self.train_cfg.get('use_tploss', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = MultiTaskCDHeadNoPoint(
@@ -95,7 +96,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             tc_mask_loss = self._tc_mask_loss(tc_mask_logit, tc_mask_gt, weight_map)
             loss.update(tc_mask_loss)
             # direction branch loss calculation
-            dir_loss = self._dir_loss(dir_logit, dir_gt, weight_map)
+            dir_loss = self._dir_loss(dir_logit, dir_gt, tc_mask_logit, tc_mask_gt, weight_map)
             loss.update(dir_loss)
 
             # calculate training metric
@@ -308,7 +309,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
 
         return mask_loss
 
-    def _dir_loss(self, dir_logit, dir_gt, weight_map=None):
+    def _dir_loss(self, dir_logit, dir_gt, tc_mask_logit=None, tc_mask_gt=None, weight_map=None):
         dir_loss = {}
         if self.use_regression:
             dir_mse_loss_calculator = nn.MSELoss(reduction='none')
@@ -331,6 +332,12 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             beta = 1
             dir_loss['dir_ce_loss'] = alpha * dir_ce_loss
             dir_loss['dir_dice_loss'] = beta * dir_dice_loss
+        if self.use_tploss:
+            pred_contour = torch.argmax(tc_mask_logit, dim=1) == 2 #[B, H, W]
+            gt_contour = tc_mask_gt == 2
+            dir_tp_loss_calculator = TopologicalLoss(use_regression=self.use_regression)
+            dir_tp_loss = dir_tp_loss_calculator(dir_logit, dir_gt, pred_contour, gt_contour)
+            dir_loss['dir_tp_loss'] = dir_tp_loss
 
         return dir_loss
 
