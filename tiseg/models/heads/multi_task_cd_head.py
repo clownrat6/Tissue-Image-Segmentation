@@ -94,17 +94,26 @@ class DGM(nn.Module):
                  num_angles=8,
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU'),
-                 noau=False):
+                 noau=False,
+                 use_regression=False,
+                 parallel=False):
         super().__init__()
         self.in_dims = in_dims
         self.feed_dims = feed_dims
         self.num_classes = num_classes
         self.num_angles = num_angles
+        self.parallel = parallel
 
-        self.tc_mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
-        self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
-        self.dir_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
-        self.point_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
+        if self.parallel:
+            self.tc_mask_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
+            self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+            self.dir_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+            self.point_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+        else:
+            self.tc_mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+            self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+            self.dir_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
+            self.point_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
 
         # Cross Branch Attention
         if noau:
@@ -116,15 +125,25 @@ class DGM(nn.Module):
 
         # Prediction Operations
         self.point_conv = nn.Conv2d(self.feed_dims, 1, kernel_size=1)
-        self.dir_conv = nn.Conv2d(self.feed_dims, self.num_angles + 1, kernel_size=1)
+        if use_regression:
+            self.dir_conv = nn.Conv2d(self.feed_dims, 1, kernel_size=1)
+        else:
+            self.dir_conv = nn.Conv2d(self.feed_dims, self.num_angles + 1, kernel_size=1)
         self.tc_mask_conv = nn.Conv2d(self.feed_dims, 3, kernel_size=1)
         self.mask_conv = nn.Conv2d(self.feed_dims, self.num_classes, kernel_size=1)
 
     def forward(self, x):
 
-        tc_mask_feature = self.tc_mask_feats(x)
-        dir_feature = self.dir_feats(tc_mask_feature)
-        point_feature = self.point_feats(dir_feature)
+        if self.parallel:
+            dir_feature = self.dir_feats(x)
+            mask_feature = self.mask_feats(x)
+            point_feature = self.point_feats(x)
+            tc_mask_feature = self.tc_mask_feats(mask_feature)
+        else:
+            tc_mask_feature = self.tc_mask_feats(x)
+            dir_feature = self.dir_feats(tc_mask_feature)
+            point_feature = self.point_feats(dir_feature)
+            mask_feature = self.mask_feats(x)
 
         # point branch
         point_logit = self.point_conv(point_feature)
@@ -138,7 +157,6 @@ class DGM(nn.Module):
         tc_mask_logit = self.tc_mask_conv(tc_mask_feature_with_dir_logit)
 
         # semantic mask branch
-        mask_feature = self.mask_feats(x)
         mask_logit = self.mask_conv(mask_feature)
 
         return tc_mask_logit, mask_logit, dir_logit, point_logit
@@ -146,7 +164,7 @@ class DGM(nn.Module):
 
 class MultiTaskCDHead(UNetHead):
 
-    def __init__(self, num_classes, num_angles=8, dgm_dims=64, noau=False, **kwargs):
+    def __init__(self, num_classes, num_angles=8, dgm_dims=64, noau=False, use_regression=False, parallel=False,**kwargs):
         super().__init__(num_classes=num_classes, **kwargs)
         self.num_classes = num_classes
         self.num_angles = num_angles
@@ -158,4 +176,6 @@ class MultiTaskCDHead(UNetHead):
             num_angles=self.num_angles,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg,
-            noau=noau)
+            noau=noau,
+            use_regression=False, 
+            parallel=False)

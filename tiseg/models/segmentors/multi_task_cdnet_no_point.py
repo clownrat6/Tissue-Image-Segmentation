@@ -7,7 +7,7 @@ from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..heads import MultiTaskCDHeadNoPoint
 from ..builder import SEGMENTORS
-from ..losses import BatchMultiClassDiceLoss, MultiClassDiceLoss, TopologicalLoss, RobustFocalLoss2d, LevelsetLoss, ActiveContourLoss,mdice, tdice
+from ..losses import BatchMultiClassDiceLoss, MultiClassDiceLoss, TopologicalLoss, RobustFocalLoss2d, LevelsetLoss, ActiveContourLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 from ...datasets.utils import (angle_to_vector, vector_to_label)
