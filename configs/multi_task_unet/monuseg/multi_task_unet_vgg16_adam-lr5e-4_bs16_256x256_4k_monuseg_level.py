@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=40000)
+runner = dict(type='IterBasedRunner', max_iters=4000)
 
 evaluation = dict(
     interval=500,
@@ -32,7 +32,7 @@ model = dict(
     type='MultiTaskUNetSegmentor',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(use_ac=True),
+    train_cfg=dict(use_level=True),
     test_cfg=dict(
         mode='whole',
         rotate_degrees=[0, 90],
