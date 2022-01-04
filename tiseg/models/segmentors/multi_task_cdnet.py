@@ -197,6 +197,8 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
                     dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
                 else:
                     dd_map = torch.zeros_like(dir_map).cuda()
+            dir_map_list.append(dir_map)
+            dd_map_list.append(dd_map)
 
         dd_map = sum(dd_map_list) / len(dd_map_list)
 
