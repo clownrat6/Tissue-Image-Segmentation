@@ -59,11 +59,28 @@ class UNetSegmentor(BaseSegmentor):
             seg_pred = seg_logit.argmax(dim=1)
             # Extract inside class
             seg_pred = seg_pred.cpu().numpy()
-            # unravel batch dim
             seg_pred = list(seg_pred)
             ret_list = []
             for seg in seg_pred:
-                ret_list.append({'tc_sem_pred': seg})
+                ret_list.append({'sem_pred': seg})
+            # NOTE: modifications
+            # if self.num_classes == 3:
+            #     tc_sem_pred = seg_pred.copy()
+            #     tc_sem_pred[(tc_sem_pred != 0) * (tc_sem_pred != self.num_classes - 1)] = 1
+            #     tc_sem_pred[tc_sem_pred > 1] = 2
+            #     sem_pred = (seg_pred > 0).astype(np.uint8)
+            #     # unravel batch dim
+            #     tc_sem_pred = list(tc_sem_pred)
+            #     sem_pred = list(sem_pred)
+            #     ret_list = []
+
+            #     for tc_sem, sem in zip(tc_sem_pred, sem_pred):
+            #         ret_list.append({'tc_sem_pred': tc_sem, 'sem_pred': sem})
+            # else:
+            #     seg_pred = list(seg_pred)
+            #     ret_list = []
+            #     for seg in seg_pred:
+            #         ret_list.append({'sem_pred': seg})
             return ret_list
 
     def _mask_loss(self, mask_logit, mask_label):

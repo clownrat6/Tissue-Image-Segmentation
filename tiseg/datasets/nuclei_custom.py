@@ -268,20 +268,24 @@ class NucleiCustomDataset(Dataset):
 
             # metric calculation post process codes:
             # extract inside
-            if 'sem_pred' in pred:
-                sem_pred = pred['sem_pred']
-            else:
-                sem_pred = pred['tc_sem_pred'] > 0
-            tc_sem_pred = pred['tc_sem_pred']                
-            sem_pred_in = (tc_sem_pred == 1).astype(np.uint8)
+            sem_pred = pred['sem_pred'].copy()
+
             if 'dir_pred' in pred:
                 dir_pred = pred['dir_pred']
+                if 'tc_sem_pred' not in pred:
+                    tc_sem_pred = pred['sem_pred']
+                    sem_pred = (sem_pred > 0).astype(np.uint8)
+                else:
+                    tc_sem_pred = pred['tc_sem_pred']
                 # model-agnostic post process operations
-                sem_pred, inst_pred, fore_pred = self.model_agnostic_postprocess_w_dir(sem_pred_in, sem_pred > 0, dir_pred)
-            elif 'sem_pred' in pred:
+                sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_sem_pred, sem_pred)
+            elif 'tc_sem_pred' in pred:
+                tc_sem_pred = pred['tc_sem_pred']
                 sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_sem_pred, sem_pred)
             else:
-                sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred_in)
+                # remove edge
+                sem_pred[sem_pred == len(self.CLASSES)] = 0
+                sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
 
             # TODO: (Important issue about post process)
             # This may be the dice metric calculation trick (Need be
@@ -295,8 +299,6 @@ class NucleiCustomDataset(Dataset):
             precision_metric = precision_metric[1]
             recall_metric = recall_metric[1]
             dice_metric = dice_similarity_coefficient(sem_pred, sem_seg, 2)[1]
-
-
 
             sem_gt = inst_seg > 0
             inst_gt = inst_seg
@@ -353,10 +355,11 @@ class NucleiCustomDataset(Dataset):
 
         return pre_eval_results
 
-    def model_agnostic_postprocess(self, sem_pred_in):
+    def model_agnostic_postprocess(self, sem_pred):
         """model free post-process for both instance-level & semantic-level."""
+        sem_pred = (sem_pred == 1).astype(np.uint8)
         # fill instance holes
-        sem_pred = binary_fill_holes(sem_pred_in)
+        sem_pred = binary_fill_holes(sem_pred)
         # remove small instance
         sem_pred = remove_small_objects(sem_pred, 20)
         sem_pred = sem_pred.astype(np.uint8)
@@ -381,6 +384,7 @@ class NucleiCustomDataset(Dataset):
             sem_id_mask = binary_fill_holes(sem_id_mask)
             sem_id_mask = remove_small_objects(sem_id_mask, 20)
             sem_canvas[sem_id_mask > 0] = sem_id
+        sem_pred = sem_canvas
 
         # instance process & dilation
         bin_sem_pred = tc_sem_pred.copy()
@@ -388,16 +392,19 @@ class NucleiCustomDataset(Dataset):
 
         bin_sem_pred = binary_fill_holes(bin_sem_pred)
         bin_sem_pred = remove_small_objects(bin_sem_pred, 20)
+
         inst_pred = measure.label(bin_sem_pred, connectivity=1)
         # if re_edge=True, dilation pixel length should be 2
         # inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(2))
-        inst_pred = align_foreground(inst_pred, sem_canvas > 0, 20)
+        inst_pred = align_foreground(inst_pred, sem_pred > 0, 20)
 
         return sem_pred, inst_pred
 
-    def model_agnostic_postprocess_w_dir(self, sem_pred_in, fore_pred, dir_pred):
+    def model_agnostic_postprocess_w_dir(self, dir_pred, tc_sem_pred, fore_pred):
         """model free post-process for both instance-level & semantic-level."""
         raw_fore_pred = fore_pred
+        sem_pred_in = (tc_sem_pred == 1).astype(np.uint8)
+
         # fill instance holes
         sem_pred = binary_fill_holes(sem_pred_in)
         # remove small instance
@@ -409,8 +416,8 @@ class NucleiCustomDataset(Dataset):
         # if re_edge=True, dilation pixel length should be 2
         fore_pred = morphology.dilation(fore_pred, selem=morphology.selem.disk(2))
 
-        raw_fore_pred = binary_fill_holes(raw_fore_pred)  # 孔洞填充 hhl20200414
-        raw_fore_pred = remove_small_objects(raw_fore_pred, 20)  # remove small object
+        raw_fore_pred = binary_fill_holes(raw_fore_pred)
+        raw_fore_pred = remove_small_objects(raw_fore_pred, 20)
 
         sem_pred, bound = mudslide_watershed(sem_pred, dir_pred, raw_fore_pred)
 
@@ -418,7 +425,7 @@ class NucleiCustomDataset(Dataset):
         inst_pred = measure.label(sem_pred, connectivity=1)
         inst_pred = align_foreground(inst_pred, fore_pred, 20)
 
-        return sem_pred, inst_pred, fore_pred
+        return sem_pred, inst_pred
 
     def evaluate(self, results, logger=None, **kwargs):
         """Evaluate the dataset.
@@ -452,7 +459,6 @@ class NucleiCustomDataset(Dataset):
                     else:
                         ret_metrics[key].append(value)
 
-
         # All dataset
         # semantic metrics
         sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
@@ -473,8 +479,6 @@ class NucleiCustomDataset(Dataset):
         [ret_metrics.update(x) for x in pre_eval_to_pq(pq_pre_eval_results)]
         # update per sample PQ
         [img_ret_metrics.update(x) for x in pre_eval_to_sample_pq(pq_pre_eval_results)]
-
-
 
         total_inst_keys = [
             'bAji', 'imwAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ'
@@ -507,10 +511,6 @@ class NucleiCustomDataset(Dataset):
             else:
                 print(key)
                 total_inst_metrics[key] = sum(ret_metrics[key]) / len(ret_metrics[key])
-
-
-
-
 
         # per sample
         # calculate average metric
@@ -545,8 +545,6 @@ class NucleiCustomDataset(Dataset):
 
         print_log('Per samples:', logger)
         print_log('\n' + items_table_data.get_string(), logger=logger)
-        
-
 
         total_sem_metrics = OrderedDict(
             {'m' + sem_key: np.round(np.mean(value) * 100, 2)

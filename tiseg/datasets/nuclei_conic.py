@@ -286,13 +286,12 @@ class NucleiCoNICDataset(Dataset):
             sem_id_mask_dila = morphology.dilation(sem_id_mask, selem=morphology.disk(2))
             sem_canvas[sem_id_mask_dila > 0] = sem_id
         sem_pred = sem_canvas
-        fore_pred = sem_pred > 0
 
-        bin_sem_pred, bound = mudslide_watershed(bin_sem_pred, dir_pred, fore_pred)
+        bin_sem_pred, bound = mudslide_watershed(bin_sem_pred, dir_pred, sem_pred > 0)
 
         bin_sem_pred = remove_small_objects(bin_sem_pred, 20)
         inst_pred = measure.label(bin_sem_pred, connectivity=1)
-        inst_pred = align_foreground(inst_pred, fore_pred, 20)
+        inst_pred = align_foreground(inst_pred, sem_pred > 0, 20)
 
         return sem_pred, inst_pred
 
