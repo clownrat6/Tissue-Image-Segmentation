@@ -32,7 +32,6 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         self.use_regression = self.train_cfg.get('use_regression', False)
         self.use_semantic = self.train_cfg.get('use_semantic', True)
         self.parallel = self.train_cfg.get('parallel', False)
-        self.use_tploss = self.train_cfg.get('use_tploss', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = MultiTaskCDHeadNoPoint(
@@ -369,10 +368,13 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             beta = 1
             dir_loss['dir_ce_loss'] = alpha * dir_ce_loss
             dir_loss['dir_dice_loss'] = beta * dir_dice_loss
-        if self.use_tploss:
+
+        use_tploss = self.train_cfg.get('use_tploss', False)
+        tploss_weight = self.train_cfg.get('tploss_weight', False)
+        if use_tploss:
             pred_contour = torch.argmax(tc_mask_logit, dim=1) == 2 #[B, H, W]
             gt_contour = tc_mask_gt == 2
-            dir_tp_loss_calculator = TopologicalLoss(use_regression=self.use_regression, weight=True, num_angles=self.num_angles)
+            dir_tp_loss_calculator = TopologicalLoss(use_regression=self.use_regression, weight=tploss_weight, num_angles=self.num_angles)
             dir_tp_loss = dir_tp_loss_calculator(dir_logit, dir_gt, pred_contour, gt_contour)
             dir_loss['dir_tp_loss'] = dir_tp_loss
 

@@ -30,7 +30,6 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         self.num_angles = self.train_cfg.get('num_angles', 8)
         self.use_regression = self.train_cfg.get('use_regression', False)
         self.parallel = self.train_cfg.get('parallel', False)
-        self.use_tploss = self.train_cfg.get('use_tploss', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = MultiTaskCDHead(
@@ -93,7 +92,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
             tc_mask_loss = self._tc_mask_loss(tc_mask_logit, tc_mask_gt, weight_map)
             loss.update(tc_mask_loss)
             # direction branch loss calculation
-            dir_loss = self._dir_loss(dir_logit, dir_gt, weight_map)
+            dir_loss = self._dir_loss(dir_logit, dir_gt, tc_mask_logit, tc_mask_gt, weight_map)
             loss.update(dir_loss)
             # point branch loss calculation
             point_loss = self._point_loss(point_logit, point_gt)
@@ -349,21 +348,38 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
 
         return mask_loss
 
-    def _dir_loss(self, dir_logit, dir_gt, weight_map=None):
+    def _dir_loss(self, dir_logit, dir_gt, tc_mask_logit=None, tc_mask_gt=None, weight_map=None):
         dir_loss = {}
-        dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        dir_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_angles + 1)
-        # Assign weight map for each pixel position
-        dir_ce_loss = dir_ce_loss_calculator(dir_logit, dir_gt)
-        if weight_map is not None:
-            dir_ce_loss *= weight_map[:, 0]
-        dir_ce_loss = torch.mean(dir_ce_loss)
-        dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
-        # loss weight
-        alpha = 1
-        beta = 1
-        dir_loss['dir_ce_loss'] = alpha * dir_ce_loss
-        dir_loss['dir_dice_loss'] = beta * dir_dice_loss
+        if self.use_regression:
+            dir_mse_loss_calculator = nn.MSELoss(reduction='none')
+            dir_degree_mse_loss = dir_mse_loss_calculator(dir_logit, dir_gt)
+            if weight_map is not None:
+                dir_degree_mse_loss *= weight_map[:, 0]
+            dir_degree_mse_loss = torch.mean(dir_degree_mse_loss)
+            dir_loss['dir_degree_mse_loss'] = dir_degree_mse_loss
+        else:
+            dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+            dir_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_angles + 1)
+            # Assign weight map for each pixel position
+            dir_ce_loss = dir_ce_loss_calculator(dir_logit, dir_gt)
+            if weight_map is not None:
+                dir_ce_loss *= weight_map[:, 0]
+            dir_ce_loss = torch.mean(dir_ce_loss)
+            dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
+            # loss weight
+            alpha = 1
+            beta = 1
+            dir_loss['dir_ce_loss'] = alpha * dir_ce_loss
+            dir_loss['dir_dice_loss'] = beta * dir_dice_loss
+
+        use_tploss = self.train_cfg.get('use_tploss', False)
+        tploss_weight = self.train_cfg.get('tploss_weight', False)
+        if use_tploss:
+            pred_contour = torch.argmax(tc_mask_logit, dim=1) == 2 #[B, H, W]
+            gt_contour = tc_mask_gt == 2
+            dir_tp_loss_calculator = TopologicalLoss(use_regression=self.use_regression, weight=tploss_weight, num_angles=self.num_angles)
+            dir_tp_loss = dir_tp_loss_calculator(dir_logit, dir_gt, pred_contour, gt_contour)
+            dir_loss['dir_tp_loss'] = dir_tp_loss
 
         return dir_loss
 
