@@ -20,7 +20,7 @@ process_cfg = dict(
     resize_mode='fix',
     edge_id=7,
     to_center=True,
-    num_angles=4,
+    num_angles=8,
 )
 data = dict(
     samples_per_gpu=16,
@@ -47,7 +47,6 @@ data = dict(
         split='val.txt',
         process_cfg=process_cfg),
 )
-
 
 # runtime settings
 runner = dict(type='IterBasedRunner', max_iters=40000)
@@ -78,7 +77,7 @@ model = dict(
     type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=7,
-    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=4),
+    train_cfg=dict(if_weighted_loss=False, noau=True, use_regression=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),

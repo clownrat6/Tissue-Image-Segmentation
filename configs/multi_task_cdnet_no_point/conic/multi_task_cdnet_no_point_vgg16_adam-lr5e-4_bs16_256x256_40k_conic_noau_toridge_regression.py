@@ -19,7 +19,7 @@ process_cfg = dict(
     max_size=2048,
     resize_mode='fix',
     edge_id=7,
-    to_center=True,
+    to_center=False,
     num_angles=8,
 )
 data = dict(
@@ -54,7 +54,7 @@ runner = dict(type='IterBasedRunner', max_iters=40000)
 evaluation = dict(
     interval=1000,
     metric='all',
-    save_best='mDice',
+    save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(

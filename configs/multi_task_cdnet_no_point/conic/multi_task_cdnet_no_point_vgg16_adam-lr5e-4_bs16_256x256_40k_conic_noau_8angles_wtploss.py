@@ -2,56 +2,6 @@ _base_ = [
     '../../_base_/datasets/conic_w_dir.py',
     '../../_base_/default_runtime.py',
 ]
-# datasets settings
-dataset_type = 'NucleiCoNICDataset'
-data_root = 'data/conic'
-process_cfg = dict(
-    if_flip=True,
-    if_jitter=True,
-    if_elastic=True,
-    if_blur=True,
-    if_crop=True,
-    if_pad=True,
-    if_norm=False,
-    with_dir=True,
-    min_size=256,
-    max_size=2048,
-    resize_mode='fix',
-    edge_id=7,
-    to_center=False,
-    num_angles=8,
-)
-data = dict(
-    samples_per_gpu=16,
-    workers_per_gpu=8,
-    train=dict(
-        type=dataset_type,
-        data_root=data_root,
-        img_dir='train/',
-        ann_dir='train/',
-        split='train.txt',
-        process_cfg=process_cfg),
-    val=dict(
-        type=dataset_type,
-        data_root=data_root,
-        img_dir='val/',
-        ann_dir='val/',
-        split='val.txt',
-        process_cfg=process_cfg),
-    test=dict(
-        type=dataset_type,
-        data_root=data_root,
-        img_dir='val/',
-        ann_dir='val/',
-        split='val.txt',
-        process_cfg=process_cfg),
-)
-
-
-
-
-
-
 
 # runtime settings
 runner = dict(type='IterBasedRunner', max_iters=40000)
@@ -59,7 +9,7 @@ runner = dict(type='IterBasedRunner', max_iters=40000)
 evaluation = dict(
     interval=1000,
     metric='all',
-    save_best='mDice',
+    save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(
@@ -82,7 +32,12 @@ model = dict(
     type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=7,
-    train_cfg=dict(if_weighted_loss=False, noau=True),
+    train_cfg=dict(
+        if_weighted_loss=False, 
+        noau=True, 
+        use_tploss=True,
+        tploss_weight=True,
+    ),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),

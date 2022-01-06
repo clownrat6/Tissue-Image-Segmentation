@@ -1,6 +1,6 @@
 _base_ = [
-    '../_base_/datasets/conic_w_dir.py',
-    '../_base_/default_runtime.py',
+    '../../_base_/datasets/conic_w_dir.py',
+    '../../_base_/default_runtime.py',
 ]
 
 # runtime settings
@@ -9,7 +9,7 @@ runner = dict(type='IterBasedRunner', max_iters=40000)
 evaluation = dict(
     interval=1000,
     metric='all',
-    save_best='mDice',
+    save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(
@@ -29,10 +29,14 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 
 # model settings
 model = dict(
-    type='MultiTaskCDNetSegmentor',
+    type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=7,
-    train_cfg=dict(if_weighted_loss=False, noau=True),
+    train_cfg=dict(
+        if_weighted_loss=False, 
+        noau=True, 
+        use_tploss=True,
+    ),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
