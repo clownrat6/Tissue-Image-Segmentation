@@ -23,6 +23,8 @@ class TopologicalLoss(nn.Module):
                 pred_dir = torch.argmax(pred, dim=1)
                 diff = torch.abs(pred_dir - target)
                 weight = diff.min(self.num_angles - diff)
+                background = (pred_dir == 0) + (target == 0)
+                weight[background > 0] = 2 
                 dir_ce_loss = dir_ce_loss * weight
             all_contour = pred_contour + target_contour
             loss = torch.sum(dir_ce_loss * all_contour) / torch.sum(all_contour)
