@@ -267,7 +267,9 @@ class NucleiCustomDataset(Dataset):
             data_id = osp.basename(self.data_infos[index]['sem_file_name']).replace(self.sem_suffix, '')
 
             # metric calculation post process codes:
-            # extract inside
+            # 'sem_pred' has two types:
+            # 1. 0-1 sem map;
+            # 2. 0-1-2 sem map w/ edge;
             sem_pred = pred['sem_pred'].copy()
 
             if 'dir_pred' in pred:
@@ -509,7 +511,6 @@ class NucleiCustomDataset(Dataset):
             elif key in inst_analysis_keys:
                 inst_analysis[key] = ret_metrics[key][1:]
             else:
-                print(key)
                 total_inst_metrics[key] = sum(ret_metrics[key]) / len(ret_metrics[key])
 
         # per sample
@@ -528,7 +529,6 @@ class NucleiCustomDataset(Dataset):
                 img_ret_metrics[key] = np.array(img_ret_metrics[key])
             else:
                 img_ret_metrics[key] = img_ret_metrics[key].tolist()
-                # print(img_ret_metrics[key])
                 average_value = sum(img_ret_metrics[key]) / len(img_ret_metrics[key])
                 img_ret_metrics[key].append(average_value)
                 img_ret_metrics[key] = np.array(img_ret_metrics[key])
