@@ -1,22 +1,20 @@
 _base_ = [
-    '../../_base_/datasets/monuseg_w_dir.py',
-    '../../_base_/default_runtime.py',
+    '../_base_/datasets/conic_w_dir.py',
+    '../_base_/default_runtime.py',
 ]
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=4000)
+runner = dict(type='IterBasedRunner', max_iters=40000)
 
 evaluation = dict(
-    interval=200,
-    eval_start=0,
+    interval=1000,
     metric='all',
     save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(
     by_epoch=False,
-    interval=200,
-    max_keep_ckpts=1,
+    interval=1000,
 )
 
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
@@ -33,10 +31,15 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 model = dict(
     type='MultiTaskCDNetSegmentor',
     # model training and testing settings
-    num_classes=2,
-    train_cfg=dict(use_ac=True, ac_w_area=True),
+    num_classes=7,
+    train_cfg=dict(if_weighted_loss=False),
     test_cfg=dict(
-        mode='whole',
+        mode='split',
+        plane_size=(256, 256),
+        crop_size=(256, 256),
+        overlap_size=(80, 80),
+        if_ddm=False,
+        if_mudslide=False,
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),

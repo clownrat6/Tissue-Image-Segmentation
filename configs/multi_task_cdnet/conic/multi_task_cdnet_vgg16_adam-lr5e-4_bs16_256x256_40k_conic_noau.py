@@ -9,7 +9,7 @@ runner = dict(type='IterBasedRunner', max_iters=40000)
 evaluation = dict(
     interval=1000,
     metric='all',
-    save_best='mDice',
+    save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(
@@ -32,7 +32,7 @@ model = dict(
     type='MultiTaskCDNetSegmentor',
     # model training and testing settings
     num_classes=7,
-    train_cfg=dict(if_weighted_loss=False),
+    train_cfg=dict(if_weighted_loss=False, noau=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
