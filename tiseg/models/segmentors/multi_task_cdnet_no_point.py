@@ -22,7 +22,6 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
-        
 
         # argument
         self.if_weighted_loss = self.train_cfg.get('if_weighted_loss', False)
@@ -83,7 +82,6 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
 
             tc_mask_gt = tc_mask_gt.squeeze(1)
             mask_gt = mask_gt.squeeze(1)
-            
 
             # TODO: Conside to remove some edge loss value.
 
@@ -100,7 +98,8 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             loss.update(dir_loss)
 
             # calculate training metric
-            training_metric_dict = self._training_metric(mask_logit, dir_logit, tc_mask_logit, mask_gt, dir_gt, tc_mask_gt)
+            training_metric_dict = self._training_metric(mask_logit, dir_logit, tc_mask_logit, mask_gt, dir_gt,
+                                                         tc_mask_gt)
             loss.update(training_metric_dict)
             return loss
         else:
@@ -179,7 +178,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
                 dir_logit[dir_logit > 2 * np.pi] = 2 * np.pi
                 background = (torch.argmax(tc_sem_logit, dim=1)[0] == 0).cpu().numpy()
                 angle_map = dir_logit * 180 / np.pi
-                angle_map = angle_map[0, 0].cpu().numpy()  #[H, W]
+                angle_map = angle_map[0, 0].cpu().numpy()  # [H, W]
                 angle_map[angle_map > 180] -= 360
                 angle_map[background] = 0
                 vector_map = angle_to_vector(angle_map, self.num_angles)
@@ -344,7 +343,6 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
 
         return mask_loss
 
-
     def _dir_loss(self, dir_logit, dir_gt, tc_mask_logit=None, tc_mask_gt=None, weight_map=None):
         dir_loss = {}
         if self.use_regression:
@@ -372,9 +370,10 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         use_tploss = self.train_cfg.get('use_tploss', False)
         tploss_weight = self.train_cfg.get('tploss_weight', False)
         if use_tploss:
-            pred_contour = torch.argmax(tc_mask_logit, dim=1) == 2 #[B, H, W]
+            pred_contour = torch.argmax(tc_mask_logit, dim=1) == 2  # [B, H, W]
             gt_contour = tc_mask_gt == 2
-            dir_tp_loss_calculator = TopologicalLoss(use_regression=self.use_regression, weight=tploss_weight, num_angles=self.num_angles)
+            dir_tp_loss_calculator = TopologicalLoss(
+                use_regression=self.use_regression, weight=tploss_weight, num_angles=self.num_angles)
             dir_tp_loss = dir_tp_loss_calculator(dir_logit, dir_gt, pred_contour, gt_contour)
             dir_loss['dir_tp_loss'] = dir_tp_loss
 
