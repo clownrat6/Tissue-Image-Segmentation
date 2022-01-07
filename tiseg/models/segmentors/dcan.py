@@ -146,7 +146,7 @@ class DCAN(BaseSegmentor):
             assert label is not None
             mask_label = label['sem_gt']
             tc_mask_label = label['sem_gt_w_bound']
-            tc_mask_label[(tc_mask_label != 0) * (tc_mask_label != self.num_classes)] = 1
+            tc_mask_label[(tc_mask_label != 0) * (tc_mask_label != (self.num_classes - 1))] = 1
             tc_mask_label[tc_mask_label > 1] = 2
             loss = dict()
             mask_label = mask_label.squeeze(1)
@@ -183,8 +183,8 @@ class DCAN(BaseSegmentor):
         cell_ce_loss = torch.mean(mask_ce_loss_calculator(cell_logit, mask_label.long()))
         cont_ce_loss = torch.mean(mask_ce_loss_calculator(cont_logit, (tc_mask_label == 2).long()))
         # loss weight
-        alpha = 5
-        beta = 5
+        alpha = 1
+        beta = 1
         mask_loss['cell_ce_loss'] = alpha * cell_ce_loss
         mask_loss['cont_ce_loss'] = beta * cont_ce_loss
 
@@ -265,14 +265,14 @@ class DCAN(BaseSegmentor):
                 c_end = j + window_size if j + window_size < W1 else W1
 
                 img_patch = img_canvas[:, :, i:r_end, j:c_end]
-                sem_patch, dir_patch, point_patch = self.calculate(img_patch)
+                cell_patch, cont_patch = self.calculate(img_patch)
 
                 ind2_s = j + overlap_size // 2 if j > 0 else 0
                 ind2_e = (j + window_size - overlap_size // 2 if j + window_size < W1 else W1)
-                cell_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = sem_patch[:, :, ind1_s - i:ind1_e - i,
-                                                                           ind2_s - j:ind2_e - j]
-                cont_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = dir_patch[:, :, ind1_s - i:ind1_e - i,
-                                                                           ind2_s - j:ind2_e - j]
+                cell_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = cell_patch[:, :, ind1_s - i:ind1_e - i,
+                                                                            ind2_s - j:ind2_e - j]
+                cont_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = cont_patch[:, :, ind1_s - i:ind1_e - i,
+                                                                            ind2_s - j:ind2_e - j]
 
         cell_logit = cell_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
         cont_logit = cont_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]

@@ -21,7 +21,7 @@ from tiseg.utils import (dice_similarity_coefficient, precision_recall, pre_eval
 
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
-from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground, assign_sem_class_to_insts
+from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground, assign_sem_class_to_insts, get_tc_from_inst
 
 
 def draw_all(save_folder,
@@ -341,18 +341,21 @@ class NucleiCustomDataset(Dataset):
 
             # illustrating semantic level & instance level results
             if show:
-                tri_sem_pred = sem_pred.copy()
-                tri_sem_pred[(tri_sem_pred != 0) * (tri_sem_pred != len(self.CLASSES))] = 1
-                tri_sem_pred[tri_sem_pred > 1] = 2
-                tri_sem_gt = sem_gt.copy()
-                tri_sem_gt[(tri_sem_gt != 0) * (tri_sem_gt != len(self.CLASSES))] = 1
-                tri_sem_gt[tri_sem_gt > 1] = 2
+                if 'tc_sem_pred' in pred:
+                    tc_sem_pred = pred['tc_sem_pred']
+                else:
+                    tc_sem_pred = pred['sem_pred']
+                tc_sem_gt = get_tc_from_inst(inst_gt)
                 draw_all(
                     show_folder,
                     img_name,
                     img_file_name,
                     sem_pred,
                     sem_gt,
+                    inst_pred,
+                    inst_gt,
+                    tc_sem_pred,
+                    tc_sem_gt,
                 )
 
         return pre_eval_results
