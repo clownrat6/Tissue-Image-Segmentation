@@ -1,10 +1,10 @@
 _base_ = [
-    '../../_base_/datasets/monuseg_w_dir.py',
+    '../../_base_/datasets/monuseg.py',
     '../../_base_/default_runtime.py',
 ]
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=4000)
+runner = dict(type='IterBasedRunner', max_iters=5000)
 
 evaluation = dict(
     interval=200,
@@ -31,10 +31,10 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 
 # model settings
 model = dict(
-    type='MultiTaskCDNetSegmentor',
+    type='MultiTaskUNetSegmentor',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(use_ac=True),
+    train_cfg=dict(use_ac=True, ac_w_area=True),
     test_cfg=dict(
         mode='whole',
         rotate_degrees=[0, 90],

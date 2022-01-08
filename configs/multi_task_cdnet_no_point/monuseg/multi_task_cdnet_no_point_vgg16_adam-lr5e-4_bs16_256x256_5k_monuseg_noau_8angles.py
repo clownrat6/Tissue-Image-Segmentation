@@ -20,7 +20,7 @@ process_cfg = dict(
     max_size=2048,
     resize_mode='fix',
     edge_id=2,
-    to_center=False,
+    to_center=True,
     num_angles=num_angles,
 )
 data = dict(
@@ -52,7 +52,7 @@ data = dict(
 
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=4000)
+runner = dict(type='IterBasedRunner', max_iters=5000)
 
 evaluation = dict(
     interval=200,

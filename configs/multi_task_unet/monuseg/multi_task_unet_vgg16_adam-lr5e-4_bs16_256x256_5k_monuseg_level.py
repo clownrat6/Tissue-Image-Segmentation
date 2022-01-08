@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=4000)
+runner = dict(type='IterBasedRunner', max_iters=5000)
 
 evaluation = dict(
     interval=500,

@@ -52,7 +52,7 @@ data = dict(
 
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=4000)
+runner = dict(type='IterBasedRunner', max_iters=5000)
 
 evaluation = dict(
     interval=200,
@@ -85,8 +85,7 @@ model = dict(
     train_cfg=dict(
         if_weighted_loss=False, 
         noau=True, 
-        use_tploss=True,
-        tploss_weight=True,
+        use_ac=True,
         num_angles=num_angles,
     ),
     test_cfg=dict(

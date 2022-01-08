@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=4000)
+runner = dict(type='IterBasedRunner', max_iters=5000)
 
 evaluation = dict(
     interval=200,
@@ -18,6 +18,7 @@ checkpoint_config = dict(
     interval=200,
     max_keep_ckpts=1,
 )
+
 
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
 optimizer_config = dict()
@@ -34,7 +35,7 @@ model = dict(
     type='MultiTaskUNetSegmentor',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(use_ac=True, ac_w_area=True),
+    train_cfg=dict(),
     test_cfg=dict(
         mode='whole',
         rotate_degrees=[0, 90],

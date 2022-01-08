@@ -6,7 +6,7 @@ _base_ = [
 # dataset settings
 dataset_type = 'NucleiMoNuSegDataset'
 data_root = 'data/monuseg'
-num_angles = 16
+num_angles = 8
 process_cfg = dict(
     if_flip=True,
     if_jitter=True,
@@ -52,7 +52,7 @@ data = dict(
 
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=4000)
+runner = dict(type='IterBasedRunner', max_iters=5000)
 
 evaluation = dict(
     interval=200,

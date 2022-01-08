@@ -6,7 +6,6 @@ _base_ = [
 # dataset settings
 dataset_type = 'NucleiMoNuSegDataset'
 data_root = 'data/monuseg'
-num_angles = 8
 process_cfg = dict(
     if_flip=True,
     if_jitter=True,
@@ -20,8 +19,8 @@ process_cfg = dict(
     max_size=2048,
     resize_mode='fix',
     edge_id=2,
-    to_center=True,
-    num_angles=num_angles,
+    to_center=False,
+    num_angles=8,
 )
 data = dict(
     samples_per_gpu=16,
@@ -52,7 +51,7 @@ data = dict(
 
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=4000)
+runner = dict(type='IterBasedRunner', max_iters=5000)
 
 evaluation = dict(
     interval=200,
@@ -82,13 +81,7 @@ model = dict(
     type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(
-        if_weighted_loss=False, 
-        noau=True, 
-        use_ac=True,
-        ac_w_area=True,
-        num_angles=num_angles,
-    ),
+    train_cfg=dict(if_weighted_loss=False, noau=True, parallel=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
