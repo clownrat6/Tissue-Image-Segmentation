@@ -11,20 +11,20 @@ class TopologicalLoss(nn.Module):
         self.num_angles = num_angles
 
     def forward(self, pred, target, pred_contour, target_contour):
-        if  self.use_regression:
+        if self.use_regression:
             dir_mse_loss_calculator = nn.MSELoss(reduction='none')
             dir_mse_loss = dir_mse_loss_calculator(pred, target)
             all_contour = pred_contour + target_contour
             loss = torch.sum(dir_mse_loss * all_contour) / torch.sum(all_contour)
         else:
             dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-            dir_ce_loss = dir_ce_loss_calculator(pred, target) 
+            dir_ce_loss = dir_ce_loss_calculator(pred, target)
             if self.weight:
                 pred_dir = torch.argmax(pred, dim=1)
                 diff = torch.abs(pred_dir - target)
                 weight = diff.min(self.num_angles - diff)
                 background = (pred_dir == 0) + (target == 0)
-                weight[background > 0] = 2 
+                weight[background > 0] = 2
                 dir_ce_loss = dir_ce_loss * weight
             all_contour = pred_contour + target_contour
             loss = torch.sum(dir_ce_loss * all_contour) / torch.sum(all_contour)

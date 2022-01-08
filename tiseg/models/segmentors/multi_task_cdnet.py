@@ -375,9 +375,10 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         use_tploss = self.train_cfg.get('use_tploss', False)
         tploss_weight = self.train_cfg.get('tploss_weight', False)
         if use_tploss:
-            pred_contour = torch.argmax(tc_mask_logit, dim=1) == 2 #[B, H, W]
+            pred_contour = torch.argmax(tc_mask_logit, dim=1) == 2  # [B, H, W]
             gt_contour = tc_mask_gt == 2
-            dir_tp_loss_calculator = TopologicalLoss(use_regression=self.use_regression, weight=tploss_weight, num_angles=self.num_angles)
+            dir_tp_loss_calculator = TopologicalLoss(
+                use_regression=self.use_regression, weight=tploss_weight, num_angles=self.num_angles)
             dir_tp_loss = dir_tp_loss_calculator(dir_logit, dir_gt, pred_contour, gt_contour)
             dir_loss['dir_tp_loss'] = dir_tp_loss
 
@@ -401,7 +402,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
 
         wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_gt, self.num_classes)
         wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_gt, self.num_classes)
-        
+
         if not self.use_regression:
             clean_dir_logit = dir_logit.clone().detach()
             clean_dir_gt = dir_gt.clone().detach()
