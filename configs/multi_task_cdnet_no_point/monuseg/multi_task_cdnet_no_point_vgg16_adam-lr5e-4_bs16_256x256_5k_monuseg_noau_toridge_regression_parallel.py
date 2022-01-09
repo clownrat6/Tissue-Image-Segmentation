@@ -69,6 +69,7 @@ checkpoint_config = dict(
     interval=200,
     max_keep_ckpts=1,
 )
+
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
 optimizer_config = dict()
 
@@ -84,7 +85,7 @@ model = dict(
     type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(if_weighted_loss=False, noau=True, parallel=True, num_angles=num_angles),
+    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles, parallel=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
