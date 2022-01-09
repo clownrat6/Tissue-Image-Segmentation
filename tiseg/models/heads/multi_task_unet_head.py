@@ -1,7 +1,41 @@
 import torch.nn as nn
 
+from mmcv.cnn import build_activation_layer
 from .unet_head import conv3x3, conv1x1, UNetLayer
 
+
+class RU(nn.Module):
+    """Residual Unit.
+
+    Residual Unit comprises of:
+    (Conv3x3 + BN + ReLU + Conv3x3 + BN) + Identity + ReLU
+    ( . ) stands for residual inside block
+
+    Args:
+        in_dims (int): The input channels of Residual Unit.
+        out_dims (int): The output channels of Residual Unit.
+        norm_cfg (dict): The normalize layer config. Default: dict(type='BN')
+        act_cfg (dict): The activation layer config. Default: dict(type='ReLU')
+    """
+
+    def __init__(self, in_dims, out_dims, norm_cfg=dict(type='BN'), act_cfg=dict(type='ReLU')):
+        super().__init__()
+
+        # NOTE: inplace wise relu can largely save gpu memory cost.
+        real_act_cfg = dict()
+        real_act_cfg['inplace'] = True
+        real_act_cfg.update(act_cfg)
+
+        self.act_layer = build_activation_layer(real_act_cfg)
+        self.residual_ops = nn.Sequential(
+            conv3x3(in_dims, out_dims, norm_cfg), self.act_layer, conv3x3(out_dims, out_dims, norm_cfg))
+        self.identity_ops = nn.Sequential(conv1x1(in_dims, out_dims))
+
+    def forward(self, x):
+        ide_value = self.identity_ops(x)
+        res_value = self.residual_ops(x)
+        out = ide_value + res_value
+        return self.act_layer(out)
 
 class MultiTaskBranches(nn.Module):
 
@@ -17,26 +51,39 @@ class MultiTaskBranches(nn.Module):
         real_act_cfg.update(act_cfg)
         self.act_cfg = real_act_cfg
 
-        num_convs = 3
+        self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
+        self.tc_mask_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
 
-        self.ms_convs = nn.ModuleList()
-        for num_class in num_classes:
-            ms_conv = []
-            for idx in range(num_convs):
-                if idx == 0:
-                    ms_conv.append(conv3x3(in_dims, feed_dims, self.norm_cfg, self.act_cfg))
-                elif idx == num_convs - 1:
-                    ms_conv.append(conv1x1(feed_dims, num_class))
-                else:
-                    ms_conv.append(conv3x3(feed_dims, feed_dims, self.norm_cfg, self.act_cfg))
-            self.ms_convs.append(nn.Sequential(*ms_conv))
+        assert(num_classes[0] == 3)
+        self.tc_mask_conv = nn.Conv2d(self.feed_dims, num_classes[0], kernel_size=1)
+        self.mask_conv = nn.Conv2d(self.feed_dims, num_classes[1], kernel_size=1)
+        # num_convs = 3
+
+        # self.ms_convs = nn.ModuleList()
+        # for num_class in num_classes:
+        #     ms_conv = []
+        #     for idx in range(num_convs):
+        #         if idx == 0:
+        #             ms_conv.append(conv3x3(in_dims, feed_dims, self.norm_cfg, self.act_cfg))
+        #         elif idx == num_convs - 1:
+        #             ms_conv.append(conv1x1(feed_dims, num_class))
+        #         else:
+        #             ms_conv.append(conv3x3(feed_dims, feed_dims, self.norm_cfg, self.act_cfg))
+        #     self.ms_convs.append(nn.Sequential(*ms_conv))
 
     def forward(self, x):
-        outs = []
-        for ms_conv in self.ms_convs:
-            outs.append(ms_conv(x))
+        # outs = []
+        # for ms_conv in self.ms_convs:
+        #     outs.append(ms_conv(x))
+        # return outs
+        mask_feature = self.mask_feats(x)
+        tc_mask_feature = self.tc_mask_feats(mask_feature)
 
-        return outs
+        mask_logit = self.mask_conv(mask_feature)
+        tc_mask_logit = self.tc_mask_conv(tc_mask_feature)
+
+        return tc_mask_logit, mask_logit
+        
 
 
 class MultiTaskUNetHead(nn.Module):
