@@ -9,6 +9,9 @@ runner = dict(type='IterBasedRunner', max_iters=5000)
 evaluation = dict(
     interval=200,
     eval_start=0,
+    epoch_iter=12,
+    max_iters=5000,
+    last_epoch_num=5,
     metric='all',
     save_best='mAji',
     rule='greater',
@@ -18,7 +21,6 @@ checkpoint_config = dict(
     interval=200,
     max_keep_ckpts=1,
 )
-
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
 optimizer_config = dict()
 

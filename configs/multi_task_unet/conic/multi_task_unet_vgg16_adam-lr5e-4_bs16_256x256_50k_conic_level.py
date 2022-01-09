@@ -4,10 +4,14 @@ _base_ = [
 ]
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=40000)
+runner = dict(type='IterBasedRunner', max_iters=50000)
 
 evaluation = dict(
     interval=1000,
+    eval_start=0,
+    epoch_iter=247,
+    max_iters=50000,
+    last_epoch_num=5,
     metric='all',
     save_best='mAji',
     rule='greater',
@@ -32,7 +36,7 @@ model = dict(
     type='MultiTaskUNetSegmentor',
     # model training and testing settings
     num_classes=7,
-    train_cfg=dict(use_ac=True),
+    train_cfg=dict(use_level=True),
     test_cfg=dict(
         mode='whole',
         rotate_degrees=[0, 90],
