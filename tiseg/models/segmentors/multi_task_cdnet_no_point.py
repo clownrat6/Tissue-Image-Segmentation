@@ -283,7 +283,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         mask_ce_loss = torch.mean(mask_ce_loss)
         mask_dice_loss = mask_dice_loss_calculator(tc_mask_logit, tc_mask_gt)
         # loss weight
-        alpha = 1
+        alpha = 3
         beta = 1
         mask_loss['tc_mask_ce_loss'] = alpha * mask_ce_loss
         mask_loss['tc_mask_dice_loss'] = beta * mask_dice_loss
