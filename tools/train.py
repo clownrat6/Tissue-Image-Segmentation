@@ -112,6 +112,10 @@ def main():
     # set random seeds
     if args.seed is not None:
         logger.info(f'Set random seed to {args.seed}, deterministic: True')
+        torch.manual_seed(args.seed)
+        torch.cuda.manual_seed_all(args.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
         # If seed is fixed and deterministic is False, the training
         # results is surely reproducibility
         # set_random_seed(args.seed, deterministic=args.deterministic)
