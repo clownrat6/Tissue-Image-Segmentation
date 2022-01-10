@@ -20,7 +20,7 @@ process_cfg = dict(
     max_size=2048,
     resize_mode='fix',
     edge_id=2,
-    to_center=True,
+    to_center=False,
     num_angles=num_angles,
 )
 data = dict(
@@ -51,14 +51,19 @@ data = dict(
 
 
 
+epoch_iter = 12
+epoch_num = 400
+max_iters = epoch_iter * epoch_num
+log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=False), dict(type='TensorboardLoggerHook')])
+
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=5000)
+runner = dict(type='IterBasedRunner', max_iters=max_iters)
 
 evaluation = dict(
-    interval=200,
+    interval=epoch_iter*20,
     eval_start=0,
-    epoch_iter=12,
-    max_iters=5000,
+    epoch_iter=epoch_iter,
+    max_iters=max_iters,
     last_epoch_num=5,
     metric='all',
     save_best='mAji',
@@ -66,7 +71,7 @@ evaluation = dict(
 )
 checkpoint_config = dict(
     by_epoch=False,
-    interval=200,
+    interval=epoch_iter*20,
     max_keep_ckpts=1,
 )
 

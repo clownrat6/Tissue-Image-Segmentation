@@ -1,20 +1,30 @@
 _base_ = [
-    '../_base_/datasets/conic_w_dir.py',
-    '../_base_/default_runtime.py',
+    '../../_base_/datasets/monuseg.py',
+    '../../_base_/default_runtime.py',
 ]
 
+epoch_iter = 12
+epoch_num = 400
+max_iters = epoch_iter * epoch_num
+log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=False), dict(type='TensorboardLoggerHook')])
+
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=40000)
+runner = dict(type='IterBasedRunner', max_iters=max_iters)
 
 evaluation = dict(
-    interval=1000,
+    interval=epoch_iter*20,
+    eval_start=0,
+    epoch_iter=epoch_iter,
+    max_iters=max_iters,
+    last_epoch_num=5,
     metric='all',
     save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(
     by_epoch=False,
-    interval=1000,
+    interval=epoch_iter*20,
+    max_keep_ckpts=1,
 )
 
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
@@ -29,17 +39,12 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 
 # model settings
 model = dict(
-    type='MultiTaskCDNetSegmentor',
+    type='MultiTaskUNetSegmentor',
     # model training and testing settings
-    num_classes=7,
-    train_cfg=dict(if_weighted_loss=False),
+    num_classes=2,
+    train_cfg=dict(use_ac=True),
     test_cfg=dict(
-        mode='split',
-        plane_size=(256, 256),
-        crop_size=(256, 256),
-        overlap_size=(80, 80),
-        if_ddm=False,
-        if_mudslide=False,
+        mode='whole',
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
