@@ -31,35 +31,71 @@ def main():
     # print(path)
     # print(save_dir)
     results = []
+    results_mDice = []
+    last_epoch_num = 5
     with open(path, 'r') as file_to_read:
         while True:
             lines = file_to_read.readline()
             # print(lines)
             if not lines:
                 break
+            if ("mDice |" in lines):
+                for i in range(2):
+                    lines = file_to_read.readline()
+                results_mDice.append(lines[:-1])
             if ("imwAji |" in lines):
                 for i in range(2):
                     lines = file_to_read.readline()
                 results.append(lines[:-1])
                 # print(lines[:-1])
-    all_ans = []
-    for res in results[-5:]:
-        print(res)
-        ans = []
-        l = 0
-        cnt = 0
-        while True:
-            cnt += 1
-            r = res[l+1:].find('|')
-            if (r == -1):
+    save_name = "last" + str(last_epoch_num) + "epoch_result.txt"
+    with open(osp.join(save_dir, save_name),"w") as f:
+        all_ans = []
+        for i in range(last_epoch_num):
+            res = results[-last_epoch_num:][i]
+            f.writelines(res+'\n')
+            print(res)
+            ans = []
+            l = 0
+            while True:
+                r = res[l+1:].find('|')
+                if (r == -1):
+                    break
+                r = r + l + 1
+                ans.append(float(res[l+1:r]))
+                l = r
+            res = results_mDice[-last_epoch_num:][i]
+            f.writelines(res+'\n')
+            print(res)
+            l = 0
+            while True:
+                r = res[l+1:].find('|')
+                if (r == -1):
+                    break
+                r = r + l + 1
+                ans.append(float(res[l+1:r]))
                 break
-            r = r + l + 1
-            ans.append(float(res[l+1:r]))
-            l = r
-        all_ans.append(ans)
-    ans = np.array(all_ans)
-    ans = np.mean(ans, axis=0)
-    print(ans)
-        # print(res.find('|'))
+                l = r
+            all_ans.append(ans)
+
+        ans = np.array(all_ans)
+        average_res = np.mean(ans, axis=0)
+
+        c = 0
+        id = 0
+        for i in range(last_epoch_num):
+            if ans[i][2] > c: #mAji
+                c = ans[i][2]
+                id = i
+        best_res = ans[id]
+
+        average_res = np.round(average_res, 2).tolist()
+        best_res = np.round(best_res, 2).tolist()
+        f.write('average_res:')
+        f.writelines(str(average_res)+'\n')
+        f.write('best_res:')
+        f.writelines(str(best_res)+'\n')
+        print('average_res:', average_res)
+        print('best_res:', best_res)
 if __name__ == '__main__':
     main()
