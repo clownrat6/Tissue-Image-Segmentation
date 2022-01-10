@@ -72,6 +72,8 @@ class EvalHook(_EvalHook):
             else:
                 ckpt_name = 'epoch' + str((current + 1 - self.eval_start) // self.epoch_iter) + '.pth'
                 runner.save_checkpoint(runner.work_dir, ckpt_name, create_symlink=False)
+        runner.logger.info(
+                f'Now evaluation on {runner.iter + 1}.')
         return True
 
     def _do_evaluate(self, runner):
