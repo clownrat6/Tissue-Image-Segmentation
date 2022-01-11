@@ -89,8 +89,8 @@ class BatchMultiClassDiceLoss(nn.Module):
             # calculate per class dice loss
             dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
                 logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
-            dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
-                logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
+            # dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
+            #     logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
             dice_loss_per_class = 1 - dice_loss_per_class
             if weights is not None:
                 dice_loss_per_class *= weights[i]
@@ -127,8 +127,8 @@ class MultiClassDiceLoss(nn.Module):
             # calculate per class dice loss
             dice_loss_per_class = (2 * intersection.sum((-2, -1)) + smooth) / (
                 logit_per_class.sum((-2, -1)) + target_per_class.sum((-2, -1)) + smooth)
-            dice_loss_per_class = (2 * intersection.sum((-2, -1)) + smooth) / (
-                logit_per_class.sum((-2, -1)) + target_per_class.sum((-2, -1)) + smooth)
+            # dice_loss_per_class = (2 * intersection.sum((-2, -1)) + smooth) / (
+            #     logit_per_class.sum((-2, -1)) + target_per_class.sum((-2, -1)) + smooth)
             dice_loss_per_class = 1 - dice_loss_per_class.sum() / N
             if weights is not None:
                 dice_loss_per_class *= weights[i]
