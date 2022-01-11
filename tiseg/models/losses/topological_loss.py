@@ -43,7 +43,7 @@ class TopologicalLoss(nn.Module):
                 assert target.ndim == 3
                 # one-hot encoding for target
                 target = target * all_contour
-                target_one_hot = _convert_to_one_hot(target, self.num_angles).permute(0, 3, 1, 2).contiguous()
+                target_one_hot = _convert_to_one_hot(target, self.num_angles+1).permute(0, 3, 1, 2).contiguous()
                 smooth = 1e-4
                  # softmax for logit
                 logit = F.softmax(pred, dim=1)
