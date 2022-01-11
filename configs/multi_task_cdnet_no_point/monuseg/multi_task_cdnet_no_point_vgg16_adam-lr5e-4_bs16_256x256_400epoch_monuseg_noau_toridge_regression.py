@@ -90,7 +90,7 @@ model = dict(
     type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles),
+    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles, use_regression = True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
