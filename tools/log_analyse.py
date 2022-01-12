@@ -32,6 +32,7 @@ def main():
     # print(save_dir)
     results = []
     results_mDice = []
+    results_dir_mDice = []
     last_epoch_num = 5
     with open(path, 'r') as file_to_read:
         while True:
@@ -39,6 +40,8 @@ def main():
             # print(lines)
             if not lines:
                 break
+            if ("dir_mdice" in lines):
+                results_dir_mDice.append(lines[:-1])
             if ("mDice |" in lines):
                 for i in range(2):
                     lines = file_to_read.readline()
@@ -76,7 +79,15 @@ def main():
                 ans.append(float(res[l+1:r]))
                 break
                 l = r
-            all_ans.append(ans)
+            if len(results_dir_mDice) > 0:
+                res = results_dir_mDice[-last_epoch_num:][i]
+                f.writelines(res+'\n')
+                print(res)
+                l = res.find("dir_mdice")
+                r = res[l+1:].find(',') + l + 1
+                ans.append(float(res[l+10:r]))
+
+            all_ans.append(ans) #mDice
 
         ans = np.array(all_ans)
         average_res = np.mean(ans, axis=0)
