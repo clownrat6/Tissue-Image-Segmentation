@@ -49,16 +49,25 @@ class TopologicalLoss(nn.Module):
                 logit = F.softmax(pred, dim=1)
                 N, C, _, _ = target_one_hot.shape
                 loss = 0
+                
                 for i in range(1, C):
                     logit_per_class = logit[:, i] * all_contour
                     target_per_class = target_one_hot[:, i]
 
                     intersection = logit_per_class * target_per_class
                     # calculate per class dice loss
-                    dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
-                        logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
-                    # dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
-                    #     logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
+                    if self.weight:
+                        pred_dir = torch.argmax(pred, dim=1)
+                        diff = torch.abs(pred_dir - target)
+                        weight = diff.min(self.num_angles - diff) + 1
+                        background = (pred_dir == 0) + (target == 0)
+                        weight[background > 0] = 2
+                        dice_loss_per_class = (2 * (intersection * weight).sum((0, -2, -1))  + smooth) / (
+                            (logit_per_class * weight).sum((0, -2, -1))  + (target_per_class * weight).sum((0, -2, -1)) + smooth)
+                    else:
+                        dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
+                            logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
+
                     dice_loss_per_class = 1 - dice_loss_per_class
                     loss += dice_loss_per_class
             else:
