@@ -1,7 +1,7 @@
 from .accuracy import Accuracy, accuracy
-from .cross_entropy_loss import (CrossEntropyLoss, binary_cross_entropy, cross_entropy, mask_cross_entropy)
+from .cross_entropy_loss import (CrossEntropyLoss, binary_cross_entropy, cross_entropy, mask_cross_entropy, MultiClassBCELoss)
 from .dice import Dice, dice, mdice, tdice
-from .dice_loss import DiceLoss, GeneralizedDiceLoss, MultiClassDiceLoss, BatchMultiClassDiceLoss
+from .dice_loss import DiceLoss, GeneralizedDiceLoss, MultiClassDiceLoss, BatchMultiClassDiceLoss, BatchMultiClassSigmoidDiceLoss
 from .iou import IoU, iou, miou, tiou
 from .utils import reduce_loss, weight_reduce_loss, weighted_loss
 from .surface_loss import SurfaceLoss
@@ -14,5 +14,6 @@ __all__ = [
     'accuracy', 'Accuracy', 'cross_entropy', 'binary_cross_entropy', 'mask_cross_entropy', 'CrossEntropyLoss',
     'reduce_loss', 'weight_reduce_loss', 'weighted_loss', 'DiceLoss', 'GeneralizedDiceLoss', 'IoU', 'iou', 'miou',
     'Dice', 'dice', 'mdice', 'MultiClassDiceLoss', 'tdice', 'tiou', 'SurfaceLoss', 'BatchMultiClassDiceLoss',
-    'FocalLoss2d', 'RobustFocalLoss2d', 'LevelsetLoss', 'ActiveContourLoss', 'TopologicalLoss'
+    'FocalLoss2d', 'RobustFocalLoss2d', 'LevelsetLoss', 'ActiveContourLoss', 'TopologicalLoss', 'BatchMultiClassSigmoidDiceLoss',
+    'MultiClassBCELoss'
 ]

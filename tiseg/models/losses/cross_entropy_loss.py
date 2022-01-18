@@ -183,3 +183,56 @@ class CrossEntropyLoss(nn.Module):
             avg_factor=avg_factor,
             **kwargs)
         return loss_cls
+
+
+
+
+
+def _convert_to_one_hot(tensor, bins, on_value=1, off_value=0):
+    """Convert NxHxW shape tensor to NxCxHxW one-hot tensor.
+
+    Args:
+        tensor (torch.Tensor): The tensor to convert.
+        bins (int): The number of one-hot channels.
+            (`bins` is usually `num_classes + 1`)
+        on_value (int): The one-hot activation value. Default: 1
+        off_value (int): The one-hot deactivation value. Default: 0
+    """
+    assert tensor.ndim == 3
+    assert on_value != off_value
+    tensor_one_hot = F.one_hot(tensor, bins)
+    tensor_one_hot[tensor_one_hot == 1] = on_value
+    tensor_one_hot[tensor_one_hot == 0] = off_value
+
+    return tensor_one_hot
+
+
+
+
+class MultiClassBCELoss(nn.Module):
+    """Calculate each class dice loss, then sum per class dice loss as a total
+    loss."""
+
+    def __init__(self, num_classes):
+        super(MultiClassBCELoss, self).__init__()
+        self.num_classes = num_classes
+
+    def forward(self, logit, target, weights=None):
+        assert target.ndim == 3
+        # one-hot encoding for target
+        target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(0, 3, 1, 2).contiguous()
+
+        N, C, _, _ = target_one_hot.shape
+
+        loss = 0
+
+        for i in range(1, C):
+            logit_per_class = logit[:, i]
+            target_per_class = target_one_hot[:, i]
+
+            mask_bce_loss_calculator = nn.BCEWithLogitsLoss(reduction='none')
+            bce_loss_per_class = mask_bce_loss_calculator(logit_per_class, target_per_class.float())
+
+            loss += torch.mean(bce_loss_per_class)
+
+        return loss

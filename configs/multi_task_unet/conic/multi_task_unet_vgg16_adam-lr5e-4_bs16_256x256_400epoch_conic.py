@@ -85,21 +85,12 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 
 # model settings
 model = dict(
-    type='MultiTaskCDNetSegmentor',
+    type='MultiTaskUNetSegmentor',
     # model training and testing settings
     num_classes=7,
-    train_cfg=dict(
-        if_weighted_loss=False,
-        num_angles = num_angles,
-        parallel = True, 
-    ),
+    train_cfg=dict(),
     test_cfg=dict(
-        mode='split',
-        plane_size=(256, 256),
-        crop_size=(256, 256),
-        overlap_size=(80, 80),
-        if_ddm=False,
-        if_mudslide=False,
+        mode='whole',
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),

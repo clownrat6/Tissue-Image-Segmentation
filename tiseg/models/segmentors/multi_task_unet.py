@@ -6,7 +6,7 @@ from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads import MultiTaskUNetHead
-from ..losses import ActiveContourLoss, MultiClassDiceLoss, BatchMultiClassDiceLoss, RobustFocalLoss2d, mdice, tdice, LevelsetLoss
+from ..losses import ActiveContourLoss, MultiClassDiceLoss, BatchMultiClassDiceLoss, BatchMultiClassSigmoidDiceLoss, RobustFocalLoss2d, MultiClassBCELoss, mdice, tdice, LevelsetLoss
 from .base import BaseSegmentor
 
 
@@ -19,6 +19,8 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
+        self.use_ac = self.train_cfg.get('use_ac', False)
+        self.use_sigmoid = self.train_cfg.get('use_sigmoid', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = MultiTaskUNetHead(
@@ -68,7 +70,13 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
             # NOTE: only support batch size = 1 now.
             tc_seg_logit, seg_logit = self.inference(data['img'], metas[0], True)
             tc_seg_pred = tc_seg_logit.argmax(dim=1)
-            seg_pred = seg_logit.argmax(dim=1)
+            if self.use_sigmoid:
+                seg_logit = seg_logit[:, 1:]
+                seg_pred = seg_logit.argmax(dim=1) + 1
+                seg_logit = seg_logit.max(dim = 1)[0]
+                seg_pred[seg_logit < 0.5] = 0 
+            else:
+                seg_pred = seg_logit.argmax(dim=1)
             # Extract inside class
             tc_seg_pred = tc_seg_pred.cpu().numpy()
             seg_pred = seg_pred.cpu().numpy()
@@ -92,12 +100,14 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
             Tensor: The output segmentation map.
         """
         assert self.test_cfg.mode in ['split', 'whole']
-
+        
         self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
         tc_sem_logit_list = []
         sem_logit_list = []
         img_ = img
+
+        
         for rotate_degree in self.rotate_degrees:
             for flip_direction in self.flip_directions:
                 img = self.tta_transform(img_, rotate_degree, flip_direction)
@@ -112,7 +122,10 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
                 sem_logit = self.reverse_tta_transform(sem_logit, rotate_degree, flip_direction)
 
                 tc_sem_logit = F.softmax(tc_sem_logit, dim=1)
-                sem_logit = F.softmax(sem_logit, dim=1)
+                if self.use_sigmoid:
+                    sem_logit = sem_logit.sigmoid()
+                else:    
+                    sem_logit = F.softmax(sem_logit, dim=1)
 
                 tc_sem_logit_list.append(tc_sem_logit)
                 sem_logit_list.append(sem_logit)
@@ -191,21 +204,41 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
         use_focal = self.train_cfg.get('use_focal', False)
         use_level = self.train_cfg.get('use_level', False)
         use_ac = self.train_cfg.get('use_ac', False)
+        
         assert not (use_focal and use_level and use_ac), 'Can\'t use focal loss & deep level set loss at the same time.'
-        if use_focal:
-            mask_focal_loss_calculator = RobustFocalLoss2d(type='softmax')
-            mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
-            mask_focal_loss = mask_focal_loss_calculator(mask_logit, mask_label)
-            mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
-            mask_loss['mask_focal_loss'] = alpha * mask_focal_loss
-            mask_loss['mask_dice_loss'] = beta * mask_dice_loss
-        else:
-            mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-            mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
-            mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
-            mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
-            mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
-            mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+        if self.use_sigmoid:
+            if use_ac:
+                ac_w_area = self.train_cfg.get('ac_w_area')
+                ac_loss_calculator = ActiveContourLoss(w_area=ac_w_area)
+                ac_loss_collect = []
+                for i in range(1, self.num_classes):
+                    mask_logit_cls = mask_logit[:, i:i + 1].sigmoid()
+                    mask_label_cls = (mask_label == i)[:, None].float()
+                    ac_loss_collect.append(ac_loss_calculator(mask_logit_cls, mask_label_cls))
+                mask_loss['mask_ac_loss'] = 5 * (sum(ac_loss_collect) / len(ac_loss_collect))
+            else:
+                mask_bce_loss_calculator = MultiClassBCELoss(num_classes=self.num_classes)
+                mask_dice_loss_calculator = BatchMultiClassSigmoidDiceLoss(num_classes=self.num_classes)
+                mask_bce_loss = mask_bce_loss_calculator(mask_logit, mask_label)
+                mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
+                mask_loss['mask_bce_loss'] = alpha * mask_bce_loss
+                mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+                
+        else: 
+            if use_focal:
+                mask_focal_loss_calculator = RobustFocalLoss2d(type='softmax')
+                mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+                mask_focal_loss = mask_focal_loss_calculator(mask_logit, mask_label)
+                mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
+                mask_loss['mask_focal_loss'] = alpha * mask_focal_loss
+                mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+            else:
+                mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+                mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+                mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
+                mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
+                mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
+                mask_loss['mask_dice_loss'] = beta * mask_dice_loss
 
         if use_level:
             # calculate deep level set loss for each semantic class.
@@ -221,16 +254,6 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
                 level_loss_calculator = LevelsetLoss()
                 loss_collect.append(level_loss_calculator(mask_logit_cls, img_region, weights[i]))
             mask_loss['mask_level_loss'] = sum(loss_collect) / len(loss_collect)
-
-        if use_ac:
-            ac_w_area = self.train_cfg.get('ac_w_area')
-            ac_loss_calculator = ActiveContourLoss(w_area=ac_w_area)
-            ac_loss_collect = []
-            for i in range(1, self.num_classes):
-                mask_logit_cls = mask_logit[:, i:i + 1].sigmoid()
-                mask_label_cls = (mask_label == i)[:, None].float()
-                ac_loss_collect.append(ac_loss_calculator(mask_logit_cls, mask_label_cls))
-            mask_loss['mask_ac_loss'] = sum(ac_loss_collect) / len(ac_loss_collect)
 
         return mask_loss
 
@@ -255,8 +278,13 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
         wrap_dict = {}
 
         # loss
-        clean_mask_logit = mask_logit.clone().detach()
-        clean_mask_label = mask_label.clone().detach()
+        if self.use_sigmoid:
+            clean_mask_logit = mask_logit.sigmoid().clone().detach()
+            clean_mask_label = mask_label.clone().detach()
+            clean_mask_logit[:, 0] = 1 - (clean_mask_logit[:, 1:].max(dim = 1)[0])
+        else:
+            clean_mask_logit = mask_logit.clone().detach()
+            clean_mask_label = mask_label.clone().detach()
 
         wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_label, self.num_classes)
         wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_label, self.num_classes)

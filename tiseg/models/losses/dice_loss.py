@@ -99,6 +99,48 @@ class BatchMultiClassDiceLoss(nn.Module):
         return loss
 
 
+
+
+class BatchMultiClassSigmoidDiceLoss(nn.Module):
+    """Calculate each class dice loss, then sum per class dice loss as a total
+    loss."""
+
+    def __init__(self, num_classes):
+        super(BatchMultiClassSigmoidDiceLoss, self).__init__()
+        self.num_classes = num_classes
+
+    def forward(self, logit, target, weights=None):
+        assert target.ndim == 3
+        # one-hot encoding for target
+        target_one_hot = _convert_to_one_hot(target, self.num_classes).permute(0, 3, 1, 2).contiguous()
+        smooth = 1e-4
+        # softmax for logit
+        logit = logit.sigmoid()
+
+        N, C, _, _ = target_one_hot.shape
+
+        loss = 0
+
+        for i in range(1, C):
+            logit_per_class = logit[:, i]
+            target_per_class = target_one_hot[:, i]
+
+            intersection = logit_per_class * target_per_class
+            # calculate per class dice loss
+            dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
+                logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
+
+            dice_loss_per_class = 1 - dice_loss_per_class
+            if weights is not None:
+                dice_loss_per_class *= weights[i]
+            loss += dice_loss_per_class
+
+        return loss
+
+
+
+
+
 class MultiClassDiceLoss(nn.Module):
     """Calculate each class dice loss, then sum per class dice loss as a total
     loss."""
