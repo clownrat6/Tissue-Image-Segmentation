@@ -42,7 +42,7 @@ model = dict(
     type='MultiTaskUNetSegmentor',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(use_ac=True),
+    train_cfg=dict(use_ac=True, use_sigmoid=True),
     test_cfg=dict(
         mode='whole',
         rotate_degrees=[0, 90],
