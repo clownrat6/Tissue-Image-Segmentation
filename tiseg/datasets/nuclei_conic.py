@@ -26,11 +26,9 @@ from .utils import (re_instance, mudslide_watershed, align_foreground, get_tc_fr
 @DATASETS.register_module()
 class NucleiCoNICDataset(Dataset):
     """Nuclei Custom Foundation Segmentation Dataset.
-
     Although, this dataset is a instance segmentation task, this dataset also
     support a multiple class semantic segmentation task (Background, Nuclei1, Nuclei2, ...).
     The basic settings only supports two-class nuclei segmentation task.
-
     related suffix:
         "_semantic.png": raw semantic map (seven class semantic map without
             boundary).
@@ -83,10 +81,8 @@ class NucleiCoNICDataset(Dataset):
 
     def __getitem__(self, index):
         """Get training/test data after pipeline.
-
         Args:
             idx (int): Index of data.
-
         Returns:
             dict: Training/test data (with annotation if `test_mode` is set
                 False).
@@ -96,7 +92,6 @@ class NucleiCoNICDataset(Dataset):
 
     def load_annotations(self, img_dir, ann_dir, img_suffix, sem_suffix, inst_suffix, split=None):
         """Load annotation from directory.
-
         Args:
             img_dir (str): Path to image directory.
             ann_dir (str): Path to annotation directory.
@@ -104,7 +99,6 @@ class NucleiCoNICDataset(Dataset):
             ann_suffix (str): Suffix of segmentation maps.
             split (str | None): Split txt file. If split is specified, only
                 file with suffix in the splits will be loaded.
-
         Returns:
             list[dict]: All data info of dataset, data info contains image,
                 segmentation map.
@@ -137,7 +131,6 @@ class NucleiCoNICDataset(Dataset):
 
     def pre_eval(self, preds, indices, show=False, show_folder='.nuclei_show'):
         """Collect eval result from each iteration.
-
         Args:
             preds (list[torch.Tensor] | torch.Tensor): the segmentation logit
                 after argmax, shape (N, H, W).
@@ -147,7 +140,6 @@ class NucleiCoNICDataset(Dataset):
                 ground truth. Default: False
             show_folder (str | None, optional): The folder path of
                 illustration. Default: None
-
         Returns:
             list[torch.Tensor]: (area_intersect, area_union, area_prediction,
                 area_ground_truth).
@@ -286,13 +278,12 @@ class NucleiCoNICDataset(Dataset):
             sem_id_mask_dila = morphology.dilation(sem_id_mask, selem=morphology.disk(2))
             sem_canvas[sem_id_mask_dila > 0] = sem_id
         sem_pred = sem_canvas
-        fore_pred = sem_pred > 0
 
-        bin_sem_pred, bound = mudslide_watershed(bin_sem_pred, dir_pred, fore_pred)
+        bin_sem_pred, bound = mudslide_watershed(bin_sem_pred, dir_pred, sem_pred > 0)
 
         bin_sem_pred = remove_small_objects(bin_sem_pred, 20)
         inst_pred = measure.label(bin_sem_pred, connectivity=1)
-        inst_pred = align_foreground(inst_pred, fore_pred, 20)
+        inst_pred = align_foreground(inst_pred, sem_pred > 0, 20)
 
         return sem_pred, inst_pred
 
@@ -346,7 +337,6 @@ class NucleiCoNICDataset(Dataset):
 
     def evaluate(self, results, logger=None, **kwargs):
         """Evaluate the dataset.
-
         Args:
             processor (object): The result processor.
             metric (str | list[str]): Metrics to be evaluated. 'Aji',
@@ -355,7 +345,6 @@ class NucleiCoNICDataset(Dataset):
                 related information during evaluation. Default: None.
             dump_path (str | None, optional): The dump path of each item
                 evaluation results. Default: None
-
         Returns:
             dict[str, float]: Default metrics.
         """

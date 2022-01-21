@@ -63,7 +63,7 @@ class UNetSegmentor(BaseSegmentor):
             seg_pred = list(seg_pred)
             ret_list = []
             for seg in seg_pred:
-                ret_list.append({'tc_sem_pred': seg})
+                ret_list.append({'sem_pred': seg})
             return ret_list
 
     def _mask_loss(self, mask_logit, mask_label):

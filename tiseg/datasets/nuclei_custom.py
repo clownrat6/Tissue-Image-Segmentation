@@ -21,7 +21,7 @@ from tiseg.utils import (dice_similarity_coefficient, precision_recall, pre_eval
 
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
-from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground, assign_sem_class_to_insts
+from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground, assign_sem_class_to_insts, get_tc_from_inst
 
 
 def draw_all(save_folder,
@@ -110,11 +110,9 @@ def draw_all(save_folder,
 @DATASETS.register_module()
 class NucleiCustomDataset(Dataset):
     """Nuclei Custom Foundation Segmentation Dataset.
-
     Although, this dataset is a instance segmentation task, this dataset also
     support a multiple class semantic segmentation task (Background, Nuclei1, Nuclei2, ...).
     The basic settings only supports two-class nuclei segmentation task.
-
     related suffix:
         "_semantic.png": raw semantic map (two class semantic map without
             boundary).
@@ -167,10 +165,8 @@ class NucleiCustomDataset(Dataset):
 
     def __getitem__(self, index):
         """Get training/test data after pipeline.
-
         Args:
             idx (int): Index of data.
-
         Returns:
             dict: Training/test data (with annotation if `test_mode` is set
                 False).
@@ -180,7 +176,6 @@ class NucleiCustomDataset(Dataset):
 
     def load_annotations(self, img_dir, ann_dir, img_suffix, sem_suffix, inst_suffix, split=None):
         """Load annotation from directory.
-
         Args:
             img_dir (str): Path to image directory.
             ann_dir (str): Path to annotation directory.
@@ -188,7 +183,6 @@ class NucleiCustomDataset(Dataset):
             ann_suffix (str): Suffix of segmentation maps.
             split (str | None): Split txt file. If split is specified, only
                 file with suffix in the splits will be loaded.
-
         Returns:
             list[dict]: All data info of dataset, data info contains image,
                 segmentation map.
@@ -221,7 +215,6 @@ class NucleiCustomDataset(Dataset):
 
     def pre_eval(self, preds, indices, show=False, show_folder=None):
         """Collect eval result from each iteration.
-
         Args:
             preds (list[torch.Tensor] | torch.Tensor): the segmentation logit
                 after argmax, shape (N, H, W).
@@ -231,7 +224,6 @@ class NucleiCustomDataset(Dataset):
                 ground truth. Default: False
             show_folder (str | None, optional): The folder path of
                 illustration. Default: None
-
         Returns:
             list[torch.Tensor]: (area_intersect, area_union, area_prediction,
                 area_ground_truth).
@@ -267,21 +259,27 @@ class NucleiCustomDataset(Dataset):
             data_id = osp.basename(self.data_infos[index]['sem_file_name']).replace(self.sem_suffix, '')
 
             # metric calculation post process codes:
-            # extract inside
-            if 'sem_pred' in pred:
-                sem_pred = pred['sem_pred']
-            else:
-                sem_pred = pred['tc_sem_pred'] > 0
-            tc_sem_pred = pred['tc_sem_pred']                
-            sem_pred_in = (tc_sem_pred == 1).astype(np.uint8)
+            # 'sem_pred' has two types:
+            # 1. 0-1 sem map;
+            # 2. 0-1-2 sem map w/ edge;
+            sem_pred = pred['sem_pred'].copy()
+
             if 'dir_pred' in pred:
                 dir_pred = pred['dir_pred']
+                if 'tc_sem_pred' not in pred:
+                    tc_sem_pred = pred['sem_pred']
+                    sem_pred = (sem_pred > 0).astype(np.uint8)
+                else:
+                    tc_sem_pred = pred['tc_sem_pred']
                 # model-agnostic post process operations
-                sem_pred, inst_pred, fore_pred = self.model_agnostic_postprocess_w_dir(sem_pred_in, sem_pred > 0, dir_pred)
-            elif 'sem_pred' in pred:
+                sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_sem_pred, sem_pred)
+            elif 'tc_sem_pred' in pred:
+                tc_sem_pred = pred['tc_sem_pred']
                 sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_sem_pred, sem_pred)
             else:
-                sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred_in)
+                # remove edge
+                sem_pred[sem_pred == len(self.CLASSES)] = 0
+                sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
 
             # TODO: (Important issue about post process)
             # This may be the dice metric calculation trick (Need be
@@ -295,8 +293,6 @@ class NucleiCustomDataset(Dataset):
             precision_metric = precision_metric[1]
             recall_metric = recall_metric[1]
             dice_metric = dice_similarity_coefficient(sem_pred, sem_seg, 2)[1]
-
-
 
             sem_gt = inst_seg > 0
             inst_gt = inst_seg
@@ -337,26 +333,30 @@ class NucleiCustomDataset(Dataset):
 
             # illustrating semantic level & instance level results
             if show:
-                tri_sem_pred = sem_pred.copy()
-                tri_sem_pred[(tri_sem_pred != 0) * (tri_sem_pred != len(self.CLASSES))] = 1
-                tri_sem_pred[tri_sem_pred > 1] = 2
-                tri_sem_gt = sem_gt.copy()
-                tri_sem_gt[(tri_sem_gt != 0) * (tri_sem_gt != len(self.CLASSES))] = 1
-                tri_sem_gt[tri_sem_gt > 1] = 2
+                if 'tc_sem_pred' in pred:
+                    tc_sem_pred = pred['tc_sem_pred']
+                else:
+                    tc_sem_pred = pred['sem_pred']
+                tc_sem_gt = get_tc_from_inst(inst_gt)
                 draw_all(
                     show_folder,
                     img_name,
                     img_file_name,
                     sem_pred,
                     sem_gt,
+                    inst_pred,
+                    inst_gt,
+                    tc_sem_pred,
+                    tc_sem_gt,
                 )
 
         return pre_eval_results
 
-    def model_agnostic_postprocess(self, sem_pred_in):
+    def model_agnostic_postprocess(self, sem_pred):
         """model free post-process for both instance-level & semantic-level."""
+        sem_pred = (sem_pred == 1).astype(np.uint8)
         # fill instance holes
-        sem_pred = binary_fill_holes(sem_pred_in)
+        sem_pred = binary_fill_holes(sem_pred)
         # remove small instance
         sem_pred = remove_small_objects(sem_pred, 20)
         sem_pred = sem_pred.astype(np.uint8)
@@ -381,6 +381,7 @@ class NucleiCustomDataset(Dataset):
             sem_id_mask = binary_fill_holes(sem_id_mask)
             sem_id_mask = remove_small_objects(sem_id_mask, 20)
             sem_canvas[sem_id_mask > 0] = sem_id
+        sem_pred = sem_canvas
 
         # instance process & dilation
         bin_sem_pred = tc_sem_pred.copy()
@@ -388,16 +389,19 @@ class NucleiCustomDataset(Dataset):
 
         bin_sem_pred = binary_fill_holes(bin_sem_pred)
         bin_sem_pred = remove_small_objects(bin_sem_pred, 20)
+
         inst_pred = measure.label(bin_sem_pred, connectivity=1)
         # if re_edge=True, dilation pixel length should be 2
         # inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(2))
-        inst_pred = align_foreground(inst_pred, sem_canvas > 0, 20)
+        inst_pred = align_foreground(inst_pred, sem_pred > 0, 20)
 
         return sem_pred, inst_pred
 
-    def model_agnostic_postprocess_w_dir(self, sem_pred_in, fore_pred, dir_pred):
+    def model_agnostic_postprocess_w_dir(self, dir_pred, tc_sem_pred, fore_pred):
         """model free post-process for both instance-level & semantic-level."""
         raw_fore_pred = fore_pred
+        sem_pred_in = (tc_sem_pred == 1).astype(np.uint8)
+
         # fill instance holes
         sem_pred = binary_fill_holes(sem_pred_in)
         # remove small instance
@@ -409,8 +413,8 @@ class NucleiCustomDataset(Dataset):
         # if re_edge=True, dilation pixel length should be 2
         fore_pred = morphology.dilation(fore_pred, selem=morphology.selem.disk(2))
 
-        raw_fore_pred = binary_fill_holes(raw_fore_pred)  # 孔洞填充 hhl20200414
-        raw_fore_pred = remove_small_objects(raw_fore_pred, 20)  # remove small object
+        raw_fore_pred = binary_fill_holes(raw_fore_pred)
+        raw_fore_pred = remove_small_objects(raw_fore_pred, 20)
 
         sem_pred, bound = mudslide_watershed(sem_pred, dir_pred, raw_fore_pred)
 
@@ -418,18 +422,16 @@ class NucleiCustomDataset(Dataset):
         inst_pred = measure.label(sem_pred, connectivity=1)
         inst_pred = align_foreground(inst_pred, fore_pred, 20)
 
-        return sem_pred, inst_pred, fore_pred
+        return sem_pred, inst_pred
 
     def evaluate(self, results, logger=None, **kwargs):
         """Evaluate the dataset.
-
         Args:
             processor (object): The result processor.
             metric (str | list[str]): Metrics to be evaluated. 'Aji',
                 'Dice' are supported.
             logger (logging.Logger | None | str): Logger used for printing
                 related information during evaluation. Default: None.
-
         Returns:
             dict[str, float]: Default metrics.
         """
@@ -452,7 +454,6 @@ class NucleiCustomDataset(Dataset):
                     else:
                         ret_metrics[key].append(value)
 
-
         # All dataset
         # semantic metrics
         sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
@@ -473,8 +474,6 @@ class NucleiCustomDataset(Dataset):
         [ret_metrics.update(x) for x in pre_eval_to_pq(pq_pre_eval_results)]
         # update per sample PQ
         [img_ret_metrics.update(x) for x in pre_eval_to_sample_pq(pq_pre_eval_results)]
-
-
 
         total_inst_keys = [
             'bAji', 'imwAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ'
@@ -505,12 +504,7 @@ class NucleiCustomDataset(Dataset):
             elif key in inst_analysis_keys:
                 inst_analysis[key] = ret_metrics[key][1:]
             else:
-                print(key)
                 total_inst_metrics[key] = sum(ret_metrics[key]) / len(ret_metrics[key])
-
-
-
-
 
         # per sample
         # calculate average metric
@@ -528,7 +522,6 @@ class NucleiCustomDataset(Dataset):
                 img_ret_metrics[key] = np.array(img_ret_metrics[key])
             else:
                 img_ret_metrics[key] = img_ret_metrics[key].tolist()
-                # print(img_ret_metrics[key])
                 average_value = sum(img_ret_metrics[key]) / len(img_ret_metrics[key])
                 img_ret_metrics[key].append(average_value)
                 img_ret_metrics[key] = np.array(img_ret_metrics[key])
@@ -545,8 +538,6 @@ class NucleiCustomDataset(Dataset):
 
         print_log('Per samples:', logger)
         print_log('\n' + items_table_data.get_string(), logger=logger)
-        
-
 
         total_sem_metrics = OrderedDict(
             {'m' + sem_key: np.round(np.mean(value) * 100, 2)
