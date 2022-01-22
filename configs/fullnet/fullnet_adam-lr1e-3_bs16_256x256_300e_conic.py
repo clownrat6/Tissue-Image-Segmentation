@@ -1,16 +1,16 @@
 _base_ = [
-    '../_base_/datasets/consep.py',
+    '../_base_/datasets/conic.py',
     '../_base_/default_runtime.py',
 ]
 
-log_config = dict(interval=30)
-
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=7000)
+runner = dict(type='EpochBasedRunner', max_epochs=300)
 
 evaluation = dict(
-    interval=30,
-    eval_start=6700,
+    interval=50,
+    custom_intervals=[1],
+    custom_milestones=[295],
+    by_epoch=True,
     metric='all',
     save_best='Aji',
     rule='greater',
@@ -21,7 +21,7 @@ checkpoint_config = dict(
     max_keep_ckpts=1,
 )
 
-optimizer = dict(type='RAdam', lr=0.0005, weight_decay=0.0005)
+optimizer = dict(type='Adam', lr=0.001, weight_decay=0.0005)
 optimizer_config = dict()
 
 # NOTE: poly learning rate decay
@@ -33,14 +33,12 @@ lr_config = dict(policy='fixed', warmup='linear', warmup_iters=100, warmup_ratio
 
 # model settings
 model = dict(
-    type='UNetSegmentor',
+    type='FullNet',
     # model training and testing settings
-    num_classes=3,
+    num_classes=8,
     train_cfg=dict(),
     test_cfg=dict(
-        mode='split',
-        crop_size=(256, 256),
-        overlap_size=(40, 40),
+        mode='whole',
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
