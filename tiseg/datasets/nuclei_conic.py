@@ -174,19 +174,22 @@ class NucleiCoNICDataset(Dataset):
 
             # metric calculation & post process codes:
             sem_pred = pred['sem_pred'].copy()
-
-            if 'dir_pred' in pred:
-                dir_pred = pred['dir_pred']
-                tc_sem_pred = pred['tc_sem_pred']
-                sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_sem_pred, sem_pred)
-            elif 'tc_sem_pred' in pred:
-                tc_sem_pred = pred['tc_sem_pred']
-                sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_sem_pred, sem_pred)
+            if 'inst_pred' not in pred:
+                if 'dir_pred' in pred:
+                    dir_pred = pred['dir_pred']
+                    tc_sem_pred = pred['tc_sem_pred']
+                    sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_sem_pred, sem_pred)
+                elif 'tc_sem_pred' in pred:
+                    tc_sem_pred = pred['tc_sem_pred']
+                    sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_sem_pred, sem_pred)
+                else:
+                    # remove edge
+                    sem_pred[sem_pred == len(self.CLASSES)] = 0
+                    # model-agnostic post process operations
+                    sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
             else:
-                # remove edge
-                sem_pred[sem_pred == len(self.CLASSES)] = 0
-                # model-agnostic post process operations
-                sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
+                sem_pred = sem_pred
+                inst_pred = inst_pred
 
             # semantic metric calculation (remove background class)
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))

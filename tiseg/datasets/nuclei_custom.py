@@ -264,22 +264,26 @@ class NucleiCustomDataset(Dataset):
             # 2. 0-1-2 sem map w/ edge;
             sem_pred = pred['sem_pred'].copy()
 
-            if 'dir_pred' in pred:
-                dir_pred = pred['dir_pred']
-                if 'tc_sem_pred' not in pred:
-                    tc_sem_pred = pred['sem_pred']
-                    sem_pred = (sem_pred > 0).astype(np.uint8)
-                else:
+            if 'inst_pred' not in pred:
+                if 'dir_pred' in pred:
+                    dir_pred = pred['dir_pred']
+                    if 'tc_sem_pred' not in pred:
+                        tc_sem_pred = pred['sem_pred']
+                        sem_pred = (sem_pred > 0).astype(np.uint8)
+                    else:
+                        tc_sem_pred = pred['tc_sem_pred']
+                    # model-agnostic post process operations
+                    sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_sem_pred, sem_pred)
+                elif 'tc_sem_pred' in pred:
                     tc_sem_pred = pred['tc_sem_pred']
-                # model-agnostic post process operations
-                sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_sem_pred, sem_pred)
-            elif 'tc_sem_pred' in pred:
-                tc_sem_pred = pred['tc_sem_pred']
-                sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_sem_pred, sem_pred)
+                    sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_sem_pred, sem_pred)
+                else:
+                    # remove edge
+                    sem_pred[sem_pred == len(self.CLASSES)] = 0
+                    sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
             else:
-                # remove edge
-                sem_pred[sem_pred == len(self.CLASSES)] = 0
-                sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
+                sem_pred = sem_pred
+                inst_pred = pred['inst_pred']
 
             # TODO: (Important issue about post process)
             # This may be the dice metric calculation trick (Need be

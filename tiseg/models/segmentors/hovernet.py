@@ -1,11 +1,17 @@
+import math
 from collections import OrderedDict
 
+import cv2
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models.resnet import Bottleneck as ResNetBottleneck
 from torchvision.models.resnet import ResNet
+from scipy.ndimage import measurements
+from scipy.ndimage.morphology import binary_fill_holes
+from skimage.morphology import remove_small_objects
+from skimage.segmentation import watershed
 
 from tiseg.utils import resize
 from .base import BaseSegmentor
@@ -226,7 +232,7 @@ class HoverNet(BaseSegmentor):
             mask_logit, hv_logit, fore_logit = self.calculate(data['img'])
 
             assert label is not None
-            mask_gt = label['sem_gt_w_bound']
+            mask_gt = label['sem_gt']
             hv_gt = label['hv_gt']
             fore_gt = mask_gt.clone()
             fore_gt[fore_gt > 0] = 1
@@ -254,16 +260,99 @@ class HoverNet(BaseSegmentor):
         else:
             assert metas is not None
             # NOTE: only support batch size = 1 now.
-            seg_logit = self.inference(data['img'], metas[0], True)
-            seg_pred = seg_logit.argmax(dim=1)
+            mask_logit, hv_logit, fore_logit = self.inference(data['img'], metas[0], True)
+            mask_pred = mask_logit.argmax(dim=1)
+            fore_pred = fore_logit.argmax(dim=1)
             # Extract inside class
-            seg_pred = seg_pred.cpu().numpy()
+            mask_pred = mask_pred.cpu().numpy()
+            hv_pred = hv_logit.cpu().numpy()
+            fore_pred = fore_pred.cpu().numpy()
             # unravel batch dim
-            seg_pred = list(seg_pred)
+            mask_pred = list(mask_pred)
+            hv_pred = list(hv_pred)
+            fore_pred = list(fore_pred)
             ret_list = []
-            for seg in seg_pred:
-                ret_list.append({'sem_pred': seg})
+            for mask, hv, fore in zip(mask_pred, hv_pred, fore_pred):
+                inst = self.hover_post_proc(fore, hv)
+                ret_list.append({'sem_pred': mask, 'inst_pred': inst})
             return ret_list
+
+    def hover_post_proc(self, fore_map, hv_map, fx=1):
+        blb_raw = fore_map
+        h_dir_raw = hv_map[0]
+        v_dir_raw = hv_map[1]
+
+        # processing
+        blb = np.array(blb_raw >= 0.5, dtype=np.int32)
+
+        blb = measurements.label(blb)[0]
+        blb = remove_small_objects(blb, min_size=10)
+        blb[blb > 0] = 1  # background is 0 already
+
+        h_dir = cv2.normalize(
+            h_dir_raw,
+            None,
+            alpha=0,
+            beta=1,
+            norm_type=cv2.NORM_MINMAX,
+            dtype=cv2.CV_32F,
+        )
+        v_dir = cv2.normalize(
+            v_dir_raw,
+            None,
+            alpha=0,
+            beta=1,
+            norm_type=cv2.NORM_MINMAX,
+            dtype=cv2.CV_32F,
+        )
+
+        ksize = int((20 * fx) + 1)
+        obj_size = math.ceil(10 * (fx**2))
+        # Get resolution specific filters etc.
+
+        sobelh = cv2.Sobel(h_dir, cv2.CV_64F, 1, 0, ksize=ksize)
+        sobelv = cv2.Sobel(v_dir, cv2.CV_64F, 0, 1, ksize=ksize)
+
+        sobelh = 1 - (
+            cv2.normalize(
+                sobelh,
+                None,
+                alpha=0,
+                beta=1,
+                norm_type=cv2.NORM_MINMAX,
+                dtype=cv2.CV_32F,
+            ))
+        sobelv = 1 - (
+            cv2.normalize(
+                sobelv,
+                None,
+                alpha=0,
+                beta=1,
+                norm_type=cv2.NORM_MINMAX,
+                dtype=cv2.CV_32F,
+            ))
+
+        overall = np.maximum(sobelh, sobelv)
+        overall = overall - (1 - blb)
+        overall[overall < 0] = 0
+
+        dist = (1.0 - overall) * blb
+        # * nuclei values form mountains so inverse to get basins
+        dist = -cv2.GaussianBlur(dist, (3, 3), 0)
+
+        overall = np.array(overall >= 0.4, dtype=np.int32)
+
+        marker = blb - overall
+        marker[marker < 0] = 0
+        marker = binary_fill_holes(marker).astype("uint8")
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        marker = cv2.morphologyEx(marker, cv2.MORPH_OPEN, kernel)
+        marker = measurements.label(marker)[0]
+        marker = remove_small_objects(marker, min_size=obj_size)
+
+        proced_pred = watershed(dist, markers=marker, mask=blb)
+
+        return proced_pred
 
     def inference(self, img, meta, rescale):
         """Inference with split/whole style.
@@ -281,6 +370,8 @@ class HoverNet(BaseSegmentor):
         self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
         mask_logit_list = []
+        hv_logit_list = []
+        fore_logit_list = []
         img_ = img
         for rotate_degree in self.rotate_degrees:
             for flip_direction in self.flip_directions:
@@ -293,14 +384,21 @@ class HoverNet(BaseSegmentor):
                     mask_logit, hv_logit, fore_logit = self.whole_inference(img, meta, rescale)
 
                 mask_logit = self.reverse_tta_transform(mask_logit, rotate_degree, flip_direction)
+                hv_logit = self.reverse_tta_transform(hv_logit, rotate_degree, flip_direction)
+                fore_logit = self.reverse_tta_transform(fore_logit, rotate_degree, flip_direction)
 
                 mask_logit = F.softmax(mask_logit, dim=1)
+                fore_logit = F.softmax(fore_logit, dim=1)
 
                 mask_logit_list.append(mask_logit)
+                hv_logit_list.append(hv_logit)
+                fore_logit_list.append(fore_logit)
 
         mask_logit = sum(mask_logit_list) / len(mask_logit_list)
+        hv_logit = sum(hv_logit_list) / len(hv_logit_list)
+        fore_logit = sum(fore_logit_list) / len(fore_logit_list)
 
-        return mask_logit
+        return mask_logit, hv_logit, fore_logit
 
     def split_inference(self, img, meta, rescale):
         """using half-and-half strategy to slide inference."""
