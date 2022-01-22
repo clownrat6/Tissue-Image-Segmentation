@@ -5,8 +5,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from .ops import (ColorJitter, DirectionLabelMake, Identity, GenBound, RandomBlur, RandomFlip, RandomElasticDeform,
-                  RandomCrop, Normalize, Pad, format_img, format_info, format_reg, format_seg)
+from .ops import (ColorJitter, DirectionLabelMake, DistanceLabelMake, Identity, GenBound, RandomBlur, RandomFlip,
+                  RandomElasticDeform, RandomCrop, Normalize, Pad, format_img, format_info, format_reg, format_seg)
 
 
 def read_image(path):
@@ -38,11 +38,13 @@ class NucleiDatasetMapper(object):
         self.if_norm = process_cfg.get('if_norm', False)
         self.to_center = process_cfg.get('to_center', True)
         self.num_angles = process_cfg.get('num_angles', 8)
+        self.num_classes = process_cfg.get('num_classes', 2)
+        self.with_dir = process_cfg.get('with_dir', False)
+        self.with_dist = process_cfg.get('with_dist', False)
 
         self.min_size = process_cfg['min_size']
         self.max_size = process_cfg['max_size']
         self.resize_mode = process_cfg['resize_mode']
-        self.with_dir = process_cfg['with_dir']
         self.edge_id = process_cfg['edge_id']
 
         self.color_jitter = ColorJitter() if self.if_jitter else Identity()
@@ -51,9 +53,13 @@ class NucleiDatasetMapper(object):
         self.bluer = RandomBlur(prob=0.5) if self.if_blur else Identity()
         self.cropper = RandomCrop((self.min_size, self.min_size)) if self.if_crop else Identity()
         self.padder = Pad(self.min_size) if self.if_pad else Identity()
-        self.label_maker = DirectionLabelMake(
-            edge_id=self.edge_id, to_center=self.to_center, num_angles=self.num_angles) if self.with_dir else GenBound(
-                edge_id=self.edge_id)
+        if self.with_dir:
+            self.label_maker = DirectionLabelMake(
+                edge_id=self.edge_id, to_center=self.to_center, num_angles=self.num_angles)
+        elif self.with_dist:
+            self.label_maker = DistanceLabelMake(self.num_classes)
+        else:
+            self.label_maker = GenBound(edge_id=self.edge_id)
         # monuseg dataset tissue image mean & std
         nuclei_mean = [0.68861804, 0.46102882, 0.61138992]
         nuclei_std = [0.19204499, 0.20979484, 0.1658672]
@@ -122,6 +128,10 @@ class NucleiDatasetMapper(object):
                 ret['label']['dir_gt'] = format_seg(dir_seg)
                 ret['label']['reg_dir_gt'] = format_reg(reg_dir_seg)
                 ret['label']['loss_weight_map'] = format_reg(weight_map)
+            elif self.with_dist:
+                res = self.label_maker(sem_seg, inst_seg)
+                dist_reg = res['dist_gt']
+                ret['label']['dist_gt'] = format_reg(dist_reg)
             else:
                 res = self.label_maker(sem_seg, inst_seg)
                 sem_seg_w_bound = res['sem_gt_w_bound']
