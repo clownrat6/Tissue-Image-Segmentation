@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/datasets/conic.py',
+    '../_base_/datasets/conic_w_hv.py',
     '../_base_/default_runtime.py',
 ]
 
@@ -30,7 +30,7 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 
 # model settings
 model = dict(
-    type='FullNet',
+    type='HoverNet',
     # model training and testing settings
     num_classes=8,
     train_cfg=dict(),

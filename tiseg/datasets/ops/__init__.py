@@ -1,5 +1,6 @@
 from .direction_map import DirectionLabelMake, GenBound
 from .distance_map import DistanceLabelMake
+from .hv_map import HVLabelMake
 from .formating import (format_img, format_info, format_reg, format_seg, format_, to_tensor)
 from .transform import (ColorJitter, RandomFlip, Resize, RandomElasticDeform, RandomCrop, RandomRotate,
                         RandomSparseRotate, Identity, RandomBlur, Normalize, Pad)
@@ -7,5 +8,5 @@ from .transform import (ColorJitter, RandomFlip, Resize, RandomElasticDeform, Ra
 __all__ = [
     'ColorJitter', 'RandomFlip', 'DirectionLabelMake', 'GenBound', 'Resize', 'to_tensor', 'format_img', 'format_seg',
     'format_reg', 'format_info', 'RandomElasticDeform', 'RandomCrop', 'Identity', 'RandomRotate', 'RandomSparseRotate',
-    'RandomBlur', 'Normalize', 'format_', 'Pad', 'DistanceLabelMake'
+    'RandomBlur', 'Normalize', 'format_', 'Pad', 'DistanceLabelMake', 'HVLabelMake'
 ]

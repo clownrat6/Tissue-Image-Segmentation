@@ -9,7 +9,6 @@ process_cfg = dict(
     if_crop=True,
     if_pad=True,
     if_norm=False,
-    with_dir=False,
     with_dist=True,
     min_size=256,
     max_size=2048,
