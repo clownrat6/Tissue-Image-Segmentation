@@ -19,9 +19,14 @@ class EvalHook(_EvalHook):
 
     greater_keys = ['mIoU', 'mAcc', 'aAcc']
 
-    def __init__(self, *args, by_epoch=False, eval_start=None, **kwargs):
+    def __init__(self, *args, custom_intervals=None, milestones=None, by_epoch=False, **kwargs):
         super().__init__(*args, by_epoch=by_epoch, **kwargs)
-        self.eval_start = 0 if eval_start is None else eval_start
+        if custom_intervals is not None and milestones is not None:
+            self.custom_intervals = custom_intervals
+            self.custom_milestones = milestones
+        else:
+            self.custom_intervals = []
+            self.custom_milestones = []
 
     def _should_evaluate(self, runner):
         """Judge whether to perform evaluation.
@@ -44,11 +49,15 @@ class EvalHook(_EvalHook):
             current = runner.iter
             check_time = self.every_n_iters
 
-        if runner.iter + 1 < self.eval_start:
-            return False
+        interval = self.interval
+        for i, m in zip(self.custom_intervals, self.custom_milestones):
+            if current >= m:
+                interval = i
+            else:
+                break
 
         if self.start is None:
-            if not check_time(runner, self.interval):
+            if not check_time(runner, interval):
                 # No evaluation during the interval.
                 return False
         elif (current + 1) < self.start:
@@ -57,7 +66,7 @@ class EvalHook(_EvalHook):
         else:
             # Evaluation only at epochs/iters 3, 5, 7...
             # if start==3 and interval==2
-            if (current + 1 - self.start) % self.interval:
+            if (current + 1 - self.start) % interval:
                 return False
 
         return True
@@ -90,9 +99,14 @@ class DistEvalHook(_DistEvalHook):
 
     greater_keys = ['mIoU', 'mAcc', 'aAcc']
 
-    def __init__(self, *args, by_epoch=False, eval_start=None, **kwargs):
+    def __init__(self, *args, custom_intervals=None, custom_milestones=None, by_epoch=False, **kwargs):
         super().__init__(*args, by_epoch=by_epoch, **kwargs)
-        self.eval_start = 0 if eval_start is None else eval_start
+        if custom_intervals is not None and custom_milestones is not None:
+            self.custom_intervals = custom_intervals
+            self.custom_milestones = custom_milestones
+        else:
+            self.custom_intervals = []
+            self.custom_milestones = []
 
     def _should_evaluate(self, runner):
         """Judge whether to perform evaluation.
@@ -115,11 +129,15 @@ class DistEvalHook(_DistEvalHook):
             current = runner.iter
             check_time = self.every_n_iters
 
-        if runner.iter + 1 < self.eval_start:
-            return False
+        interval = self.interval
+        for i, m in zip(self.custom_intervals, self.custom_milestones):
+            if current >= m:
+                interval = i
+            else:
+                break
 
         if self.start is None:
-            if not check_time(runner, self.interval):
+            if not check_time(runner, interval):
                 # No evaluation during the interval.
                 return False
         elif (current + 1) < self.start:
@@ -128,8 +146,9 @@ class DistEvalHook(_DistEvalHook):
         else:
             # Evaluation only at epochs/iters 3, 5, 7...
             # if start==3 and interval==2
-            if (current + 1 - self.start) % self.interval:
+            if (current + 1 - self.start) % interval:
                 return False
+
         return True
 
     def _do_evaluate(self, runner):
