@@ -51,7 +51,7 @@ class EvalHook(_EvalHook):
 
         interval = self.interval
         for i, m in zip(self.custom_intervals, self.custom_milestones):
-            if current >= m:
+            if (current + 1) >= m:
                 interval = i
             else:
                 break
@@ -131,7 +131,7 @@ class DistEvalHook(_DistEvalHook):
 
         interval = self.interval
         for i, m in zip(self.custom_intervals, self.custom_milestones):
-            if current >= m:
+            if (current + 1) >= m:
                 interval = i
             else:
                 break
