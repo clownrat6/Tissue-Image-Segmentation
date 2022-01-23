@@ -1,11 +1,12 @@
 _base_ = [
-    '../../_base_/datasets/conic_w_dir.py',
+    '../../_base_/datasets/monuseg_w_dir.py',
     '../../_base_/default_runtime.py',
 ]
 
-# datasets settings
-dataset_type = 'NucleiCoNICDataset'
-data_root = 'data/conic'
+# dataset settings
+dataset_type = 'NucleiMoNuSegDataset'
+data_root = 'data/monuseg'
+num_angles = 8
 process_cfg = dict(
     if_flip=True,
     if_jitter=True,
@@ -18,49 +19,60 @@ process_cfg = dict(
     min_size=256,
     max_size=2048,
     resize_mode='fix',
-    edge_id=7,
-    to_center=True,
-    num_angles=4,
+    edge_id=2,
+    to_center=False,
+    num_angles=num_angles,
 )
 data = dict(
     samples_per_gpu=16,
-    workers_per_gpu=8,
+    workers_per_gpu=16,
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='train/',
-        ann_dir='train/',
-        split='train.txt',
+        img_dir='train/c300',
+        ann_dir='train/c300',
+        split='only-train_t12_v4_train_c300.txt',
         process_cfg=process_cfg),
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='val/',
-        ann_dir='val/',
-        split='val.txt',
+        img_dir='train/c0',
+        ann_dir='train/c0',
+        split='only-train_t12_v4_test_c0.txt',
         process_cfg=process_cfg),
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='val/',
-        ann_dir='val/',
-        split='val.txt',
+        img_dir='train/c0',
+        ann_dir='train/c0',
+        split='only-train_t12_v4_test_c0.txt',
         process_cfg=process_cfg),
 )
 
 
+
+epoch_iter = 12
+epoch_num = 400
+max_iters = epoch_iter * epoch_num
+log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=False), dict(type='TensorboardLoggerHook')])
+
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=40000)
+runner = dict(type='IterBasedRunner', max_iters=max_iters)
 
 evaluation = dict(
-    interval=1000,
+    interval=epoch_iter*20,
+    eval_start=0,
+    epoch_iter=epoch_iter,
+    max_iters=max_iters,
+    last_epoch_num=5,
     metric='all',
     save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(
     by_epoch=False,
-    interval=1000,
+    interval=epoch_iter*20,
+    max_keep_ckpts=1,
 )
 
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
@@ -77,8 +89,8 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 model = dict(
     type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
-    num_classes=7,
-    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=4),
+    num_classes=2,
+    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles, parallel=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),

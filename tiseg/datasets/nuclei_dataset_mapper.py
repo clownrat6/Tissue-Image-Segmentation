@@ -42,9 +42,11 @@ class NucleiDatasetMapper(object):
         self.to_center = process_cfg.get('to_center', True)
         self.num_angles = process_cfg.get('num_angles', 8)
         self.num_classes = process_cfg.get('num_classes', 2)
+
         self.with_dir = process_cfg.get('with_dir', False)
         self.with_dist = process_cfg.get('with_dist', False)
         self.with_hv = process_cfg.get('with_hv', False)
+        self.use_distance = process_cfg.get('use_distance', False)
 
         self.min_size = process_cfg['min_size']
         self.max_size = process_cfg['max_size']
@@ -57,14 +59,19 @@ class NucleiDatasetMapper(object):
         self.bluer = RandomBlur(prob=0.5) if self.if_blur else Identity()
         self.cropper = RandomCrop((self.min_size, self.min_size)) if self.if_crop else Identity()
         self.padder = Pad(self.min_size) if self.if_pad else Identity()
+
         self.basic_label_maker = GenBound(edge_id=self.edge_id)
         if self.with_dir:
             self.label_maker = DirectionLabelMake(
-                edge_id=self.edge_id, to_center=self.to_center, num_angles=self.num_angles)
+                edge_id=self.edge_id,
+                to_center=self.to_center,
+                num_angles=self.num_angles,
+                use_distance=self.use_distance)
         elif self.with_dist:
             self.label_maker = DistanceLabelMake(self.num_classes)
         elif self.with_hv:
             self.label_maker = HVLabelMake()
+
         # monuseg dataset tissue image mean & std
         nuclei_mean = [0.68861804, 0.46102882, 0.61138992]
         nuclei_std = [0.19204499, 0.20979484, 0.1658672]
