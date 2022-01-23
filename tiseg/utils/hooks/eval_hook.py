@@ -19,11 +19,11 @@ class EvalHook(_EvalHook):
 
     greater_keys = ['mIoU', 'mAcc', 'aAcc']
 
-    def __init__(self, *args, custom_intervals=None, milestones=None, by_epoch=False, **kwargs):
+    def __init__(self, *args, custom_intervals=None, custom_milestones=None, by_epoch=False, **kwargs):
         super().__init__(*args, by_epoch=by_epoch, **kwargs)
-        if custom_intervals is not None and milestones is not None:
+        if custom_intervals is not None and custom_milestones is not None:
             self.custom_intervals = custom_intervals
-            self.custom_milestones = milestones
+            self.custom_milestones = custom_milestones
         else:
             self.custom_intervals = []
             self.custom_milestones = []
