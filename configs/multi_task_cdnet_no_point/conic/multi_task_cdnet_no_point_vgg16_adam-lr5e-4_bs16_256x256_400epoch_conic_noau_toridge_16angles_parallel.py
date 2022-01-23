@@ -5,6 +5,7 @@ _base_ = [
 # datasets settings
 dataset_type = 'NucleiCoNICDataset'
 data_root = 'data/conic'
+num_angles = 16
 process_cfg = dict(
     if_flip=True,
     if_jitter=True,
@@ -19,11 +20,11 @@ process_cfg = dict(
     resize_mode='fix',
     edge_id=7,
     to_center=False,
-    num_angles=8,
+    num_angles=num_angles,
 )
 data = dict(
     samples_per_gpu=16,
-    workers_per_gpu=8,
+    workers_per_gpu=16,
     train=dict(
         type=dataset_type,
         data_root=data_root,
@@ -47,24 +48,28 @@ data = dict(
         process_cfg=process_cfg),
 )
 
-
-
-
-
-
+epoch_iter = 247
+epoch_num = 400
+max_iters = epoch_iter * epoch_num
+log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=False), dict(type='TensorboardLoggerHook')])
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=40000)
+runner = dict(type='IterBasedRunner', max_iters=max_iters)
 
 evaluation = dict(
-    interval=1000,
+    interval=epoch_iter*5,
+    eval_start=0,
+    epoch_iter=epoch_iter,
+    max_iters=max_iters,
+    last_epoch_num=5,
     metric='all',
     save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(
     by_epoch=False,
-    interval=1000,
+    interval=epoch_iter*5,
+    max_keep_ckpts=1,
 )
 
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
@@ -82,7 +87,7 @@ model = dict(
     type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=7,
-    train_cfg=dict(if_weighted_loss=False, noau=True),
+    train_cfg=dict(if_weighted_loss=False, noau=True, parallel=True, num_angles=num_angles),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
