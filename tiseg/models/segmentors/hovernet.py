@@ -262,23 +262,23 @@ class HoverNet(BaseSegmentor):
             # NOTE: only support batch size = 1 now.
             mask_logit, hv_logit, fore_logit = self.inference(data['img'], metas[0], True)
             mask_pred = mask_logit.argmax(dim=1)
-            fore_pred = fore_logit.argmax(dim=1)
+            fore_logit = F.softmax(fore_logit, dim=1)
             # Extract inside class
             mask_pred = mask_pred.cpu().numpy()
             hv_pred = hv_logit.cpu().numpy()
-            fore_pred = fore_pred.cpu().numpy()
+            fore_logit = fore_logit.cpu().numpy()
             # unravel batch dim
             mask_pred = list(mask_pred)
             hv_pred = list(hv_pred)
-            fore_pred = list(fore_pred)
+            fore_logit = list(fore_logit)
             ret_list = []
-            for mask, hv, fore in zip(mask_pred, hv_pred, fore_pred):
-                inst = self.hover_post_proc(fore, hv)
+            for mask, hv, fore in zip(mask_pred, hv_pred, fore_logit):
+                inst = self.hover_post_proc(fore[1:], hv)
                 ret_list.append({'sem_pred': mask, 'inst_pred': inst})
             return ret_list
 
     def hover_post_proc(self, fore_map, hv_map, fx=1):
-        blb_raw = fore_map
+        blb_raw = fore_map[0]
         h_dir_raw = hv_map[0]
         v_dir_raw = hv_map[1]
 
