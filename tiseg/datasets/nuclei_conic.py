@@ -189,7 +189,7 @@ class NucleiCoNICDataset(Dataset):
                     sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
             else:
                 sem_pred = sem_pred
-                inst_pred = inst_pred
+                inst_pred = pred['inst_pred']
 
             # semantic metric calculation (remove background class)
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
