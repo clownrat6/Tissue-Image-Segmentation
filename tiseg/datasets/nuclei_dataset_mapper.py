@@ -38,6 +38,7 @@ class NucleiDatasetMapper(object):
         self.if_norm = process_cfg.get('if_norm', False)
         self.to_center = process_cfg.get('to_center', True)
         self.num_angles = process_cfg.get('num_angles', 8)
+        self.use_distance = process_cfg.get('use_distance', False)
 
         self.min_size = process_cfg['min_size']
         self.max_size = process_cfg['max_size']
@@ -52,7 +53,7 @@ class NucleiDatasetMapper(object):
         self.cropper = RandomCrop((self.min_size, self.min_size)) if self.if_crop else Identity()
         self.padder = Pad(self.min_size) if self.if_pad else Identity()
         self.label_maker = DirectionLabelMake(
-            edge_id=self.edge_id, to_center=self.to_center, num_angles=self.num_angles) if self.with_dir else GenBound(
+            edge_id=self.edge_id, to_center=self.to_center, num_angles=self.num_angles, use_distance=self.use_distance) if self.with_dir else GenBound(
                 edge_id=self.edge_id)
         # monuseg dataset tissue image mean & std
         nuclei_mean = [0.68861804, 0.46102882, 0.61138992]

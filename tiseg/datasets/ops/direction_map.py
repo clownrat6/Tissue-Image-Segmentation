@@ -69,13 +69,14 @@ class GenBound:
 class DirectionLabelMake(object):
     """build direction label & point label for any dataset."""
 
-    def __init__(self, edge_id, to_center=True, num_angles=8):
+    def __init__(self, edge_id, to_center=True, num_angles=8, use_distance=False):
         # If input with edge, re_edge can be set to False.
         # However, in order to generate better boundary, we will re-generate
         # edge.
         self.edge_id = edge_id
         self.to_center = to_center
         self.num_angles = num_angles
+        self.use_distance = use_distance
 
     def __call__(self, sem_map, inst_map):
         """generate boundary label & direction from instance map and pure semantic map.
@@ -134,8 +135,10 @@ class DirectionLabelMake(object):
             weight_map = weight_map * 10.
         else:
             weight_map = np.zeros_like(dir_map)
-
-        results['point_gt'] = point_map
+        if self.use_distance:
+            results['point_gt'] = point_map
+        else:
+            results['point_gt'] = dist_map
         results['dir_gt'] = dir_map
         results['reg_dir_gt'] = reg_dir_map
         results['loss_weight_map'] = weight_map
