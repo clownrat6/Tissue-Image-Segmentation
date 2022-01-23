@@ -4,8 +4,9 @@ import torch.nn.functional as F
 from mmcv.cnn import ConvModule
 
 from tiseg.utils import resize
+from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
-from ..losses import mdice, tdice
+from ..losses import mdice, tdice, BatchMultiClassDiceLoss
 from .base import BaseSegmentor
 
 
@@ -60,46 +61,17 @@ class DCAN(BaseSegmentor):
         self.test_cfg = test_cfg
         self.num_classes = num_classes
 
-        # NOTE: raw dcan has no norm operations.
-        # norm_cfg = dict(type='BN')
-        norm_cfg = None
-        act_cfg = dict(type='ReLU')
-
-        b_dims = 64
-        self.conv1 = conv3x3(3, b_dims, norm_cfg, act_cfg)  # 64xHxW
-        self.conv2 = nn.Sequential(*[
-            conv3x3(b_dims, b_dims * 2, norm_cfg, act_cfg),
-            nn.MaxPool2d(2, 2),
-        ])  # 128
-        self.conv3 = nn.Sequential(*[
-            conv3x3(b_dims * 2, b_dims * 4, norm_cfg, act_cfg),
-            nn.MaxPool2d(2, 2),
-        ])  # 256
-        self.conv4 = nn.Sequential(*[
-            conv3x3(b_dims * 4, b_dims * 8, norm_cfg, act_cfg),
-            nn.MaxPool2d(2, 2),
-        ])  # 512
-        self.conv5 = nn.Sequential(*[
-            conv3x3(b_dims * 8, b_dims * 8, norm_cfg, act_cfg),
-            nn.MaxPool2d(2, 2),
-        ])  # 512
-        self.conv6 = nn.Sequential(*[
-            conv3x3(b_dims * 8, b_dims * 16, norm_cfg, act_cfg),
-            nn.MaxPool2d(2, 2),
-        ])  # 1024
-
-        self.dropout5 = nn.Dropout2d(p=0.5)
-        self.dropout6 = nn.Dropout2d(p=0.5)
+        self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
 
         # NOTE: refine upsampling method.
-        self.up_conv_4_cell = up_convs(b_dims * 8, num_classes - 1, 3)
-        self.up_conv_4_cont = up_convs(b_dims * 8, 2, 3)
+        self.up_conv_4_cell = up_convs(512, num_classes - 1, 3)
+        self.up_conv_4_cont = up_convs(512, 2, 3)
 
-        self.up_conv_5_cell = up_convs(b_dims * 8, num_classes - 1, 4)
-        self.up_conv_5_cont = up_convs(b_dims * 8, 2, 4)
+        self.up_conv_5_cell = up_convs(512, num_classes - 1, 4)
+        self.up_conv_5_cont = up_convs(512, 2, 4)
 
-        self.up_conv_6_cell = up_convs(b_dims * 16, num_classes - 1, 5)
-        self.up_conv_6_cont = up_convs(b_dims * 16, 2, 5)
+        self.up_conv_6_cell = up_convs(512, num_classes - 1, 5)
+        self.up_conv_6_cont = up_convs(512, 2, 5)
 
         # NOTE: raw upsampling method.
         # self.up_conv_4_cell = nn.Sequential(
@@ -115,23 +87,16 @@ class DCAN(BaseSegmentor):
         # self.up_conv_6_cont = nn.Sequential(*[nn.ConvTranspose2d(b_dims * 16, 2, kernel_size=64, stride=32)])
 
     def calculate(self, img):
-        conv1 = self.conv1(img)
-        conv2 = self.conv2(conv1)
-        conv3 = self.conv3(conv2)
-        conv4 = self.conv4(conv3)
-        conv5 = self.conv5(conv4)
-        conv5 = self.dropout5(conv5)
-        conv6 = self.conv6(conv5)
-        conv6 = self.dropout6(conv6)
+        img_feats = self.backbone(img)
 
-        cell_4 = self.up_conv_4_cell(conv4)
-        cont_4 = self.up_conv_4_cont(conv4)
+        cell_4 = self.up_conv_4_cell(img_feats[-3])
+        cont_4 = self.up_conv_4_cont(img_feats[-3])
 
-        cell_5 = self.up_conv_5_cell(conv5)
-        cont_5 = self.up_conv_5_cont(conv5)
+        cell_5 = self.up_conv_5_cell(img_feats[-2])
+        cont_5 = self.up_conv_5_cont(img_feats[-2])
 
-        cell_6 = self.up_conv_6_cell(conv6)
-        cont_6 = self.up_conv_6_cont(conv6)
+        cell_6 = self.up_conv_6_cell(img_feats[-1])
+        cont_6 = self.up_conv_6_cont(img_feats[-1])
 
         cell_logit = cell_4 + cell_5 + cell_6
         cont_logit = cont_4 + cont_5 + cont_6
@@ -178,26 +143,31 @@ class DCAN(BaseSegmentor):
         """calculate mask branch loss."""
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes - 1)
+        cont_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=2)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         cell_ce_loss = torch.mean(mask_ce_loss_calculator(cell_logit, mask_label.long()))
+        cell_dice_loss = mask_dice_loss_calculator(cell_logit, mask_label.long())
         cont_ce_loss = torch.mean(mask_ce_loss_calculator(cont_logit, (tc_mask_label == 2).long()))
+        cont_dice_loss = cont_dice_loss_calculator(cont_logit, (tc_mask_label == 2).long())
         # loss weight
-        alpha = 1
-        beta = 1
+        alpha = 5
+        beta = 0.5
         mask_loss['cell_ce_loss'] = alpha * cell_ce_loss
-        mask_loss['cont_ce_loss'] = beta * cont_ce_loss
+        mask_loss['cont_ce_loss'] = alpha * cont_ce_loss
+        mask_loss['cell_dice_loss'] = beta * cell_dice_loss
+        mask_loss['cont_dice_loss'] = beta * cont_dice_loss
 
         return mask_loss
 
     def inference(self, img, meta, rescale):
         """Inference with split/whole style.
-
         Args:
             img (Tensor): The input image of shape (N, 3, H, W).
             meta (dict): Image info dict.
             rescale (bool): Whether rescale back to original shape.
-
+        
         Returns:
             Tensor: The output segmentation map.
         """

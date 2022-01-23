@@ -1,27 +1,28 @@
 _base_ = [
-    '../_base_/datasets/cpm17.py',
+    '../_base_/datasets/monuseg_w_hv.py',
     '../_base_/default_runtime.py',
 ]
 
-log_config = dict(interval=30)
-
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=7000)
+runner = dict(type='EpochBasedRunner', max_epochs=300)
 
 evaluation = dict(
-    interval=30,
-    eval_start=6700,
+    interval=50,
+    custom_intervals=[1],
+    custom_milestones=[295],
+    by_epoch=True,
     metric='all',
     save_best='Aji',
     rule='greater',
 )
+
 checkpoint_config = dict(
-    by_epoch=False,
-    interval=500,
+    by_epoch=True,
+    interval=50,
     max_keep_ckpts=1,
 )
 
-optimizer = dict(type='RAdam', lr=0.0005, weight_decay=0.0005)
+optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
 optimizer_config = dict()
 
 # NOTE: poly learning rate decay
@@ -29,11 +30,15 @@ optimizer_config = dict()
 #     policy='poly', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, power=1.0, min_lr=0.0, by_epoch=False)
 
 # NOTE: fixed learning rate decay
-lr_config = dict(policy='fixed', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, by_epoch=False)
+# lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-6, by_epoch=False)
+
+# NOTE: step learning rate decay
+lr_config = dict(
+    policy='step', by_epoch=True, step=[200], gamma=0.1, warmup='linear', warmup_iters=100, warmup_ratio=1e-6)
 
 # model settings
 model = dict(
-    type='UNetSegmentor',
+    type='DCAN',
     # model training and testing settings
     num_classes=3,
     train_cfg=dict(),

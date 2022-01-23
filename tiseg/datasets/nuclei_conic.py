@@ -26,11 +26,9 @@ from .utils import (re_instance, mudslide_watershed, align_foreground, get_tc_fr
 @DATASETS.register_module()
 class NucleiCoNICDataset(Dataset):
     """Nuclei Custom Foundation Segmentation Dataset.
-
     Although, this dataset is a instance segmentation task, this dataset also
     support a multiple class semantic segmentation task (Background, Nuclei1, Nuclei2, ...).
     The basic settings only supports two-class nuclei segmentation task.
-
     related suffix:
         "_semantic.png": raw semantic map (seven class semantic map without
             boundary).
@@ -83,10 +81,8 @@ class NucleiCoNICDataset(Dataset):
 
     def __getitem__(self, index):
         """Get training/test data after pipeline.
-
         Args:
             idx (int): Index of data.
-
         Returns:
             dict: Training/test data (with annotation if `test_mode` is set
                 False).
@@ -96,7 +92,6 @@ class NucleiCoNICDataset(Dataset):
 
     def load_annotations(self, img_dir, ann_dir, img_suffix, sem_suffix, inst_suffix, split=None):
         """Load annotation from directory.
-
         Args:
             img_dir (str): Path to image directory.
             ann_dir (str): Path to annotation directory.
@@ -104,7 +99,6 @@ class NucleiCoNICDataset(Dataset):
             ann_suffix (str): Suffix of segmentation maps.
             split (str | None): Split txt file. If split is specified, only
                 file with suffix in the splits will be loaded.
-
         Returns:
             list[dict]: All data info of dataset, data info contains image,
                 segmentation map.
@@ -137,7 +131,6 @@ class NucleiCoNICDataset(Dataset):
 
     def pre_eval(self, preds, indices, show=False, show_folder='.nuclei_show'):
         """Collect eval result from each iteration.
-
         Args:
             preds (list[torch.Tensor] | torch.Tensor): the segmentation logit
                 after argmax, shape (N, H, W).
@@ -147,7 +140,6 @@ class NucleiCoNICDataset(Dataset):
                 ground truth. Default: False
             show_folder (str | None, optional): The folder path of
                 illustration. Default: None
-
         Returns:
             list[torch.Tensor]: (area_intersect, area_union, area_prediction,
                 area_ground_truth).
@@ -182,19 +174,22 @@ class NucleiCoNICDataset(Dataset):
 
             # metric calculation & post process codes:
             sem_pred = pred['sem_pred'].copy()
-
-            if 'dir_pred' in pred:
-                dir_pred = pred['dir_pred']
-                tc_sem_pred = pred['tc_sem_pred']
-                sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_sem_pred, sem_pred)
-            elif 'tc_sem_pred' in pred:
-                tc_sem_pred = pred['tc_sem_pred']
-                sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_sem_pred, sem_pred)
+            if 'inst_pred' not in pred:
+                if 'dir_pred' in pred:
+                    dir_pred = pred['dir_pred']
+                    tc_sem_pred = pred['tc_sem_pred']
+                    sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_sem_pred, sem_pred)
+                elif 'tc_sem_pred' in pred:
+                    tc_sem_pred = pred['tc_sem_pred']
+                    sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_sem_pred, sem_pred)
+                else:
+                    # remove edge
+                    sem_pred[sem_pred == len(self.CLASSES)] = 0
+                    # model-agnostic post process operations
+                    sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
             else:
-                # remove edge
-                sem_pred[sem_pred == len(self.CLASSES)] = 0
-                # model-agnostic post process operations
-                sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
+                sem_pred = sem_pred
+                inst_pred = pred['inst_pred']
 
             # semantic metric calculation (remove background class)
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
@@ -345,7 +340,6 @@ class NucleiCoNICDataset(Dataset):
 
     def evaluate(self, results, logger=None, **kwargs):
         """Evaluate the dataset.
-
         Args:
             processor (object): The result processor.
             metric (str | list[str]): Metrics to be evaluated. 'Aji',
@@ -354,7 +348,6 @@ class NucleiCoNICDataset(Dataset):
                 related information during evaluation. Default: None.
             dump_path (str | None, optional): The dump path of each item
                 evaluation results. Default: None
-
         Returns:
             dict[str, float]: Default metrics.
         """

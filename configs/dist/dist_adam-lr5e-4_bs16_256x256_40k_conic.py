@@ -1,24 +1,20 @@
 _base_ = [
-    '../_base_/datasets/conic.py',
+    '../_base_/datasets/monuseg_w_dist.py',
     '../_base_/default_runtime.py',
 ]
 
 # runtime settings
-runner = dict(type='EpochBasedRunner', max_epochs=100)
+runner = dict(type='IterBasedRunner', max_iters=2500)
 
 evaluation = dict(
-    interval=50,
-    custom_intervals=[1],
-    custom_milestones=[95],
-    by_epoch=True,
+    interval=500,
     metric='all',
-    save_best='mAji',
+    save_best='Aji',
     rule='greater',
 )
-
 checkpoint_config = dict(
-    by_epoch=True,
-    interval=50,
+    by_epoch=False,
+    interval=500,
     max_keep_ckpts=1,
 )
 
@@ -30,17 +26,13 @@ optimizer_config = dict()
 #     policy='poly', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, power=1.0, min_lr=0.0, by_epoch=False)
 
 # NOTE: fixed learning rate decay
-# lr_config = dict(policy='fixed', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, by_epoch=False)
-
-# NOTE: step learning rate decay
-lr_config = dict(
-    policy='step', by_epoch=True, step=[70], gamma=0.1, warmup='linear', warmup_iters=100, warmup_ratio=1e-6)
+lr_config = dict(policy='fixed', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, by_epoch=False)
 
 # model settings
 model = dict(
-    type='UNetSegmentor',
+    type='DIST',
     # model training and testing settings
-    num_classes=8,
+    num_classes=6,
     train_cfg=dict(),
     test_cfg=dict(
         mode='split',

@@ -73,8 +73,8 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
             if self.use_sigmoid:
                 seg_logit = seg_logit[:, 1:]
                 seg_pred = seg_logit.argmax(dim=1) + 1
-                seg_logit = seg_logit.max(dim = 1)[0]
-                seg_pred[seg_logit < 0.5] = 0 
+                seg_logit = seg_logit.max(dim=1)[0]
+                seg_pred[seg_logit < 0.5] = 0
             else:
                 seg_pred = seg_logit.argmax(dim=1)
             # Extract inside class
@@ -100,14 +100,13 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
             Tensor: The output segmentation map.
         """
         assert self.test_cfg.mode in ['split', 'whole']
-        
+
         self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
         tc_sem_logit_list = []
         sem_logit_list = []
         img_ = img
 
-        
         for rotate_degree in self.rotate_degrees:
             for flip_direction in self.flip_directions:
                 img = self.tta_transform(img_, rotate_degree, flip_direction)
@@ -124,7 +123,7 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
                 tc_sem_logit = F.softmax(tc_sem_logit, dim=1)
                 if self.use_sigmoid:
                     sem_logit = sem_logit.sigmoid()
-                else:    
+                else:
                     sem_logit = F.softmax(sem_logit, dim=1)
 
                 tc_sem_logit_list.append(tc_sem_logit)
@@ -204,7 +203,7 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
         use_focal = self.train_cfg.get('use_focal', False)
         use_level = self.train_cfg.get('use_level', False)
         use_ac = self.train_cfg.get('use_ac', False)
-        
+
         assert not (use_focal and use_level and use_ac), 'Can\'t use focal loss & deep level set loss at the same time.'
         if self.use_sigmoid:
             if use_ac:
@@ -223,8 +222,8 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
                 mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
                 mask_loss['mask_bce_loss'] = alpha * mask_bce_loss
                 mask_loss['mask_dice_loss'] = beta * mask_dice_loss
-                
-        else: 
+
+        else:
             if use_focal:
                 mask_focal_loss_calculator = RobustFocalLoss2d(type='softmax')
                 mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
@@ -281,7 +280,7 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
         if self.use_sigmoid:
             clean_mask_logit = mask_logit.sigmoid().clone().detach()
             clean_mask_label = mask_label.clone().detach()
-            clean_mask_logit[:, 0] = 1 - (clean_mask_logit[:, 1:].max(dim = 1)[0])
+            clean_mask_logit[:, 0] = 1 - (clean_mask_logit[:, 1:].max(dim=1)[0])
         else:
             clean_mask_logit = mask_logit.clone().detach()
             clean_mask_label = mask_label.clone().detach()
