@@ -167,7 +167,7 @@ class DCAN(BaseSegmentor):
             img (Tensor): The input image of shape (N, 3, H, W).
             meta (dict): Image info dict.
             rescale (bool): Whether rescale back to original shape.
-        
+
         Returns:
             Tensor: The output segmentation map.
         """
@@ -199,6 +199,10 @@ class DCAN(BaseSegmentor):
 
         cell_logit = sum(cell_logit_list) / len(cell_logit_list)
         cont_logit = sum(cont_logit_list) / len(cont_logit_list)
+
+        if rescale:
+            cell_logit = resize(cell_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+            cont_logit = resize(cont_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
 
         return cell_logit, cont_logit
 
@@ -246,9 +250,6 @@ class DCAN(BaseSegmentor):
 
         cell_logit = cell_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
         cont_logit = cont_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
-        if rescale:
-            cell_logit = resize(cell_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            cont_logit = resize(cont_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
 
         return cell_logit, cont_logit
 
@@ -256,9 +257,6 @@ class DCAN(BaseSegmentor):
         """Inference with full image."""
 
         cell_logit, cont_logit = self.calculate(img)
-        if rescale:
-            cell_logit = resize(cell_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            cont_logit = resize(cont_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
 
         return cell_logit, cont_logit
 

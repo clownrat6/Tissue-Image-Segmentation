@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 
-from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads import UNetHead
@@ -33,7 +32,6 @@ class UNetSegmentor(BaseSegmentor):
         bottom_feat = img_feats[-1]
         skip_feats = img_feats[:-1]
         mask_logit = self.head(bottom_feat, skip_feats)
-        mask_logit = resize(input=mask_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
 
         return mask_logit
 

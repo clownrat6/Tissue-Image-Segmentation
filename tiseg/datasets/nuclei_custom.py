@@ -17,7 +17,7 @@ from torch.utils.data import Dataset
 from tiseg.utils import (dice_similarity_coefficient, precision_recall, pre_eval_all_semantic_metric,
                          pre_eval_to_sem_metrics, pre_eval_bin_aji, pre_eval_aji, pre_eval_bin_pq, pre_eval_pq,
                          pre_eval_to_bin_aji, pre_eval_to_aji, pre_eval_to_bin_pq, pre_eval_to_pq,
-                         pre_eval_to_sample_pq, pre_eval_to_imw_pq, pre_eval_to_imw_aji)
+                         pre_eval_to_sample_pq, pre_eval_to_imw_pq, pre_eval_to_imw_aji, binary_inst_dice)
 
 from .builder import DATASETS
 from .nuclei_dataset_mapper import NucleiDatasetMapper
@@ -307,6 +307,8 @@ class NucleiCustomDataset(Dataset):
             inst_pred = measure.label(inst_pred.copy())
             inst_gt = measure.label(inst_gt.copy())
 
+            inst_dice_metric = binary_inst_dice(inst_pred, inst_gt)
+
             pred_id_list_per_class = assign_sem_class_to_insts(inst_pred, sem_pred, len(self.CLASSES))
             gt_id_list_per_class = assign_sem_class_to_insts(inst_gt, sem_gt, len(self.CLASSES))
 
@@ -325,6 +327,7 @@ class NucleiCustomDataset(Dataset):
             single_loop_results = dict(
                 name=data_id,
                 Aji=imw_aji,
+                instDice=inst_dice_metric,
                 Dice=dice_metric,
                 Recall=recall_metric,
                 Precision=precision_metric,
@@ -443,7 +446,7 @@ class NucleiCustomDataset(Dataset):
         img_ret_metrics = {}
         ret_metrics = {}
 
-        img_keys = ['name', 'Aji', 'Dice', 'Recall', 'Precision']
+        img_keys = ['name', 'instDice', 'Aji', 'Dice', 'Recall', 'Precision']
         # list to dict
         for result in results:
             for key, value in result.items():
@@ -480,7 +483,7 @@ class NucleiCustomDataset(Dataset):
         [img_ret_metrics.update(x) for x in pre_eval_to_sample_pq(pq_pre_eval_results)]
 
         total_inst_keys = [
-            'bAji', 'imwAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ'
+            'instDice', 'bAji', 'imwAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ'
         ]
         total_inst_metrics = {}
         total_analysis_keys = ['pq_bTP', 'pq_bFP', 'pq_bFN', 'pq_bIoU', 'pq_mTP', 'pq_mFP', 'pq_mFN', 'pq_mIoU']

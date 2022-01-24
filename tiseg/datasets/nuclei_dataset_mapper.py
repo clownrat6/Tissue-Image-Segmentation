@@ -7,9 +7,9 @@ from PIL import Image
 
 from tiseg.datasets.ops.hv_map import HVLabelMake
 
-from .ops import (ColorJitter, DirectionLabelMake, DistanceLabelMake, Identity, GenBound, RandomBlur, RandomFlip,
-                  RandomElasticDeform, RandomCrop, Normalize, Pad, format_, format_img, format_info, format_reg,
-                  format_seg)
+from .ops import (Resize, ColorJitter, DirectionLabelMake, DistanceLabelMake, Identity, GenBound, RandomBlur,
+                  RandomFlip, RandomElasticDeform, RandomCrop, Normalize, Pad, format_, format_img, format_info,
+                  format_reg, format_seg)
 
 
 def read_image(path):
@@ -32,6 +32,7 @@ class NucleiDatasetMapper(object):
         self.test_mode = test_mode
 
         # training argument
+        self.if_resize = process_cfg.get('if_resize', False)
         self.if_flip = process_cfg.get('if_flip', False)
         self.if_jitter = process_cfg.get('if_jitter', False)
         self.if_elastic = process_cfg.get('if_elastic', False)
@@ -53,6 +54,7 @@ class NucleiDatasetMapper(object):
         self.resize_mode = process_cfg['resize_mode']
         self.edge_id = process_cfg['edge_id']
 
+        self.resizer = Resize(self.min_size, self.max_size, self.resize_mode) if self.if_resize else Identity()
         self.color_jitter = ColorJitter() if self.if_jitter else Identity()
         self.flipper = RandomFlip(prob=0.5, direction=['horizontal']) if self.if_flip else Identity()
         self.deformer = RandomElasticDeform(prob=0.5) if self.if_elastic else Identity()
@@ -96,6 +98,7 @@ class NucleiDatasetMapper(object):
             # 2. Random Horizontal Flip
             # 3. Random Elastic Transform
             # 4. Random Crop
+            img, segs = self.resizer(img, segs)
             img = self.color_jitter(img)
             img, segs = self.flipper(img, segs)
             img, segs = self.deformer(img, segs)
@@ -106,6 +109,7 @@ class NucleiDatasetMapper(object):
             sem_seg = segs[0]
             inst_seg = segs[1]
         else:
+            img, _ = self.resizer(img, [])
             img = self.normalizer(img)
 
         h, w = img.shape[:2]

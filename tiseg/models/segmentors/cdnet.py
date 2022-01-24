@@ -144,9 +144,15 @@ class CDNetSegmentor(BaseSegmentor):
         sem_logit = sum(sem_logit_list) / len(sem_logit_list)
         point_logit = sum(point_logit_list) / len(point_logit_list)
 
+        if rescale:
+            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+            point_logit = resize(point_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+
         dd_map_list = []
         dir_map_list = []
         for dir_logit in dir_logit_list:
+            if rescale:
+                dir_logit = resize(dir_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
             dir_logit[:, 0] = dir_logit[:, 0] * sem_logit[:, 0]
             dir_map = torch.argmax(dir_logit, dim=1)
             dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
@@ -208,20 +214,13 @@ class CDNetSegmentor(BaseSegmentor):
         sem_logit = sem_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
         dir_logit = dir_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
         point_logit = point_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
-        if rescale:
-            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            dir_logit = resize(dir_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            point_logit = resize(point_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+
         return sem_logit, dir_logit, point_logit
 
     def whole_inference(self, img, meta, rescale):
         """Inference with full image."""
 
         sem_logit, dir_logit, point_logit = self.calculate(img)
-        if rescale:
-            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            dir_logit = resize(dir_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            point_logit = resize(point_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
 
         return sem_logit, dir_logit, point_logit
 

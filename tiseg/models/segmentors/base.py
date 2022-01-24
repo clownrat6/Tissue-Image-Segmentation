@@ -288,16 +288,12 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
                                                                           ind2_s - j:ind2_e - j]
 
         sem_logit = sem_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
-        if rescale:
-            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
         return sem_logit
 
     def whole_inference(self, img, meta, rescale):
         """Inference with full image."""
 
         sem_logit = self.calculate(img)
-        if rescale:
-            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
 
         return sem_logit
 
@@ -334,6 +330,9 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
                 sem_logit_list.append(sem_logit)
 
         sem_logit = sum(sem_logit_list) / len(sem_logit_list)
+
+        if rescale:
+            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
 
         return sem_logit
 

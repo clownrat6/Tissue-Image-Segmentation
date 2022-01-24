@@ -397,6 +397,15 @@ def panoptic_quality(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, match_io
     return dq, sq, dq * sq
 
 
+def binary_inst_dice(inst_pred, inst_gt, match_iou=0.5):
+    res = pre_eval_bin_pq(inst_pred, inst_gt, match_iou)
+    tp = res[0]
+    fp = res[1]
+    fn = res[2]
+
+    return 2 * tp / (2 * tp + fp + fn)
+
+
 def pre_eval_to_bin_aji(pre_eval_results, nan_to_num=None):
     """Convert aji pre-eval overall intersection & pre-eval overall union to aji score."""
     # convert list of tuples to tuple of lists, e.g.
@@ -455,7 +464,7 @@ def pre_eval_to_aji(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=T
     overall_inter = sum(pre_eval_results[0])
     overall_union = sum(pre_eval_results[1])
 
-    aji = overall_inter / (overall_union + + 1e-6)
+    aji = overall_inter / (overall_union + +1e-6)
 
     if reduce_zero_class_insts:
         maji = np.mean(aji[1:])
