@@ -14,6 +14,6 @@ from .hovernet import HoverNet
 
 __all__ = [
     'UNetSegmentor', 'CDNetSegmentor', 'CDNetVoronoiSegmentor', 'MultiTaskUNetSegmentor', 'MultiTaskCDNetSegmentor',
-    'RegCDNetSegmentor', 'RegDegreeCDNetSegmentor', 'MultiTaskCDHeadNoPoint', 'MultiTaskCDNetSegmentorNoPoint',
-    'MultiTaskCDNetVoronoiSegmentor', 'DCAN', 'DIST', 'FullNet', 'HoverNet'
+    'RegCDNetSegmentor', 'RegDegreeCDNetSegmentor', 'MultiTaskCDNetSegmentorNoPoint', 'MultiTaskCDNetVoronoiSegmentor',
+    'DCAN', 'DIST', 'FullNet', 'HoverNet'
 ]
