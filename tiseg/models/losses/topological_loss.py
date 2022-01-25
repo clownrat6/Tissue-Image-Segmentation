@@ -39,6 +39,7 @@ class TopologicalLoss(nn.Module):
             loss = torch.sum(dir_mse_loss * all_contour) / torch.sum(all_contour)
         else:
             all_contour = (pred_contour + target_contour) > 0
+            loss = 0
             if self.use_dice:
                 assert target.ndim == 3
                 # one-hot encoding for target
@@ -48,7 +49,6 @@ class TopologicalLoss(nn.Module):
                  # softmax for logit
                 logit = F.softmax(pred, dim=1)
                 N, C, _, _ = target_one_hot.shape
-                loss = 0
                 
                 for i in range(1, C):
                     logit_per_class = logit[:, i] * all_contour
@@ -70,16 +70,15 @@ class TopologicalLoss(nn.Module):
 
                     dice_loss_per_class = 1 - dice_loss_per_class
                     loss += dice_loss_per_class
-            else:
-                dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-                dir_ce_loss = dir_ce_loss_calculator(pred, target)
             
-                if self.weight:
-                    pred_dir = torch.argmax(pred, dim=1)
-                    diff = torch.abs(pred_dir - target)
-                    weight = diff.min(self.num_angles - diff) + 1
-                    background = (pred_dir == 0) + (target == 0)
-                    weight[background > 0] = 2
-                    dir_ce_loss = dir_ce_loss * weight
-                loss = torch.sum(dir_ce_loss * all_contour) / torch.sum(all_contour)
+            dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+            dir_ce_loss = dir_ce_loss_calculator(pred, target)
+            if self.weight:
+                pred_dir = torch.argmax(pred, dim=1)
+                diff = torch.abs(pred_dir - target)
+                weight = diff.min(self.num_angles - diff) + 1
+                background = (pred_dir == 0) + (target == 0)
+                weight[background > 0] = 2
+                dir_ce_loss = dir_ce_loss * weight
+            loss += torch.sum(dir_ce_loss * all_contour) / torch.sum(all_contour)
         return loss
