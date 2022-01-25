@@ -12,7 +12,7 @@ evaluation = dict(
     custom_milestones=[95],
     by_epoch=True,
     metric='all',
-    save_best='Aji',
+    save_best='mDice',
     rule='greater',
 )
 checkpoint_config = dict(
