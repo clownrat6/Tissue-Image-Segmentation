@@ -74,7 +74,7 @@ evaluation = dict(
 )
 checkpoint_config = dict(
     by_epoch=True,
-    interval=50,
+    interval=1,
     max_keep_ckpts=5,
 )
 
@@ -90,7 +90,7 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 
 # model settings
 model = dict(
-    type='MultiTaskCDNetSegmentorNoPoint',
+    type='MultiTaskCDNetSegmentor',
     # model training and testing settings
     num_classes=2,
     train_cfg=dict(
