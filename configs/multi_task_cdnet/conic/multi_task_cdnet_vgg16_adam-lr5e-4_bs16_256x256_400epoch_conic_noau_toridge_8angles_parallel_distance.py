@@ -22,6 +22,7 @@ process_cfg = dict(
     edge_id=7,
     to_center=False,
     num_angles=num_angles,
+    use_distance=True,
 )
 data = dict(
     samples_per_gpu=16,
@@ -90,7 +91,8 @@ model = dict(
     train_cfg=dict(
         if_weighted_loss=False,
         num_angles = num_angles,
-        parallel = True, 
+        parallel = True,
+        noau=True, 
     ),
     test_cfg=dict(
         mode='split',

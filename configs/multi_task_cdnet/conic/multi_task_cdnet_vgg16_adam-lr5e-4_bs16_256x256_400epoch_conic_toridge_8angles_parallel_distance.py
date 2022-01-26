@@ -22,6 +22,7 @@ process_cfg = dict(
     edge_id=7,
     to_center=False,
     num_angles=num_angles,
+    use_distance=True,
 )
 data = dict(
     samples_per_gpu=16,
@@ -48,6 +49,8 @@ data = dict(
         split='val.txt',
         process_cfg=process_cfg),
 )
+
+
 
 epoch_iter = 247
 epoch_num = 400
@@ -86,12 +89,8 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 model = dict(
     type='MultiTaskCDNetSegmentor',
     # model training and testing settings
-    num_classes=7,
-    train_cfg=dict(
-        if_weighted_loss=False,
-        num_angles = num_angles,
-        parallel = True, 
-    ),
+    num_classes=2,
+    train_cfg=dict(if_weighted_loss=False, num_angles=num_angles, parallel=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
