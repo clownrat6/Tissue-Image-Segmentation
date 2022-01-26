@@ -6,27 +6,26 @@ _base_ = [
 epoch_iter = 12
 epoch_num = 400
 max_iters = epoch_iter * epoch_num
-log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True), dict(type='TensorboardLoggerHook')])
+log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=False), dict(type='TensorboardLoggerHook')])
 
 # runtime settings
-runner = dict(type='EpochBasedRunner', max_epochs=400)
+runner = dict(type='IterBasedRunner', max_iters=max_iters)
 
 evaluation = dict(
-    interval=50,
-    custom_intervals=[1],
-    custom_milestones=[395],
-    by_epoch=True,
+    interval=epoch_iter*20,
+    eval_start=0,
+    epoch_iter=epoch_iter,
+    max_iters=max_iters,
+    last_epoch_num=5,
     metric='all',
-    save_best='Aji',
+    save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(
-    by_epoch=True,
-    interval=1,
-    max_keep_ckpts=5,
+    by_epoch=False,
+    interval=epoch_iter*20,
+    max_keep_ckpts=1,
 )
-
-
 
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
 optimizer_config = dict()
@@ -43,7 +42,7 @@ model = dict(
     type='MultiTaskUNetSegmentor',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(),
+    train_cfg=dict(use_ac=True, ac_len_weight=0),
     test_cfg=dict(
         mode='whole',
         rotate_degrees=[0, 90],
