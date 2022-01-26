@@ -89,7 +89,7 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 model = dict(
     type='MultiTaskCDNetSegmentor',
     # model training and testing settings
-    num_classes=2,
+    num_classes=7,
     train_cfg=dict(if_weighted_loss=False, num_angles=num_angles, parallel=True),
     test_cfg=dict(
         mode='split',
