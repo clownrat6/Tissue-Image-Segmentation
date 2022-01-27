@@ -6,6 +6,8 @@ from .nuclei_monuseg import NucleiMoNuSegDataset
 from .nuclei_conic import NucleiCoNICDataset
 from .carton_oscd import CartonOSCDDataset
 from .nuclei_glas import NucleiGlasDataset
+from .nuclei_conic_w_dir import NucleiCoNICDatasetWithDirection
+from .nuclei_monuseg_w_dir import NucleiMoNuSegDatasetWithDirection
 
 __all__ = [
     'DATASETS',
@@ -18,5 +20,7 @@ __all__ = [
     'NucleiCustomDataset',
     'NucleiCoNICDataset',
     'CartonOSCDDataset',
-    'NucleiGlasDataset'
+    'NucleiGlasDataset',
+    'NucleiCoNICDatasetWithDirection',
+    'NucleiMoNuSegDatasetWithDirection'
 ]

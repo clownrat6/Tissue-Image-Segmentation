@@ -1,5 +1,5 @@
 # dataset settings
-dataset_type = 'NucleiCoNICDataset'
+dataset_type = 'NucleiCoNICDatasetWithDirection'
 data_root = 'data/conic'
 process_cfg = dict(
     if_flip=True,
@@ -10,6 +10,7 @@ process_cfg = dict(
     if_pad=True,
     if_norm=False,
     with_dir=True,
+    test_with_dir=True,
     min_size=256,
     max_size=2048,
     resize_mode='fix',

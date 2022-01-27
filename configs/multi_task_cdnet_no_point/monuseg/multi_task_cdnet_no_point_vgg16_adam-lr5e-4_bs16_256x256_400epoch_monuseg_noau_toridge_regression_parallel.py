@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 # dataset settings
-dataset_type = 'NucleiMoNuSegDataset'
+dataset_type = 'NucleiMoNuSegDatasetWithDirection'
 data_root = 'data/monuseg'
 num_angles = 8
 process_cfg = dict(
@@ -16,6 +16,7 @@ process_cfg = dict(
     if_pad=True,
     if_norm=False,
     with_dir=True,
+    test_with_dir=True,
     min_size=256,
     max_size=2048,
     resize_mode='fix',
@@ -49,38 +50,23 @@ data = dict(
         process_cfg=process_cfg),
 )
 
-
-
 epoch_iter = 12
 epoch_num = 400
 max_iters = epoch_iter * epoch_num
-log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=False), dict(type='TensorboardLoggerHook')])
+log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True), dict(type='TensorboardLoggerHook')])
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=max_iters)
+runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 
 evaluation = dict(
-    interval=epoch_iter*20,
-    eval_start=0,
-    epoch_iter=epoch_iter,
-    max_iters=max_iters,
-    last_epoch_num=5,
-    metric='all',
-    save_best='mAji',
-    rule='greater',
 )
 checkpoint_config = dict(
-    by_epoch=False,
-    interval=epoch_iter*20,
-    max_keep_ckpts=1,
-)
-
-optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
-optimizer_config = dict()
+    by_epoch=True,
+    interval=1,
+    max_keep_ckpts=5)
 
 # NOTE: poly learning rate decay
 # lr_config = dict(
-#     policy='poly', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, power=1.0, min_lr=0.0, by_epoch=False)
 
 # NOTE: fixed learning rate decay
 lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-6, by_epoch=False)
@@ -90,7 +76,7 @@ model = dict(
     type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles, parallel=True, use_regression = True),
+    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles, parallel=True, use_regression=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),

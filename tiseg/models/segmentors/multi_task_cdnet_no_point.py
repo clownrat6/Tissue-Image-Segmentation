@@ -111,17 +111,22 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             tc_seg_pred = tc_seg_pred.to('cpu').numpy()
             seg_pred = seg_pred.to('cpu').numpy()
             dir_map = dir_map.to('cpu').numpy()
+            dir_gt = label['dir_gt'].to('cpu').numpy()[:, 0]
             # unravel batch dim
             tc_seg_pred = list(tc_seg_pred)
             seg_pred = list(seg_pred)
             dir_map = list(dir_map)
             ret_list = []
-            for tc_seg, seg, dir in zip(tc_seg_pred, seg_pred, dir_map):
+            for tc_seg, seg, dir, dir_g in zip(tc_seg_pred, seg_pred, dir_map, dir_gt):
                 ret_dict = {'tc_sem_pred': tc_seg}
                 if self.use_semantic:
                     ret_dict['sem_pred'] = seg
                 if self.if_mudslide:
                     ret_dict['dir_pred'] = dir
+                # test direction prediction
+                ret_dict['dir_pred_test'] = dir
+                ret_dict['dir_gt'] = dir_g
+                ret_list.append(ret_dict)
                 ret_list.append(ret_dict)
             return ret_list
 

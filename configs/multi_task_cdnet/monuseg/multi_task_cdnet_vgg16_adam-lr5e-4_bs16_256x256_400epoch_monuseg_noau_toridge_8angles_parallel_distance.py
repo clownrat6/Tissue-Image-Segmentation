@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 # dataset settings
-dataset_type = 'NucleiMoNuSegDataset'
+dataset_type = 'NucleiMoNuSegDatasetWithDirection'
 data_root = 'data/monuseg'
 num_angles = 8
 process_cfg = dict(
@@ -16,6 +16,7 @@ process_cfg = dict(
     if_pad=True,
     if_norm=False,
     with_dir=True,
+    test_with_dir=True,
     min_size=256,
     max_size=2048,
     resize_mode='fix',
@@ -49,13 +50,6 @@ data = dict(
         split='only-train_t12_v4_test_c0.txt',
         process_cfg=process_cfg),
 )
-
-
-
-epoch_iter = 12
-epoch_num = 400
-max_iters = epoch_iter * epoch_num
-log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True), dict(type='TensorboardLoggerHook')])
 
 # runtime settings
 runner = dict(type='EpochBasedRunner', max_epochs=400)
@@ -98,7 +92,9 @@ model = dict(
         overlap_size=(80, 80),
         if_ddm=False,
         if_mudslide=False,
-        rotate_degrees=[0, 90],
-        flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
+        rotate_degrees=[0],
+        flip_directions=['none'],
+        # rotate_degrees=[0, 90],
+        # flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
 )

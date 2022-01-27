@@ -48,6 +48,7 @@ class NucleiDatasetMapper(object):
         self.with_dist = process_cfg.get('with_dist', False)
         self.with_hv = process_cfg.get('with_hv', False)
         self.use_distance = process_cfg.get('use_distance', False)
+        self.test_with_dir = process_cfg.get('test_with_dir', False)
 
         self.min_size = process_cfg['min_size']
         self.max_size = process_cfg['max_size']
@@ -73,6 +74,15 @@ class NucleiDatasetMapper(object):
             self.label_maker = DistanceLabelMake(self.num_classes)
         elif self.with_hv:
             self.label_maker = HVLabelMake()
+
+        if self.test_with_dir:
+            self.test_label_maker = DirectionLabelMake(
+                edge_id=self.edge_id,
+                to_center=self.to_center,
+                num_angles=self.num_angles,
+                use_distance=self.use_distance)
+        else:
+            self.test_label_maker = Identity()
 
         # monuseg dataset tissue image mean & std
         nuclei_mean = [0.68861804, 0.46102882, 0.61138992]
@@ -157,5 +167,18 @@ class NucleiDatasetMapper(object):
                 res = self.basic_label_maker(sem_seg, inst_seg)
                 sem_seg_w_bound = res['sem_gt_w_bound']
                 ret['label']['sem_gt_w_bound'] = format_seg(sem_seg_w_bound)
+        else:
+            if self.test_with_dir:
+                res = self.test_label_maker(sem_seg, inst_seg)
+                sem_seg_w_bound = res['sem_gt_w_bound']
+                point_reg = res['point_gt']
+                dir_seg = res['dir_gt']
+                reg_dir_seg = res['reg_dir_gt']
+                weight_map = res['loss_weight_map']
+                ret['label']['sem_gt_w_bound'] = format_seg(sem_seg_w_bound)
+                ret['label']['point_gt'] = format_reg(point_reg)
+                ret['label']['dir_gt'] = format_seg(dir_seg)
+                ret['label']['reg_dir_gt'] = format_reg(reg_dir_seg)
+                ret['label']['loss_weight_map'] = format_reg(weight_map)
 
         return ret

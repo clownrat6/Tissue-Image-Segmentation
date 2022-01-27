@@ -3,29 +3,74 @@ _base_ = [
     '../../_base_/default_runtime.py',
 ]
 
+# dataset settings
+dataset_type = 'NucleiMoNuSegDataset'
+data_root = 'data/monuseg'
+process_cfg = dict(
+    if_flip=True,
+    if_jitter=True,
+    if_elastic=True,
+    if_blur=True,
+    if_crop=True,
+    if_pad=True,
+    if_norm=False,
+    with_dir=False,
+    min_size=256,
+    max_size=2048,
+    resize_mode='fix',
+    edge_id=2,
+)
+data = dict(
+    samples_per_gpu=16,
+    workers_per_gpu=16,
+    train=dict(
+        type=dataset_type,
+        data_root=data_root,
+        img_dir='train/c300',
+        ann_dir='train/c300',
+        split='only-train_t12_v4_train_c300.txt',
+        process_cfg=process_cfg),
+    val=dict(
+        type=dataset_type,
+        data_root=data_root,
+        img_dir='train/c0',
+        ann_dir='train/c0',
+        split='only-train_t12_v4_test_c0.txt',
+        process_cfg=process_cfg),
+    test=dict(
+        type=dataset_type,
+        data_root=data_root,
+        img_dir='train/c0',
+        ann_dir='train/c0',
+        split='only-train_t12_v4_test_c0.txt',
+        process_cfg=process_cfg),
+)
+
+
+
 epoch_iter = 12
 epoch_num = 400
 max_iters = epoch_iter * epoch_num
-log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=False), dict(type='TensorboardLoggerHook')])
+log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True), dict(type='TensorboardLoggerHook')])
 
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=max_iters)
+runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 
 evaluation = dict(
-    interval=epoch_iter*20,
-    eval_start=0,
-    epoch_iter=epoch_iter,
-    max_iters=max_iters,
-    last_epoch_num=5,
+    interval=50,
+    custom_intervals=[1],
+    custom_milestones=[390],
+    by_epoch=True,
     metric='all',
     save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(
-    by_epoch=False,
-    interval=epoch_iter*20,
-    max_keep_ckpts=1,
+    by_epoch=True,
+    interval=1,
+    max_keep_ckpts=10,
 )
+
 
 
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)

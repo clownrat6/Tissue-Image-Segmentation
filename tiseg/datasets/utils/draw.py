@@ -100,14 +100,13 @@ class Drawer(object):
         plt.subplot(247)
         plt.imshow(colorize_seg_map(tc_sem_pred, tc_palette))
         plt.axis('off')
-        plt.title(f'Three-class Semantic Level Prediction imwAji: {metrics["imwAji"]*100:.2f}')
+        plt.title('Three-class Semantic Level Prediction')
 
         plt.subplot(248)
         plt.imshow(colorize_seg_map(tc_sem_gt, tc_palette))
         plt.axis('off')
         plt.title('Three-class Semantic Level Ground Truth')
 
-        _ = metrics.pop('imwAji')
         plt.suptitle(''.join([f'{k}:{v[1]} ' for k, v in metrics.items()]))
 
         # results visulization
@@ -186,7 +185,7 @@ class Drawer(object):
         plt.subplot(347)
         plt.imshow(colorize_seg_map(tc_sem_pred, tc_palette))
         plt.axis('off')
-        plt.title(f'Three-class Semantic Level Prediction imwAji: {metrics["imwAji"]*100:.2f}')
+        plt.title('Three-class Semantic Level Prediction')
 
         plt.subplot(348)
         plt.imshow(colorize_seg_map(tc_sem_gt, tc_palette))

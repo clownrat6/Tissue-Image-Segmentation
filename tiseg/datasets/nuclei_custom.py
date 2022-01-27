@@ -569,17 +569,17 @@ class NucleiCustomDataset(Dataset):
             classes_table_data.add_column(key, val)
 
         # total table
-        sem_total_table_data = PrettyTable()
+        total_sem_table_data = PrettyTable()
         for key, val in total_sem_metrics.items():
-            sem_total_table_data.add_column(key, [val])
+            total_sem_table_data.add_column(key, [val])
 
-        inst_total_metrics = OrderedDict(
+        total_inst_metrics = OrderedDict(
             {inst_key: np.round(value * 100, 2)
              for inst_key, value in total_inst_metrics.items()})
 
-        inst_total_table_data = PrettyTable()
-        for key, val in inst_total_metrics.items():
-            inst_total_table_data.add_column(key, [val])
+        total_inst_table_data = PrettyTable()
+        for key, val in total_inst_metrics.items():
+            total_inst_table_data.add_column(key, [val])
 
         total_analysis_table_data = PrettyTable()
         for key, val in total_analysis.items():
@@ -588,11 +588,13 @@ class NucleiCustomDataset(Dataset):
         print_log('Per classes:', logger)
         print_log('\n' + classes_table_data.get_string(), logger=logger)
         print_log('Semantic Total:', logger)
-        print_log('\n' + sem_total_table_data.get_string(), logger=logger)
+        print_log('\n' + total_sem_table_data.get_string(), logger=logger)
         print_log('Instance Total:', logger)
-        print_log('\n' + inst_total_table_data.get_string(), logger=logger)
+        print_log('\n' + total_inst_table_data.get_string(), logger=logger)
         print_log('Analysis Total:', logger)
         print_log('\n' + total_analysis_table_data.get_string(), logger=logger)
+
+        storage_results = {'total_sem_metrics': total_sem_metrics, 'total_inst_metrics': total_inst_metrics, 'class_inst_metrics': classes_metrics}
 
         eval_results = {}
         # average results
@@ -605,13 +607,9 @@ class NucleiCustomDataset(Dataset):
         if 'Precision' in img_ret_metrics:
             eval_results['Precision'] = img_ret_metrics['Precision'][-1]
 
-        ret_metrics_items.pop('name', None)
-        for key, value in ret_metrics_items.items():
-            eval_results.update({key + '.' + str(name): f'{value[idx]:.3f}' for idx, name in enumerate(name_list)})
-
         for k, v in total_sem_metrics.items():
             eval_results[k] = v
-        for k, v in inst_total_metrics.items():
+        for k, v in total_inst_metrics.items():
             eval_results[k] = v
 
         classes = classes_metrics.pop('classes', None)
@@ -621,4 +619,4 @@ class NucleiCustomDataset(Dataset):
         # This ret value is used for eval hook. Eval hook will add these
         # evaluation info to runner.log_buffer.output. Then when the
         # TextLoggerHook is called, the evaluation info will output to logger.
-        return eval_results
+        return eval_results, storage_results

@@ -1,6 +1,7 @@
 import argparse
 import os
 import os.path as osp
+import pickle
 
 import mmcv
 import torch
@@ -89,7 +90,14 @@ def main():
 
         rank, _ = get_dist_info()
         if rank == 0:
-            dataset.evaluate(results, **eval_kwargs)
+            model_name = osp.dirname(args.config).replace('configs/', '')
+            config_name = osp.splitext(osp.basename(args.config))[0]
+            dir_name = f'./eval_dirs/{model_name}/{config_name}'
+            ckpt_name = osp.splitext(osp.basename(args.checkpoint))[0]
+            eval_res, sotrage_res = dataset.evaluate(results, **eval_kwargs)
+            if not osp.exists(dir_name):
+                os.makedirs(dir_name, 0o775)
+            pickle.dump(sotrage_res, open(osp.join(dir_name, f'{ckpt_name}.p'), 'wb'))
 
 
 if __name__ == '__main__':

@@ -6,6 +6,7 @@ import numpy as np
 from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..heads.multi_task_cd_head import MultiTaskCDHead
+from ..heads.multi_task_cd_head_twobranch import MultiTaskCDHeadTwobranch
 from ..builder import SEGMENTORS
 from ..losses import BatchMultiClassDiceLoss, MultiClassDiceLoss, TopologicalLoss, RobustFocalLoss2d, LevelsetLoss, ActiveContourLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
@@ -30,20 +31,35 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         self.num_angles = self.train_cfg.get('num_angles', 8)
         self.use_regression = self.train_cfg.get('use_regression', False)
         self.parallel = self.train_cfg.get('parallel', False)
+        self.use_twobranch = self.train_cfg.get('use_twobranch', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
-        self.head = MultiTaskCDHead(
-            num_classes=self.num_classes,
-            num_angles=self.num_angles,
-            dgm_dims=64,
-            bottom_in_dim=512,
-            skip_in_dims=(64, 128, 256, 512, 512),
-            stage_dims=[16, 32, 64, 128, 256],
-            act_cfg=dict(type='ReLU'),
-            norm_cfg=dict(type='BN'),
-            noau=self.train_cfg.get('noau', False),
-            use_regression=self.use_regression,
-            parallel=self.parallel)
+
+        if self.use_twobranch:
+            self.head = MultiTaskCDHeadTwobranch(
+                num_classes=self.num_classes,
+                num_angles=self.num_angles,
+                dgm_dims=64,
+                bottom_in_dim=512,
+                skip_in_dims=(64, 128, 256, 512, 512),
+                stage_dims=[16, 32, 64, 128, 256],
+                act_cfg=dict(type='ReLU'),
+                norm_cfg=dict(type='BN'),
+                noau=self.train_cfg.get('noau', False),
+                use_regression=self.use_regression,)
+        else:
+            self.head = MultiTaskCDHead(
+                num_classes=self.num_classes,
+                num_angles=self.num_angles,
+                dgm_dims=64,
+                bottom_in_dim=512,
+                skip_in_dims=(64, 128, 256, 512, 512),
+                stage_dims=[16, 32, 64, 128, 256],
+                act_cfg=dict(type='ReLU'),
+                norm_cfg=dict(type='BN'),
+                noau=self.train_cfg.get('noau', False),
+                use_regression=self.use_regression,
+                parallel=self.parallel)
 
     def calculate(self, img, rescale=False):
         img_feats = self.backbone(img)
@@ -111,15 +127,19 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
             tc_seg_pred = tc_seg_pred.to('cpu').numpy()
             seg_pred = seg_pred.to('cpu').numpy()
             dir_map = dir_map.to('cpu').numpy()
+            dir_gt = label['dir_gt'].to('cpu').numpy()[:, 0]
             # unravel batch dim
             tc_seg_pred = list(tc_seg_pred)
             seg_pred = list(seg_pred)
             dir_map = list(dir_map)
             ret_list = []
-            for tc_seg, seg, dir in zip(tc_seg_pred, seg_pred, dir_map):
+            for tc_seg, seg, dir, dir_g in zip(tc_seg_pred, seg_pred, dir_map, dir_gt):
                 ret_dict = {'tc_sem_pred': tc_seg, 'sem_pred': seg}
                 if self.if_mudslide:
                     ret_dict['dir_pred'] = dir
+                # test direction prediction
+                ret_dict['dir_pred_test'] = dir
+                ret_dict['dir_gt'] = dir_g
                 ret_list.append(ret_dict)
             return ret_list
 
@@ -180,7 +200,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
                 dir_logit[dir_logit > 2 * np.pi] = 2 * np.pi
                 background = (torch.argmax(tc_sem_logit, dim=1)[0] == 0).cpu().numpy()
                 angle_map = dir_logit * 180 / np.pi
-                angle_map = angle_map[0, 0].cpu().numpy()  #[H, W]
+                angle_map = angle_map[0, 0].cpu().numpy()  # [H, W]
                 angle_map[angle_map > 180] -= 360
                 angle_map[background] = 0
                 vector_map = angle_to_vector(angle_map, self.num_angles)
@@ -379,7 +399,10 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
             pred_contour = torch.argmax(tc_mask_logit, dim=1) == 2  # [B, H, W]
             gt_contour = tc_mask_gt == 2
             dir_tp_loss_calculator = TopologicalLoss(
-                use_regression=self.use_regression, weight=tploss_weight, num_angles=self.num_angles, use_dice=tploss_dice)
+                use_regression=self.use_regression,
+                weight=tploss_weight,
+                num_angles=self.num_angles,
+                use_dice=tploss_dice)
             dir_tp_loss = dir_tp_loss_calculator(dir_logit, dir_gt, pred_contour, gt_contour)
             dir_loss['dir_tp_loss'] = dir_tp_loss
 
