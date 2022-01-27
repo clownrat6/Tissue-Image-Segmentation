@@ -49,13 +49,20 @@ data = dict(
         process_cfg=process_cfg),
 )
 
+epoch_iter = 247
+epoch_num = 400
+max_iters = epoch_iter * epoch_num
+log_config = dict(
+    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
+                                dict(type='TensorboardLoggerHook')])
+
 # runtime settings
-runner = dict(type='EpochBasedRunner', max_epochs=300)
+runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 
 evaluation = dict(
     interval=50,
     custom_intervals=[1],
-    custom_milestones=[295],
+    custom_milestones=[395],
     by_epoch=True,
     metric='all',
     save_best='mAji',

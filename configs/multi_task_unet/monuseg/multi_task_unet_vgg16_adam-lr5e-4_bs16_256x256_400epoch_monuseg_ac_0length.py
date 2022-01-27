@@ -1,12 +1,11 @@
 _base_ = [
-    '../../_base_/datasets/monuseg_w_dir.py',
+    '../../_base_/datasets/monuseg.py',
     '../../_base_/default_runtime.py',
 ]
 
 # dataset settings
 dataset_type = 'NucleiMoNuSegDatasetWithDirection'
 data_root = 'data/monuseg'
-num_angles = 4
 process_cfg = dict(
     if_flip=True,
     if_jitter=True,
@@ -21,8 +20,6 @@ process_cfg = dict(
     max_size=2048,
     resize_mode='fix',
     edge_id=2,
-    to_center=False,
-    num_angles=num_angles,
 )
 data = dict(
     samples_per_gpu=16,
@@ -88,17 +85,12 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 
 # model settings
 model = dict(
-    type='MultiTaskCDNetSegmentorNoPoint',
+    type='MultiTaskUNetSegmentor',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles),
+    train_cfg=dict(use_ac=True, use_sigmoid=True),
     test_cfg=dict(
-        mode='split',
-        plane_size=(256, 256),
-        crop_size=(256, 256),
-        overlap_size=(80, 80),
-        if_ddm=False,
-        if_mudslide=False,
+        mode='whole',
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
