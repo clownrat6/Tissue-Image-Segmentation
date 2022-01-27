@@ -3,9 +3,9 @@ _base_ = [
     '../../_base_/default_runtime.py',
 ]
 
-# datasets settings
-dataset_type = 'NucleiCoNICDataset'
-data_root = 'data/conic'
+# dataset settings
+dataset_type = 'NucleiMoNuSegDatasetWithDirection'
+data_root = 'data/monuseg'
 num_angles = 8
 process_cfg = dict(
     if_flip=True,
@@ -16,6 +16,7 @@ process_cfg = dict(
     if_pad=True,
     if_norm=False,
     with_dir=True,
+    test_with_dir=True,
     min_size=256,
     max_size=2048,
     resize_mode='fix',
@@ -52,7 +53,9 @@ data = dict(
 epoch_iter = 247
 epoch_num = 400
 max_iters = epoch_iter * epoch_num
-log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True), dict(type='TensorboardLoggerHook')])
+log_config = dict(
+    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
+                                dict(type='TensorboardLoggerHook')])
 
 # runtime settings
 runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
@@ -89,9 +92,9 @@ model = dict(
     num_classes=7,
     train_cfg=dict(
         if_weighted_loss=False,
-        num_angles = num_angles,
-        parallel = True,
-        noau=True, 
+        num_angles=num_angles,
+        parallel=True,
+        noau=True,
     ),
     test_cfg=dict(
         mode='split',

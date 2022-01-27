@@ -68,6 +68,26 @@ class EvalHook(_EvalHook):
 
         return True
 
+    def evaluate(self, runner, results):
+        """Evaluate the results.
+
+        Args:
+            runner (:obj:`mmcv.Runner`): The underlined training runner.
+            results (list): Output results.
+        """
+        eval_res, _ = self.dataloader.dataset.evaluate(results, logger=runner.logger, **self.eval_kwargs)
+        for name, val in eval_res.items():
+            runner.log_buffer.output[name] = val
+        runner.log_buffer.ready = True
+
+        if self.save_best is not None:
+            if self.key_indicator == 'auto':
+                # infer from eval_results
+                self._init_rule(self.rule, list(eval_res.keys())[0])
+            return eval_res[self.key_indicator]
+
+        return None
+
     def _do_evaluate(self, runner):
         """perform evaluation and save ckpt."""
         if not self._should_evaluate(runner):
@@ -144,6 +164,26 @@ class DistEvalHook(_DistEvalHook):
                 return False
 
         return True
+
+    def evaluate(self, runner, results):
+        """Evaluate the results.
+
+        Args:
+            runner (:obj:`mmcv.Runner`): The underlined training runner.
+            results (list): Output results.
+        """
+        eval_res, _ = self.dataloader.dataset.evaluate(results, logger=runner.logger, **self.eval_kwargs)
+        for name, val in eval_res.items():
+            runner.log_buffer.output[name] = val
+        runner.log_buffer.ready = True
+
+        if self.save_best is not None:
+            if self.key_indicator == 'auto':
+                # infer from eval_results
+                self._init_rule(self.rule, list(eval_res.keys())[0])
+            return eval_res[self.key_indicator]
+
+        return None
 
     def _do_evaluate(self, runner):
         """perform evaluation and save ckpt."""

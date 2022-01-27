@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 # dataset settings
-dataset_type = 'NucleiMoNuSegDataset'
+dataset_type = 'NucleiMoNuSegDatasetWithDirection'
 data_root = 'data/monuseg'
 process_cfg = dict(
     if_flip=True,
@@ -14,7 +14,8 @@ process_cfg = dict(
     if_crop=True,
     if_pad=True,
     if_norm=False,
-    with_dir=False,
+    with_dir=True,
+    test_with_dir=True,
     min_size=256,
     max_size=2048,
     resize_mode='fix',
@@ -46,17 +47,18 @@ data = dict(
         process_cfg=process_cfg),
 )
 
-
 epoch_iter = 12
 epoch_num = 400
 max_iters = epoch_iter * epoch_num
-log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=False), dict(type='TensorboardLoggerHook')])
+log_config = dict(
+    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=False),
+                                dict(type='TensorboardLoggerHook')])
 
 # runtime settings
 runner = dict(type='IterBasedRunner', max_iters=max_iters)
 
 evaluation = dict(
-    interval=epoch_iter*20,
+    interval=epoch_iter * 20,
     eval_start=0,
     epoch_iter=epoch_iter,
     max_iters=max_iters,
@@ -67,7 +69,7 @@ evaluation = dict(
 )
 checkpoint_config = dict(
     by_epoch=False,
-    interval=epoch_iter*20,
+    interval=epoch_iter * 20,
     max_keep_ckpts=1,
 )
 

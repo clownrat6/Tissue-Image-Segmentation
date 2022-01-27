@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 # datasets settings
-dataset_type = 'NucleiCoNICDataset'
+dataset_type = 'NucleiCoNICDatasetWithDirection'
 data_root = 'data/conic'
 num_angles = 8
 process_cfg = dict(
@@ -52,7 +52,9 @@ data = dict(
 epoch_iter = 247
 epoch_num = 400
 max_iters = epoch_iter * epoch_num
-log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True), dict(type='TensorboardLoggerHook')])
+log_config = dict(
+    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
+                                dict(type='TensorboardLoggerHook')])
 
 # runtime settings
 runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
@@ -89,8 +91,8 @@ model = dict(
     num_classes=7,
     train_cfg=dict(
         if_weighted_loss=False,
-        num_angles = num_angles,
-        parallel = True, 
+        num_angles=num_angles,
+        parallel=True,
     ),
     test_cfg=dict(
         mode='split',

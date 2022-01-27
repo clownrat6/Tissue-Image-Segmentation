@@ -6,7 +6,7 @@ _base_ = [
 # dataset settings
 dataset_type = 'NucleiMoNuSegDatasetWithDirection'
 data_root = 'data/monuseg'
-num_angles = 4
+num_angles = 8
 process_cfg = dict(
     if_flip=True,
     if_jitter=True,
@@ -23,6 +23,7 @@ process_cfg = dict(
     edge_id=2,
     to_center=False,
     num_angles=num_angles,
+    use_distance=True,
 )
 data = dict(
     samples_per_gpu=16,
@@ -50,15 +51,8 @@ data = dict(
         process_cfg=process_cfg),
 )
 
-epoch_iter = 12
-epoch_num = 400
-max_iters = epoch_iter * epoch_num
-log_config = dict(
-    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
-                                dict(type='TensorboardLoggerHook')])
-
 # runtime settings
-runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
+runner = dict(type='EpochBasedRunner', max_epochs=400)
 
 evaluation = dict(
     interval=50,
@@ -66,7 +60,7 @@ evaluation = dict(
     custom_milestones=[395],
     by_epoch=True,
     metric='all',
-    save_best='mAji',
+    save_best='Aji',
     rule='greater',
 )
 checkpoint_config = dict(
@@ -87,10 +81,10 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 
 # model settings
 model = dict(
-    type='MultiTaskCDNetSegmentorNoPoint',
+    type='MultiTaskCDNetSegmentor',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles, parallel=True),
+    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles, parallel=False),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
