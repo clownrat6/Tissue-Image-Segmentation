@@ -1,12 +1,11 @@
 _base_ = [
-    '../../_base_/datasets/conic_w_dir.py',
+    '../../_base_/datasets/conic.py',
     '../../_base_/default_runtime.py',
 ]
 
-# datasets settings
+# dataset settings
 dataset_type = 'NucleiCoNICDataset'
 data_root = 'data/conic'
-num_angles = 8
 process_cfg = dict(
     if_flip=True,
     if_jitter=True,
@@ -15,13 +14,10 @@ process_cfg = dict(
     if_crop=True,
     if_pad=True,
     if_norm=False,
-    with_dir=True,
     min_size=256,
     max_size=2048,
     resize_mode='fix',
     edge_id=7,
-    to_center=False,
-    num_angles=num_angles,
 )
 data = dict(
     samples_per_gpu=16,
@@ -48,6 +44,7 @@ data = dict(
         split='val.txt',
         process_cfg=process_cfg),
 )
+
 epoch_iter = 247
 epoch_num = 400
 max_iters = epoch_iter * epoch_num
