@@ -24,7 +24,7 @@ from .utils import (re_instance, mudslide_watershed, align_foreground, get_tc_fr
 
 
 @DATASETS.register_module()
-class NucleiCoNICDataset(Dataset):
+class NucleiCoNICDatasetWithDirection(Dataset):
     """Nuclei Custom Foundation Segmentation Dataset.
     Although, this dataset is a instance segmentation task, this dataset also
     support a multiple class semantic segmentation task (Background, Nuclei1, Nuclei2, ...).
@@ -174,6 +174,8 @@ class NucleiCoNICDataset(Dataset):
 
             # metric calculation & post process codes:
             sem_pred = pred['sem_pred'].copy()
+            dir_pred = pred['dir_pred_test']
+            dir_gt = pred['dir_gt'].copy()
             if 'inst_pred' not in pred:
                 if 'dir_pred' in pred:
                     dir_pred = pred['dir_pred']
@@ -193,6 +195,7 @@ class NucleiCoNICDataset(Dataset):
 
             # semantic metric calculation (remove background class)
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
+            dir_pre_eval_res = pre_eval_all_semantic_metric(dir_pred, dir_gt, 9)
 
             # make contiguous ids
             inst_pred = measure.label(inst_pred.copy())
@@ -214,6 +217,7 @@ class NucleiCoNICDataset(Dataset):
                 aji_pre_eval_res=aji_pre_eval_res,
                 bin_pq_pre_eval_res=bin_pq_pre_eval_res,
                 pq_pre_eval_res=pq_pre_eval_res,
+                dir_pre_eval_res=dir_pre_eval_res,
                 sem_pre_eval_res=sem_pre_eval_res)
             pre_eval_results.append(single_loop_results)
 
@@ -293,6 +297,10 @@ class NucleiCoNICDataset(Dataset):
         """model free post-process for both instance-level & semantic-level."""
         sem_id_list = list(np.unique(sem_pred))
         sem_canvas = np.zeros_like(sem_pred).astype(np.uint8)
+        # import matplotlib.pyplot as plt
+        # plt.figure(dpi=300)
+        # plt.subplot(121)
+        # plt.imshow()
         for sem_id in sem_id_list:
             # 0 is background semantic class.
             if sem_id == 0:
@@ -301,6 +309,10 @@ class NucleiCoNICDataset(Dataset):
             # fill instance holes
             sem_id_mask = binary_fill_holes(sem_id_mask)
             sem_canvas[sem_id_mask > 0] = sem_id
+        # plt.subplot(122)
+        # plt.imshow(sem_canvas)
+        # plt.savefig('2.png')
+        # exit(0)
 
         # instance process & dilation
         bin_sem_pred = tc_sem_pred.copy()
@@ -363,6 +375,10 @@ class NucleiCoNICDataset(Dataset):
         # semantic metrics
         sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
         ret_metrics.update(pre_eval_to_sem_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
+
+        # dir metrics
+        dir_pre_eval_results = ret_metrics.pop('dir_pre_eval_res')
+        dir_metrics = pre_eval_to_sem_metrics(dir_pre_eval_results, metrics=['Dice', 'Precision', 'Recall'])
 
         # aji metrics
         bin_aji_pre_eval_results = ret_metrics.pop('bin_aji_pre_eval_res')
@@ -448,6 +464,28 @@ class NucleiCoNICDataset(Dataset):
         for key, val in total_analysis.items():
             total_analysis_table_data.add_column(key, [val])
 
+        # direction table
+        for key in dir_metrics.keys():
+            # remove background class
+            dir_metrics[key] = dir_metrics[key][1:]
+
+        dir_classes_metrics = OrderedDict({dir_key: np.round(value * 100, 2) for dir_key, value in dir_metrics.items()})
+
+        total_dir_metrics = OrderedDict(
+            {'m' + dir_key: np.round(np.mean(value) * 100, 2)
+             for dir_key, value in dir_metrics.items()})
+
+        dir_classes_metrics.update({'classes': list(range(1, 9))})
+        dir_classes_metrics.move_to_end('classes', last=False)
+
+        dir_classes_table_data = PrettyTable()
+        for key, val in dir_classes_metrics.items():
+            dir_classes_table_data.add_column(key, val)
+
+        dir_total_table_data = PrettyTable()
+        for key, val in total_dir_metrics.items():
+            dir_total_table_data.add_column(key, [val])
+
         print_log('Per classes:', logger)
         print_log('\n' + classes_table_data.get_string(), logger=logger)
         print_log('Semantic Total:', logger)
@@ -456,6 +494,10 @@ class NucleiCoNICDataset(Dataset):
         print_log('\n' + inst_total_table_data.get_string(), logger=logger)
         print_log('Analysis Total:', logger)
         print_log('\n' + total_analysis_table_data.get_string(), logger=logger)
+        print_log('Per direction classes:', logger)
+        print_log('\n' + dir_classes_table_data.get_string(), logger=logger)
+        print_log('Direction Total:', logger)
+        print_log('\n' + dir_total_table_data.get_string(), logger=logger)
 
         eval_results = {}
         # average results
