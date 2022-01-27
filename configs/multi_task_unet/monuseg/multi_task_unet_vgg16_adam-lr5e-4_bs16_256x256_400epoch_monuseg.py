@@ -59,7 +59,7 @@ runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 evaluation = dict(
     interval=50,
     custom_intervals=[1],
-    custom_milestones=[395],
+    custom_milestones=[390],
     by_epoch=True,
     metric='all',
     save_best='mAji',
@@ -68,7 +68,7 @@ evaluation = dict(
 checkpoint_config = dict(
     by_epoch=True,
     interval=1,
-    max_keep_ckpts=5,
+    max_keep_ckpts=10,
 )
 
 
