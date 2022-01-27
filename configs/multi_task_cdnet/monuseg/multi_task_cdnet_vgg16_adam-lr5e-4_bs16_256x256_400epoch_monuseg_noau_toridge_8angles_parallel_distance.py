@@ -92,7 +92,9 @@ model = dict(
         overlap_size=(80, 80),
         if_ddm=False,
         if_mudslide=False,
-        rotate_degrees=[0, 90],
-        flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
+        rotate_degrees=[0],
+        flip_directions=['none'],
+        # rotate_degrees=[0, 90],
+        # flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
 )
