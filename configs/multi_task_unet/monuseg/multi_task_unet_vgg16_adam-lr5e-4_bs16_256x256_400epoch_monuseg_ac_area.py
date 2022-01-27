@@ -17,7 +17,7 @@ evaluation = dict(
     custom_milestones=[395],
     by_epoch=True,
     metric='all',
-    save_best='Aji',
+    save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(

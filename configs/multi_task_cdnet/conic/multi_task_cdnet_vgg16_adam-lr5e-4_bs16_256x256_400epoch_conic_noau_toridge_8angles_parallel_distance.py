@@ -56,7 +56,7 @@ max_iters = epoch_iter * epoch_num
 log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True), dict(type='TensorboardLoggerHook')])
 
 # runtime settings
-runner = dict(type='EpochBasedRunner', max_epochs=400)
+runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 
 evaluation = dict(
     interval=50,
@@ -64,7 +64,7 @@ evaluation = dict(
     custom_milestones=[395],
     by_epoch=True,
     metric='all',
-    save_best='Aji',
+    save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(
