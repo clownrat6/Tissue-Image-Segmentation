@@ -116,11 +116,11 @@ class DGM(nn.Module):
         if noau:
             self.point_to_dir_attn = Identity()
             self.dir_to_tc_mask_attn = Identity()
-            self.tc_mask_to_mask_attn = Identity()
+            self.dir_to_mask_attn = Identity()
         else:
             self.point_to_dir_attn = AU(1)
             self.dir_to_tc_mask_attn = AU(self.num_angles + 1)
-            self.tc_mask_to_mask_attn = AU(3)
+            self.dir_to_mask_attn = AU(self.num_angles + 1)
 
         # Prediction Operations
         self.point_conv = nn.Conv2d(self.feed_dims, 1, kernel_size=1)
@@ -155,8 +155,8 @@ class DGM(nn.Module):
         tc_mask_logit = self.tc_mask_conv(tc_mask_feature_with_dir_logit)
 
         # semantic mask branch
-        mask_feature_with_tc_mask_logit = self.tc_mask_to_mask_attn(mask_feature, tc_mask_logit)
-        mask_logit = self.mask_conv(mask_feature_with_tc_mask_logit)
+        mask_feature_with_dir_logit = self.dir_to_mask_attn(mask_feature, dir_logit)
+        mask_logit = self.mask_conv(mask_feature_with_dir_logit)
 
         return tc_mask_logit, mask_logit, dir_logit, point_logit
 
