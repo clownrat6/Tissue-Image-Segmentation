@@ -14,8 +14,17 @@ process_cfg = dict(
     if_crop=True,
     if_pad=True,
     if_norm=False,
+<<<<<<< HEAD
     with_dir=True,
     test_with_dir=True,
+=======
+<<<<<<< HEAD:configs/multi_task_unet/monuseg/multi_task_unet_vgg16_adam-lr5e-4_bs16_256x256_200epoch_monuseg.py
+    with_dir=False,
+=======
+    with_dir=True,
+    test_with_dir=True,
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299:configs/multi_task_unet/monuseg/multi_task_unet_vgg16_adam-lr5e-4_bs16_256x256_400epoch_monuseg_ac_cedice.py
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299
     min_size=256,
     max_size=2048,
     resize_mode='fix',
@@ -48,11 +57,23 @@ data = dict(
 )
 
 epoch_iter = 12
+<<<<<<< HEAD
 epoch_num = 400
 max_iters = epoch_iter * epoch_num
 log_config = dict(
     interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
                                 dict(type='TensorboardLoggerHook')])
+=======
+epoch_num = 200
+max_iters = epoch_iter * epoch_num
+<<<<<<< HEAD:configs/multi_task_unet/monuseg/multi_task_unet_vgg16_adam-lr5e-4_bs16_256x256_200epoch_monuseg.py
+log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True), dict(type='TensorboardLoggerHook')])
+=======
+log_config = dict(
+    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
+                                dict(type='TensorboardLoggerHook')])
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299:configs/multi_task_unet/monuseg/multi_task_unet_vgg16_adam-lr5e-4_bs16_256x256_400epoch_monuseg_ac_cedice.py
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299
 
 # runtime settings
 runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
@@ -60,7 +81,15 @@ runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 evaluation = dict(
     interval=50,
     custom_intervals=[1],
+<<<<<<< HEAD
     custom_milestones=[395],
+=======
+<<<<<<< HEAD:configs/multi_task_unet/monuseg/multi_task_unet_vgg16_adam-lr5e-4_bs16_256x256_200epoch_monuseg.py
+    custom_milestones=[390],
+=======
+    custom_milestones=[395],
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299:configs/multi_task_unet/monuseg/multi_task_unet_vgg16_adam-lr5e-4_bs16_256x256_400epoch_monuseg_ac_cedice.py
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299
     by_epoch=True,
     metric='all',
     save_best='mAji',
@@ -69,9 +98,21 @@ evaluation = dict(
 checkpoint_config = dict(
     by_epoch=True,
     interval=1,
+<<<<<<< HEAD
     max_keep_ckpts=5,
 )
 
+=======
+<<<<<<< HEAD:configs/multi_task_unet/monuseg/multi_task_unet_vgg16_adam-lr5e-4_bs16_256x256_200epoch_monuseg.py
+    max_keep_ckpts=10,
+=======
+    max_keep_ckpts=5,
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299:configs/multi_task_unet/monuseg/multi_task_unet_vgg16_adam-lr5e-4_bs16_256x256_400epoch_monuseg_ac_cedice.py
+)
+
+
+
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
 optimizer_config = dict()
 
@@ -87,7 +128,15 @@ model = dict(
     type='MultiTaskUNetSegmentor',
     # model training and testing settings
     num_classes=2,
+<<<<<<< HEAD
     train_cfg=dict(use_ac=True, ac_len_weight=0),
+=======
+<<<<<<< HEAD:configs/multi_task_unet/monuseg/multi_task_unet_vgg16_adam-lr5e-4_bs16_256x256_200epoch_monuseg.py
+    train_cfg=dict(),
+=======
+    train_cfg=dict(use_ac=True, ac_len_weight=0),
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299:configs/multi_task_unet/monuseg/multi_task_unet_vgg16_adam-lr5e-4_bs16_256x256_400epoch_monuseg_ac_cedice.py
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299
     test_cfg=dict(
         mode='whole',
         rotate_degrees=[0, 90],
