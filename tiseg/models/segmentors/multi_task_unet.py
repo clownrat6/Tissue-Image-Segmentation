@@ -200,6 +200,7 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
         # loss weight
         alpha = 3
         beta = 1
+        gamma = 5
         use_focal = self.train_cfg.get('use_focal', False)
         use_level = self.train_cfg.get('use_level', False)
         use_ac = self.train_cfg.get('use_ac', False)
@@ -214,7 +215,7 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
                     mask_logit_cls = mask_logit[:, i:i + 1].sigmoid()
                     mask_label_cls = (mask_label == i)[:, None].float()
                     ac_loss_collect.append(ac_loss_calculator(mask_logit_cls, mask_label_cls))
-                mask_loss['mask_ac_loss'] = 5 * (sum(ac_loss_collect) / len(ac_loss_collect))
+                mask_loss['mask_ac_loss'] = gamma * (sum(ac_loss_collect) / len(ac_loss_collect))
             else:
                 mask_bce_loss_calculator = MultiClassBCELoss(num_classes=self.num_classes)
                 mask_dice_loss_calculator = BatchMultiClassSigmoidDiceLoss(num_classes=self.num_classes)
@@ -248,7 +249,7 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
                     mask_logit_cls = mask_logit[:, i:i + 1]
                     mask_label_cls = (mask_label == i)[:, None].float()
                     ac_loss_collect.append(ac_loss_calculator(mask_logit_cls, mask_label_cls))
-                mask_loss['mask_ac_loss'] = 5 * sum(ac_loss_collect) / len(ac_loss_collect)
+                mask_loss['mask_ac_loss'] = gamma * sum(ac_loss_collect) / len(ac_loss_collect)
             
         if use_level:
             # calculate deep level set loss for each semantic class.

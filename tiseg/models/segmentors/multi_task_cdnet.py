@@ -8,7 +8,7 @@ from ..backbones import TorchVGG16BN
 from ..heads.multi_task_cd_head import MultiTaskCDHead
 from ..heads.multi_task_cd_head_twobranch import MultiTaskCDHeadTwobranch
 from ..builder import SEGMENTORS
-from ..losses import BatchMultiClassDiceLoss, MultiClassDiceLoss, TopologicalLoss, RobustFocalLoss2d, LevelsetLoss, ActiveContourLoss, mdice, tdice
+from ..losses import MultiClassBCELoss, BatchMultiClassDiceLoss, BatchMultiClassSigmoidDiceLoss, MultiClassDiceLoss, TopologicalLoss, RobustFocalLoss2d, LevelsetLoss, ActiveContourLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 from ...datasets.utils import (angle_to_vector, vector_to_label)
@@ -32,6 +32,10 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         self.use_regression = self.train_cfg.get('use_regression', False)
         self.parallel = self.train_cfg.get('parallel', False)
         self.use_twobranch = self.train_cfg.get('use_twobranch', False)
+
+        self.use_ac = self.train_cfg.get('use_ac', False)
+        self.use_sigmoid = self.train_cfg.get('use_sigmoid', False)
+
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
 
@@ -322,25 +326,57 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         # loss weight
         alpha = 3
         beta = 1
+        gamma = 5
         use_focal = self.train_cfg.get('use_focal', False)
         use_level = self.train_cfg.get('use_level', False)
         use_ac = self.train_cfg.get('use_ac', False)
+        ac_len_weight = self.train_cfg.get('ac_len_weight', 0)
         assert not (use_focal and use_level and use_ac), 'Can\'t use focal loss & deep level set loss at the same time.'
-        if use_focal:
-            mask_focal_loss_calculator = RobustFocalLoss2d(type='softmax')
-            mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
-            mask_focal_loss = mask_focal_loss_calculator(mask_logit, mask_label)
-            mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
-            mask_loss['mask_focal_loss'] = alpha * mask_focal_loss
-            mask_loss['mask_dice_loss'] = beta * mask_dice_loss
-        else:
-            mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-            mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
-            mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
-            mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
-            mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
-            mask_loss['mask_dice_loss'] = beta * mask_dice_loss
-
+        if self.use_sigmoid:
+            if use_ac:
+                ac_w_area = self.train_cfg.get('ac_w_area')
+                ac_loss_calculator = ActiveContourLoss(w_area=ac_w_area, len_weight=ac_len_weight)
+                ac_loss_collect = []
+                for i in range(1, self.num_classes):
+                    mask_logit_cls = mask_logit[:, i:i + 1].sigmoid()
+                    mask_label_cls = (mask_label == i)[:, None].float()
+                    ac_loss_collect.append(ac_loss_calculator(mask_logit_cls, mask_label_cls))
+                mask_loss['mask_ac_loss'] = gamma * (sum(ac_loss_collect) / len(ac_loss_collect))
+            else:
+                mask_bce_loss_calculator = MultiClassBCELoss(num_classes=self.num_classes)
+                mask_dice_loss_calculator = BatchMultiClassSigmoidDiceLoss(num_classes=self.num_classes)
+                mask_bce_loss = mask_bce_loss_calculator(mask_logit, mask_label)
+                mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
+                mask_loss['mask_bce_loss'] = alpha * mask_bce_loss
+                mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+                
+        else: 
+            if use_focal:
+                mask_focal_loss_calculator = RobustFocalLoss2d(type='softmax')
+                mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+                mask_focal_loss = mask_focal_loss_calculator(mask_logit, mask_label)
+                mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
+                mask_loss['mask_focal_loss'] = alpha * mask_focal_loss
+                mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+            else:
+                mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+                mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+                mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
+                mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
+                mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
+                mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+            
+            if use_ac:
+                ac_w_area = self.train_cfg.get('ac_w_area')
+                ac_loss_calculator = ActiveContourLoss(w_area=ac_w_area, len_weight=ac_len_weight)
+                ac_loss_collect = []
+                mask_logit = mask_logit.softmax(dim = 1)
+                for i in range(1, self.num_classes):
+                    mask_logit_cls = mask_logit[:, i:i + 1]
+                    mask_label_cls = (mask_label == i)[:, None].float()
+                    ac_loss_collect.append(ac_loss_calculator(mask_logit_cls, mask_label_cls))
+                mask_loss['mask_ac_loss'] = gamma * sum(ac_loss_collect) / len(ac_loss_collect)
+            
         if use_level:
             # calculate deep level set loss for each semantic class.
             loss_collect = []
@@ -355,16 +391,6 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
                 level_loss_calculator = LevelsetLoss()
                 loss_collect.append(level_loss_calculator(mask_logit_cls, img_region, weights[i]))
             mask_loss['mask_level_loss'] = sum(loss_collect) / len(loss_collect)
-
-        if use_ac:
-            ac_w_area = self.train_cfg.get('ac_w_area')
-            ac_loss_calculator = ActiveContourLoss(w_area=ac_w_area)
-            ac_loss_collect = []
-            for i in range(1, self.num_classes):
-                mask_logit_cls = mask_logit[:, i:i + 1].sigmoid()
-                mask_label_cls = (mask_label == i)[:, None].float()
-                ac_loss_collect.append(ac_loss_calculator(mask_logit_cls, mask_label_cls))
-            mask_loss['mask_ac_loss'] = sum(ac_loss_collect) / len(ac_loss_collect)
 
         return mask_loss
 
