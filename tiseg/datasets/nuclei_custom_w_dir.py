@@ -134,6 +134,8 @@ class NucleiCustomDatasetWithDirection(Dataset):
                  test_mode=False,
                  split=None):
 
+        self.process_cfg = process_cfg
+        self.num_angles = self.process_cfg.get('num_angles', 8)
         self.mapper = NucleiDatasetMapper(test_mode, process_cfg=process_cfg)
 
         self.img_dir = img_dir
@@ -303,7 +305,7 @@ class NucleiCustomDatasetWithDirection(Dataset):
             inst_gt = inst_seg
             # semantic metric calculation (remove background class)
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
-            dir_pre_eval_res = pre_eval_all_semantic_metric(dir_pred, dir_gt, 9)
+            dir_pre_eval_res = pre_eval_all_semantic_metric(dir_pred, dir_gt, self.num_angles + 1)
 
             # make contiguous ids
             inst_pred = measure.label(inst_pred.copy())
