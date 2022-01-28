@@ -60,7 +60,7 @@ runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 evaluation = dict(
     interval=50,
     custom_intervals=[1],
-    custom_milestones=[195],
+    custom_milestones=[epoch_num-5],
     by_epoch=True,
     metric='all',
     save_best='mAji',

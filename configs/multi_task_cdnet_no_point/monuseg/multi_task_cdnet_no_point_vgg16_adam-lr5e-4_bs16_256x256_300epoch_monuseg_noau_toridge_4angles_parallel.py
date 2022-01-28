@@ -6,7 +6,7 @@ _base_ = [
 # dataset settings
 dataset_type = 'NucleiMoNuSegDatasetWithDirection'
 data_root = 'data/monuseg'
-num_angles = 8
+num_angles = 4
 process_cfg = dict(
     if_flip=True,
     if_jitter=True,
@@ -51,9 +51,11 @@ data = dict(
 )
 
 epoch_iter = 12
-epoch_num = 400
+epoch_num = 300
 max_iters = epoch_iter * epoch_num
-log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True), dict(type='TensorboardLoggerHook')])
+log_config = dict(
+    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
+                                dict(type='TensorboardLoggerHook')])
 
 # runtime settings
 runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
@@ -61,7 +63,7 @@ runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 evaluation = dict(
     interval=50,
     custom_intervals=[1],
-    custom_milestones=[395],
+    custom_milestones=[epoch_num-5],
     by_epoch=True,
     metric='all',
     save_best='mAji',

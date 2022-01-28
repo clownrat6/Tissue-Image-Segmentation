@@ -51,19 +51,29 @@ data = dict(
 )
 
 epoch_iter = 12
-epoch_num = 400
+epoch_num = 300
 max_iters = epoch_iter * epoch_num
-log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True), dict(type='TensorboardLoggerHook')])
+log_config = dict(
+    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
+                                dict(type='TensorboardLoggerHook')])
 
 # runtime settings
 runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 
 evaluation = dict(
+    interval=50,
+    custom_intervals=[1],
+    custom_milestones=[epoch_num-5],
+    by_epoch=True,
+    metric='all',
+    save_best='mAji',
+    rule='greater',
 )
 checkpoint_config = dict(
     by_epoch=True,
     interval=1,
-    max_keep_ckpts=5)
+    max_keep_ckpts=5,
+)
 
 # NOTE: poly learning rate decay
 # lr_config = dict(
