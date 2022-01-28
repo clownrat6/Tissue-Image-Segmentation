@@ -5,8 +5,8 @@ from collections import OrderedDict
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Analyse Log')
-    parser.add_argument('log_path', help='log file path')
+    parser = argparse.ArgumentParser(description='Extract related results.')
+    parser.add_argument('log_json_path', help='The json style log file path')
     args = parser.parse_args()
     return args
 
@@ -20,7 +20,7 @@ def main():
             line = line.strip()
             logs.append(json.loads(line))
 
-    info = logs[0]
+    _ = logs[0]
     logs = logs[1:]
 
     logs_ = []
