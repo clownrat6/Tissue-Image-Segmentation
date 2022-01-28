@@ -91,8 +91,8 @@ model = dict(
     train_cfg=dict(
         if_weighted_loss=False,
         num_angles = num_angles,
-        parallel = True, 
         use_twobranch=True,
+        noau=True,
     ),
     test_cfg=dict(
         mode='split',
