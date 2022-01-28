@@ -8,13 +8,14 @@ import warnings
 import mmcv
 import torch
 from mmcv.runner import init_dist
-from mmcv.utils import Config, DictAction, get_git_hash, collect_env, get_logger
+from mmcv.utils import Config, DictAction, get_git_hash, collect_env, get_logger, print_log
 
 from tiseg import __version__
 from tiseg.apis import train_segmentor
 from tiseg.datasets import build_dataset
 from tiseg.models import build_segmentor
 from tiseg.models.utils import revert_sync_batchnorm
+from tools.log_analysis import log_analysis
 
 
 def parse_args():
@@ -157,6 +158,11 @@ def main():
     meta.update(cfg.checkpoint_config.meta)
     train_segmentor(
         model, datasets, cfg, distributed=distributed, validate=(not args.no_validate), timestamp=timestamp, meta=meta)
+    # after train results collection
+    model_name = osp.dirname(args.config).replace('configs/', '')
+    config_name = osp.splitext(osp.basename(args.config))[0]
+    # calculate metrics
+    print_log(log_analysis(cfg.work_dir), logger=logger)
 
 
 if __name__ == '__main__':
