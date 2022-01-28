@@ -6,18 +6,9 @@ from prettytable import PrettyTable
 from collections import OrderedDict
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description='Extract related results.')
-    parser.add_argument('log_path', help='The json style log file path')
-    args = parser.parse_args()
-    return args
-
-
-def main():
-    args = parse_args()
-    log_path = args.log_path
+def log_analysis(log_path):
     if osp.isdir(log_path):
-        paths = [osp.join(log_path, x) for x in os.listdir(log_path) if osp.splitext(x)[1] == '.p']
+        paths = [osp.join(log_path, x) for x in os.listdir(log_path) if osp.splitext(x)[1] == '.json']
         indices = list(range(len(paths)))
         indices = sorted(indices, key=lambda x: osp.getctime(paths[x]), reverse=True)
         paths = [paths[index] for index in indices]
@@ -92,6 +83,20 @@ def main():
         res_table.add_column(key, val)
 
     print(res_table.get_string())
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Extract related results.')
+    parser.add_argument('log_path', help='The json style log file path')
+    args = parser.parse_args()
+    return args
+
+
+def main():
+    args = parse_args()
+    log_path = args.log_path
+
+    log_analysis(log_path)
 
 
 if __name__ == '__main__':

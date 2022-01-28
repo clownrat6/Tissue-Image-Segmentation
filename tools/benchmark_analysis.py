@@ -6,24 +6,7 @@ from prettytable import PrettyTable
 from collections import OrderedDict
 
 
-def parse_args():
-    """Usage Explanation:
-
-    1. execute test command: python tools/test.py configs/aaa/bbb.py xxx.pth, python tools/test.py configs/aaa/bbb.py yyy.pth;
-    2. evaluation results will be storaged in eval_dirs/aaa/bbb/xxx.p, eval_dirs/aaa/bbb/yyy.p;
-    3. execute analysis command: python tools/benchmark_analysis.py eval_dirs/aaa/bbb;
-    4. the mean & max results will be printed.
-    """
-    parser = argparse.ArgumentParser(description='test (and eval) a model')
-    parser.add_argument('analysis_folder', help='The analysis log save folder.')
-    args = parser.parse_args()
-    return args
-
-
-def main():
-    args = parse_args()
-    analysis_folder = args.analysis_folder
-
+def benchmark_analysis(analysis_folder):
     analysis_logs = [osp.join(analysis_folder, x) for x in os.listdir(analysis_folder) if osp.splitext(x)[1] == '.p']
 
     max_mAji = -1
@@ -81,6 +64,27 @@ def main():
         res_table.add_column(key, val)
 
     print(res_table.get_string())
+
+
+def parse_args():
+    """Usage Explanation:
+
+    1. execute test command: python tools/test.py configs/aaa/bbb.py xxx.pth, python tools/test.py configs/aaa/bbb.py yyy.pth;
+    2. evaluation results will be storaged in eval_dirs/aaa/bbb/xxx.p, eval_dirs/aaa/bbb/yyy.p;
+    3. execute analysis command: python tools/benchmark_analysis.py eval_dirs/aaa/bbb;
+    4. the mean & max results will be printed.
+    """
+    parser = argparse.ArgumentParser(description='test (and eval) a model')
+    parser.add_argument('analysis_folder', help='The analysis log save folder.')
+    args = parser.parse_args()
+    return args
+
+
+def main():
+    args = parse_args()
+    analysis_folder = args.analysis_folder
+
+    benchmark_analysis(analysis_folder)
 
 
 if __name__ == '__main__':
