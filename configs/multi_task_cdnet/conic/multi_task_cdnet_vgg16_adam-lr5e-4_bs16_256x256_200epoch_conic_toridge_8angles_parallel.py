@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 # datasets settings
-dataset_type = 'NucleiCoNICDataset'
+dataset_type = 'NucleiCoNICDatasetWithDirection'
 data_root = 'data/conic'
 num_angles = 8
 process_cfg = dict(
@@ -16,6 +16,7 @@ process_cfg = dict(
     if_pad=True,
     if_norm=False,
     with_dir=True,
+    test_with_dir=True,
     min_size=256,
     max_size=2048,
     resize_mode='fix',
@@ -60,7 +61,7 @@ runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 evaluation = dict(
     interval=50,
     custom_intervals=[1],
-    custom_milestones=[195],
+    custom_milestones=[epoch_num-5],
     by_epoch=True,
     metric='all',
     save_best='mAji',

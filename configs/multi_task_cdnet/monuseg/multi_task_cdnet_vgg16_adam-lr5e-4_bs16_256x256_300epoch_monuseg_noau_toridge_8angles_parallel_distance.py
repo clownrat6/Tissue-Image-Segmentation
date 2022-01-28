@@ -1,5 +1,5 @@
 _base_ = [
-    '../../_base_/datasets/conic_w_dir.py',
+    '../../_base_/datasets/monuseg_w_dir.py',
     '../../_base_/default_runtime.py',
 ]
 
@@ -20,9 +20,10 @@ process_cfg = dict(
     min_size=256,
     max_size=2048,
     resize_mode='fix',
-    edge_id=7,
+    edge_id=2,
     to_center=False,
     num_angles=num_angles,
+    use_distance=True,
 )
 data = dict(
     samples_per_gpu=16,
@@ -30,28 +31,28 @@ data = dict(
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='train/',
-        ann_dir='train/',
-        split='train.txt',
+        img_dir='train/c300',
+        ann_dir='train/c300',
+        split='only-train_t12_v4_train_c300.txt',
         process_cfg=process_cfg),
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='val/',
-        ann_dir='val/',
-        split='val.txt',
+        img_dir='train/c0',
+        ann_dir='train/c0',
+        split='only-train_t12_v4_test_c0.txt',
         process_cfg=process_cfg),
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='val/',
-        ann_dir='val/',
-        split='val.txt',
+        img_dir='train/c0',
+        ann_dir='train/c0',
+        split='only-train_t12_v4_test_c0.txt',
         process_cfg=process_cfg),
 )
 
-epoch_iter = 247
-epoch_num = 400
+epoch_iter = 12
+epoch_num = 300
 max_iters = epoch_iter * epoch_num
 log_config = dict(
     interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
@@ -63,7 +64,7 @@ runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 evaluation = dict(
     interval=50,
     custom_intervals=[1],
-    custom_milestones=[395],
+    custom_milestones=[epoch_num-5],
     by_epoch=True,
     metric='all',
     save_best='mAji',
@@ -89,13 +90,8 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 model = dict(
     type='MultiTaskCDNetSegmentor',
     # model training and testing settings
-    num_classes=7,
-    train_cfg=dict(
-        if_weighted_loss=False,
-        num_angles=num_angles,
-        parallel=True,
-        noau=True,
-    ),
+    num_classes=2,
+    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles, parallel=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
@@ -103,6 +99,8 @@ model = dict(
         overlap_size=(80, 80),
         if_ddm=False,
         if_mudslide=False,
+        rotate_degrees=[0],
+        flip_directions=['none'],
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
