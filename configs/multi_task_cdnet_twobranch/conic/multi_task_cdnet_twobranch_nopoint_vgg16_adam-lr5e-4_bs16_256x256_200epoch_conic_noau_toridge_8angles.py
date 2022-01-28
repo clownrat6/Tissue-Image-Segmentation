@@ -1,11 +1,11 @@
 _base_ = [
-    '../../_base_/datasets/monuseg_w_dir.py',
+    '../../_base_/datasets/conic_w_dir.py',
     '../../_base_/default_runtime.py',
 ]
 
-# dataset settings
-dataset_type = 'NucleiMoNuSegDatasetWithDirection'
-data_root = 'data/monuseg'
+# datasets settings
+dataset_type = 'NucleiCoNICDatasetWithDirection'
+data_root = 'data/conic'
 num_angles = 8
 process_cfg = dict(
     if_flip=True,
@@ -20,10 +20,9 @@ process_cfg = dict(
     min_size=256,
     max_size=2048,
     resize_mode='fix',
-    edge_id=2,
+    edge_id=7,
     to_center=False,
     num_angles=num_angles,
-    use_distance=True,
 )
 data = dict(
     samples_per_gpu=16,
@@ -31,32 +30,30 @@ data = dict(
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='train/c300',
-        ann_dir='train/c300',
-        split='only-train_t12_v4_train_c300.txt',
+        img_dir='train/',
+        ann_dir='train/',
+        split='train.txt',
         process_cfg=process_cfg),
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='train/c0',
-        ann_dir='train/c0',
-        split='only-train_t12_v4_test_c0.txt',
+        img_dir='val/',
+        ann_dir='val/',
+        split='val.txt',
         process_cfg=process_cfg),
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='train/c0',
-        ann_dir='train/c0',
-        split='only-train_t12_v4_test_c0.txt',
+        img_dir='val/',
+        ann_dir='val/',
+        split='val.txt',
         process_cfg=process_cfg),
 )
 
-epoch_iter = 12
-epoch_num = 300
+epoch_iter = 247
+epoch_num = 200
 max_iters = epoch_iter * epoch_num
-log_config = dict(
-    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
-                                dict(type='TensorboardLoggerHook')])
+log_config = dict(interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True), dict(type='TensorboardLoggerHook')])
 
 # runtime settings
 runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
@@ -88,10 +85,15 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 
 # model settings
 model = dict(
-    type='MultiTaskCDNetSegmentor',
+    type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
-    num_classes=2,
-    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles, parallel=True),
+    num_classes=7,
+    train_cfg=dict(
+        if_weighted_loss=False,
+        num_angles = num_angles,
+        use_twobranch=True,
+        noau=True,
+    ),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),

@@ -5,7 +5,7 @@ import numpy as np
 
 from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
-from ..heads import MultiTaskCDHeadNoPoint
+from ..heads import MultiTaskCDHeadNoPoint, MultiTaskCDHeadNoPointTwobranch
 from ..builder import SEGMENTORS
 from ..losses import MultiClassBCELoss, BatchMultiClassDiceLoss, BatchMultiClassSigmoidDiceLoss, MultiClassDiceLoss, TopologicalLoss, RobustFocalLoss2d, LevelsetLoss, ActiveContourLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
@@ -31,23 +31,37 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
         self.use_regression = self.train_cfg.get('use_regression', False)
         self.use_semantic = self.train_cfg.get('use_semantic', True)
         self.parallel = self.train_cfg.get('parallel', False)
+        self.use_twobranch = self.train_cfg.get('use_twobranch', False)
 
         self.use_ac = self.train_cfg.get('use_ac', False)
         self.use_sigmoid = self.train_cfg.get('use_sigmoid', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
-        self.head = MultiTaskCDHeadNoPoint(
-            num_classes=self.num_classes,
-            num_angles=self.num_angles,
-            dgm_dims=64,
-            bottom_in_dim=512,
-            skip_in_dims=(64, 128, 256, 512, 512),
-            stage_dims=[16, 32, 64, 128, 256],
-            act_cfg=dict(type='ReLU'),
-            norm_cfg=dict(type='BN'),
-            noau=self.train_cfg.get('noau', False),
-            use_regression=self.use_regression,
-            parallel=self.parallel)
+        if self.use_twobranch:
+            self.head = MultiTaskCDHeadNoPointTwobranch(
+                num_classes=self.num_classes,
+                num_angles=self.num_angles,
+                dgm_dims=64,
+                bottom_in_dim=512,
+                skip_in_dims=(64, 128, 256, 512, 512),
+                stage_dims=[16, 32, 64, 128, 256],
+                act_cfg=dict(type='ReLU'),
+                norm_cfg=dict(type='BN'),
+                noau=self.train_cfg.get('noau', False),
+                use_regression=self.use_regression,)
+        else:
+            self.head = MultiTaskCDHeadNoPoint(
+                num_classes=self.num_classes,
+                num_angles=self.num_angles,
+                dgm_dims=64,
+                bottom_in_dim=512,
+                skip_in_dims=(64, 128, 256, 512, 512),
+                stage_dims=[16, 32, 64, 128, 256],
+                act_cfg=dict(type='ReLU'),
+                norm_cfg=dict(type='BN'),
+                noau=self.train_cfg.get('noau', False),
+                use_regression=self.use_regression,
+                parallel=self.parallel)
 
     def calculate(self, img, rescale=False):
         img_feats = self.backbone(img)

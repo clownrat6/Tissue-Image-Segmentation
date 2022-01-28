@@ -1,3 +1,6 @@
+from matplotlib import use
+
+
 _base_ = [
     '../../_base_/datasets/monuseg_w_dir.py',
     '../../_base_/default_runtime.py',
@@ -23,7 +26,6 @@ process_cfg = dict(
     edge_id=2,
     to_center=False,
     num_angles=num_angles,
-    use_distance=True,
 )
 data = dict(
     samples_per_gpu=16,
@@ -88,10 +90,15 @@ lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-
 
 # model settings
 model = dict(
-    type='MultiTaskCDNetSegmentor',
+    type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles, parallel=True),
+    train_cfg=dict(
+        if_weighted_loss=False,
+        num_angles=num_angles,
+        use_twobranch=True,
+        noau=True,
+    ),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),

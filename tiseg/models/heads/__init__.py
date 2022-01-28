@@ -1,3 +1,4 @@
+import imp
 from .cd_head import CDHead
 from .unet_head import UNetHead
 from .multi_task_unet_head import MultiTaskUNetHead
@@ -7,7 +8,9 @@ from .regression_degree_cd_head import RegDegreeCDHead
 from .multi_task_cd_head_no_point import MultiTaskCDHeadNoPoint
 from .multi_task_cd_voronoi_head import MultiTaskCDVoronoiHead
 from .multi_task_cd_head_twobranch import MultiTaskCDHeadTwobranch
+from .multi_task_cd_head_no_point_twobranch import MultiTaskCDHeadNoPointTwobranch
+
 __all__ = [
     'CDHead', 'UNetHead', 'CDVoronoiHead', 'MultiTaskUNetHead', 'RegCDHead', 'RegDegreeCDHead',
-    'MultiTaskCDHeadNoPoint', 'MultiTaskCDVoronoiHead', 'MultiTaskCDHeadTwobranch'
+    'MultiTaskCDHeadNoPoint', 'MultiTaskCDVoronoiHead', 'MultiTaskCDHeadTwobranch', 'MultiTaskCDHeadNoPointTwobranch'
 ]
