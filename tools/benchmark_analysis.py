@@ -70,8 +70,8 @@ def parse_args():
     """Usage Explanation:
 
     1. execute test command: python tools/test.py configs/aaa/bbb.py xxx.pth, python tools/test.py configs/aaa/bbb.py yyy.pth;
-    2. evaluation results will be storaged in eval_dirs/aaa/bbb/xxx.p, eval_dirs/aaa/bbb/yyy.p;
-    3. execute analysis command: python tools/benchmark_analysis.py eval_dirs/aaa/bbb;
+    2. evaluation results will be storaged in work_dirs/aaa/bbb/test/xxx.p, work_dirs/aaa/bbb/test/yyy.p;
+    3. execute analysis command: python tools/benchmark_analysis.py work_dirs/aaa/bbb/test;
     4. the mean & max results will be printed.
     """
     parser = argparse.ArgumentParser(description='test (and eval) a model')
@@ -84,7 +84,10 @@ def main():
     args = parse_args()
     analysis_folder = args.analysis_folder
 
-    print(benchmark_analysis(analysis_folder))
+    res_string = benchmark_analysis(analysis_folder)
+    with open(osp.join(analysis_folder, 'res.log'), 'w') as fp:
+        fp.write(res_string)
+    print(res_string)
 
 
 if __name__ == '__main__':

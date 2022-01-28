@@ -72,8 +72,11 @@ def main():
     model_name = osp.dirname(args.config).replace('configs/', '')
     config_name = osp.splitext(osp.basename(args.config))[0]
     # calculate metrics
-    eval_dir = f'eval_dirs/{model_name}/{config_name}/'
-    print(benchmark_analysis(eval_dir))
+    eval_dir = f'work_dirs/{model_name}/{config_name}/test'
+    res_string = benchmark_analysis(eval_dir)
+    with open(osp.join(eval_dir, 'res.log'), 'w') as fp:
+        fp.write(res_string)
+    print(res_string)
 
 
 if __name__ == '__main__':
