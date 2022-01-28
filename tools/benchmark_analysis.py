@@ -27,10 +27,11 @@ def main():
     analysis_logs = [osp.join(analysis_folder, x) for x in os.listdir(analysis_folder) if osp.splitext(x)[1] == '.p']
 
     max_mAji = -1
-    collect_res = {'max': {}, 'mean': {}}
+    collect_res = {'mean': {}, 'max': {}}
 
     inst_keys = ['imwAji', 'bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ']
     sem_keys = ['mDice']
+    dir_keys = ['dir_mDice']
     for analysis_log in analysis_logs:
         log_name = osp.splitext(osp.basename(analysis_log))[0]
         log_dict = p.load(open(analysis_log, 'rb'))
@@ -51,8 +52,17 @@ def main():
                 collect_res['mean'][sem_key] = [sem_metrics[sem_key]]
             else:
                 collect_res['mean'][sem_key].append(sem_metrics[sem_key])
+        if 'total_dir_metrics' in log_dict:
+            dir_metrics = log_dict['total_dir_metrics']
+            for dir_key in dir_keys:
+                collect_res[log_name][dir_key] = dir_metrics[dir_key]
+                if dir_key not in collect_res['mean']:
+                    collect_res['mean'][dir_key] = [dir_metrics[dir_key]]
+                else:
+                    collect_res['mean'][dir_key].append(dir_metrics[dir_key])
         if inst_metrics['mAji'] > max_mAji:
             collect_res['max'] = collect_res[log_name]
+            max_mAji = inst_metrics['mAji']
 
     for key in collect_res['mean'].keys():
         collect_res['mean'][key] = round(sum(collect_res['mean'][key]) / len(collect_res['mean'][key]), 2)

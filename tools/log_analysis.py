@@ -42,11 +42,11 @@ def main():
     logs_ = logs_[-5:]
 
     max_mAji = -1
-    collect_res = {'max': {}, 'mean': {}}
+    collect_res = {'mean': {}, 'max': {}}
 
     inst_keys = ['imwAji', 'bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ']
     sem_keys = ['mDice']
-
+    dir_keys = ['dir_mDice']
     for log in logs_:
         epoch = log['epoch']
         collect_res[epoch] = {}
@@ -62,8 +62,18 @@ def main():
                 collect_res['mean'][sem_key] = [log[sem_key]]
             else:
                 collect_res['mean'][sem_key].append(log[sem_key])
+        for dir_key in dir_keys:
+            if dir_key not in log:
+                continue
+            collect_res[epoch][dir_key] = log[dir_key]
+            if dir_key not in collect_res['mean']:
+                collect_res['mean'][dir_key] = [log[dir_key]]
+            else:
+                collect_res['mean'][dir_key].append(log[dir_key])
+
         if log['mAji'] > max_mAji:
             collect_res['max'] = collect_res[epoch]
+            max_mAji = log['mAji']
 
     for key in collect_res['mean'].keys():
         collect_res['mean'][key] = round(sum(collect_res['mean'][key]) / len(collect_res['mean'][key]), 2)

@@ -600,7 +600,7 @@ class NucleiCustomDatasetWithDirection(Dataset):
         dir_classes_metrics = OrderedDict({dir_key: np.round(value * 100, 2) for dir_key, value in dir_metrics.items()})
 
         total_dir_metrics = OrderedDict(
-            {'m' + dir_key: np.round(np.mean(value) * 100, 2)
+            {'dir_m' + dir_key: np.round(np.mean(value) * 100, 2)
              for dir_key, value in dir_metrics.items()})
 
         dir_classes_metrics.update({'classes': list(range(1, 9))})
@@ -610,9 +610,9 @@ class NucleiCustomDatasetWithDirection(Dataset):
         for key, val in dir_classes_metrics.items():
             dir_classes_table_data.add_column(key, val)
 
-        dir_total_table_data = PrettyTable()
+        total_dir_table_data = PrettyTable()
         for key, val in total_dir_metrics.items():
-            dir_total_table_data.add_column(key, [val])
+            total_dir_table_data.add_column(key, [val])
 
         print_log('Per classes:', logger)
         print_log('\n' + classes_table_data.get_string(), logger=logger)
@@ -625,9 +625,15 @@ class NucleiCustomDatasetWithDirection(Dataset):
         print_log('Per direction classes:', logger)
         print_log('\n' + dir_classes_table_data.get_string(), logger=logger)
         print_log('Direction Total:', logger)
-        print_log('\n' + dir_total_table_data.get_string(), logger=logger)
+        print_log('\n' + total_dir_table_data.get_string(), logger=logger)
 
-        storage_results = {'total_sem_metrics': total_sem_metrics, 'total_inst_metrics': total_inst_metrics, 'class_inst_metrics': classes_metrics}
+        storage_results = {
+            'total_sem_metrics': total_sem_metrics,
+            'total_inst_metrics': total_inst_metrics,
+            'class_inst_metrics': classes_metrics,
+            'total_dir_metrics': total_dir_metrics,
+            'classes_dir_metrics': dir_classes_metrics
+        }
 
         eval_results = {}
         # average results
@@ -643,6 +649,8 @@ class NucleiCustomDatasetWithDirection(Dataset):
         for k, v in total_sem_metrics.items():
             eval_results[k] = v
         for k, v in total_inst_metrics.items():
+            eval_results[k] = v
+        for k, v in total_dir_metrics.items():
             eval_results[k] = v
 
         classes = classes_metrics.pop('classes', None)

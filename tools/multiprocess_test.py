@@ -65,7 +65,7 @@ def main():
     model_name = osp.dirname(args.config).replace('configs/', '')
     config_name = osp.splitext(osp.basename(args.config))[0]
     # calculate metrics
-    os.system(f'python benchmark_analysis.py eval_dirs/{model_name}/{config_name}/')
+    os.system(f'python tools/benchmark_analysis.py eval_dirs/{model_name}/{config_name}/')
 
 
 if __name__ == '__main__':
