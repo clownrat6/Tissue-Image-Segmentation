@@ -627,6 +627,11 @@ class NucleiCustomDatasetWithDirection(Dataset):
         print_log('Direction Total:', logger)
         print_log('\n' + dir_total_table_data.get_string(), logger=logger)
 
+<<<<<<< HEAD
+=======
+        storage_results = {'total_sem_metrics': total_sem_metrics, 'total_inst_metrics': total_inst_metrics, 'class_inst_metrics': classes_metrics}
+
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299
         eval_results = {}
         # average results
         if 'Aji' in img_ret_metrics:
@@ -650,4 +655,8 @@ class NucleiCustomDatasetWithDirection(Dataset):
         # This ret value is used for eval hook. Eval hook will add these
         # evaluation info to runner.log_buffer.output. Then when the
         # TextLoggerHook is called, the evaluation info will output to logger.
+<<<<<<< HEAD
         return eval_results
+=======
+        return eval_results, storage_results
+>>>>>>> 542611ab99376da15c29c65944d0f8ab7816a299

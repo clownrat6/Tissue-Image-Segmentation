@@ -594,6 +594,8 @@ class NucleiCustomDataset(Dataset):
         print_log('Analysis Total:', logger)
         print_log('\n' + total_analysis_table_data.get_string(), logger=logger)
 
+        storage_results = {'total_sem_metrics': total_sem_metrics, 'total_inst_metrics': total_inst_metrics, 'class_inst_metrics': classes_metrics}
+
         eval_results = {}
         # average results
         if 'Aji' in img_ret_metrics:
@@ -617,4 +619,4 @@ class NucleiCustomDataset(Dataset):
         # This ret value is used for eval hook. Eval hook will add these
         # evaluation info to runner.log_buffer.output. Then when the
         # TextLoggerHook is called, the evaluation info will output to logger.
-        return eval_results
+        return eval_results, storage_results
