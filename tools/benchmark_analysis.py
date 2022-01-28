@@ -7,6 +7,13 @@ from collections import OrderedDict
 
 
 def parse_args():
+    """Usage Explanation:
+
+    1. execute test command: python tools/test.py configs/aaa/bbb.py xxx.pth, python tools/test.py configs/aaa/bbb.py yyy.pth;
+    2. evaluation results will be storaged in eval_dirs/aaa/bbb/xxx.p, eval_dirs/aaa/bbb/yyy.p;
+    3. execute analysis command: python tools/benchmark_analysis.py eval_dirs/aaa/bbb;
+    4. the mean & max results will be printed.
+    """
     parser = argparse.ArgumentParser(description='test (and eval) a model')
     parser.add_argument('analysis_folder', help='The analysis log save folder.')
     args = parser.parse_args()
