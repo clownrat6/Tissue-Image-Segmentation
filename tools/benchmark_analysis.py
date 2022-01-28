@@ -63,7 +63,7 @@ def benchmark_analysis(analysis_folder):
     for key, val in res.items():
         res_table.add_column(key, val)
 
-    print(res_table.get_string())
+    return res_table.get_string()
 
 
 def parse_args():
@@ -84,7 +84,7 @@ def main():
     args = parse_args()
     analysis_folder = args.analysis_folder
 
-    benchmark_analysis(analysis_folder)
+    print(benchmark_analysis(analysis_folder))
 
 
 if __name__ == '__main__':
