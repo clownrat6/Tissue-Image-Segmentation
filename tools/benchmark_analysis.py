@@ -54,7 +54,7 @@ def benchmark_analysis(analysis_folder):
     res = OrderedDict()
     res.update({'names': list(collect_res.keys())})
     res.move_to_end('names', last=False)
-    combine_keys = inst_keys + sem_keys
+    combine_keys = inst_keys + sem_keys + dir_keys
     for key in combine_keys:
         res[key] = []
         for k, single_res in collect_res.items():

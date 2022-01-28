@@ -605,7 +605,7 @@ class NucleiCustomDatasetWithDirection(Dataset):
             {'dir_m' + dir_key: np.round(np.mean(value) * 100, 2)
              for dir_key, value in dir_metrics.items()})
 
-        dir_classes_metrics.update({'classes': list(range(1, 9))})
+        dir_classes_metrics.update({'classes': list(range(1, self.num_angles + 1))})
         dir_classes_metrics.move_to_end('classes', last=False)
 
         dir_classes_table_data = PrettyTable()

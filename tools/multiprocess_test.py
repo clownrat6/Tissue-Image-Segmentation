@@ -3,6 +3,8 @@ import os
 import os.path as osp
 from multiprocessing import Process, Queue
 
+from benchmark_analysis import benchmark_analysis
+
 devices = os.environ.get('CUDA_VISIBLE_DEVICES', '0')
 devices_domain = devices.split(',')
 DQ = Queue()
@@ -51,6 +53,11 @@ def main():
     cur = 0
     while True:
         if DQ.qsize() > 0:
+            if cur == ckpt_len:
+                if check_processes(process_list) == 0:
+                    break
+                else:
+                    continue
             d_num = DQ.get()
             p = Process(target=run_test, args=(d_num, config_path, ckpts[cur]))
             p.start()
@@ -65,7 +72,8 @@ def main():
     model_name = osp.dirname(args.config).replace('configs/', '')
     config_name = osp.splitext(osp.basename(args.config))[0]
     # calculate metrics
-    os.system(f'python tools/benchmark_analysis.py eval_dirs/{model_name}/{config_name}/')
+    eval_dir = f'eval_dirs/{model_name}/{config_name}/'
+    print(benchmark_analysis(eval_dir))
 
 
 if __name__ == '__main__':

@@ -15,7 +15,7 @@ from tiseg.apis import train_segmentor
 from tiseg.datasets import build_dataset
 from tiseg.models import build_segmentor
 from tiseg.models.utils import revert_sync_batchnorm
-from tools.log_analysis import log_analysis
+from log_analysis import log_analysis
 
 
 def parse_args():
