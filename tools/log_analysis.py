@@ -1,19 +1,30 @@
 import argparse
 import json
+import os
+import os.path as osp
 from prettytable import PrettyTable
 from collections import OrderedDict
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Extract related results.')
-    parser.add_argument('log_json_path', help='The json style log file path')
+    parser.add_argument('log_path', help='The json style log file path')
     args = parser.parse_args()
     return args
 
 
 def main():
     args = parse_args()
-    with open(args.log_path, 'r') as fp:
+    log_path = args.log_path
+    if osp.isdir(log_path):
+        paths = [osp.join(log_path, x) for x in os.listdir(log_path) if osp.splitext(x)[1] == '.p']
+        indices = list(range(len(paths)))
+        indices = sorted(indices, key=lambda x: osp.getctime(paths[x]), reverse=True)
+        paths = [paths[index] for index in indices]
+        # The newest path
+        log_path = paths[0]
+
+    with open(log_path, 'r') as fp:
         lines = fp.readlines()
         logs = []
         for line in lines:
