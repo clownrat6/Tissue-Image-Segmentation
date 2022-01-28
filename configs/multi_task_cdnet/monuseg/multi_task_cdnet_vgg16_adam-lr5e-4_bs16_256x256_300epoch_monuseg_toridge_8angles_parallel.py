@@ -50,16 +50,23 @@ data = dict(
         process_cfg=process_cfg),
 )
 
+epoch_iter = 12
+epoch_num = 300
+max_iters = epoch_iter * epoch_num
+log_config = dict(
+    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
+                                dict(type='TensorboardLoggerHook')])
+
 # runtime settings
-runner = dict(type='EpochBasedRunner', max_epochs=400)
+runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 
 evaluation = dict(
     interval=50,
     custom_intervals=[1],
-    custom_milestones=[395],
+    custom_milestones=[epoch_num-5],
     by_epoch=True,
     metric='all',
-    save_best='Aji',
+    save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(

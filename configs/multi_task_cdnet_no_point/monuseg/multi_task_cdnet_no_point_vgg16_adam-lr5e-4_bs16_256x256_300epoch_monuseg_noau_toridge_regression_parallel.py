@@ -23,7 +23,6 @@ process_cfg = dict(
     edge_id=2,
     to_center=False,
     num_angles=num_angles,
-    use_distance=True,
 )
 data = dict(
     samples_per_gpu=16,
@@ -51,16 +50,23 @@ data = dict(
         process_cfg=process_cfg),
 )
 
+epoch_iter = 12
+epoch_num = 300
+max_iters = epoch_iter * epoch_num
+log_config = dict(
+    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
+                                dict(type='TensorboardLoggerHook')])
+
 # runtime settings
-runner = dict(type='EpochBasedRunner', max_epochs=400)
+runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)
 
 evaluation = dict(
     interval=50,
     custom_intervals=[1],
-    custom_milestones=[395],
+    custom_milestones=[epoch_num-5],
     by_epoch=True,
     metric='all',
-    save_best='Aji',
+    save_best='mAji',
     rule='greater',
 )
 checkpoint_config = dict(
@@ -69,22 +75,18 @@ checkpoint_config = dict(
     max_keep_ckpts=5,
 )
 
-optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
-optimizer_config = dict()
-
 # NOTE: poly learning rate decay
 # lr_config = dict(
-#     policy='poly', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, power=1.0, min_lr=0.0, by_epoch=False)
 
 # NOTE: fixed learning rate decay
 lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-6, by_epoch=False)
 
 # model settings
 model = dict(
-    type='MultiTaskCDNetSegmentor',
+    type='MultiTaskCDNetSegmentorNoPoint',
     # model training and testing settings
     num_classes=2,
-    train_cfg=dict(if_weighted_loss=False, num_angles=num_angles, parallel=True),
+    train_cfg=dict(if_weighted_loss=False, noau=True, num_angles=num_angles, parallel=True, use_regression=True),
     test_cfg=dict(
         mode='split',
         plane_size=(256, 256),
