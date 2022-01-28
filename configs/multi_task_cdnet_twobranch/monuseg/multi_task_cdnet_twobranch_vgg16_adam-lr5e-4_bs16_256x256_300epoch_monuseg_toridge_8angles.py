@@ -1,6 +1,3 @@
-from matplotlib import use
-
-
 _base_ = [
     '../../_base_/datasets/monuseg_w_dir.py',
     '../../_base_/default_runtime.py',
@@ -57,8 +54,7 @@ epoch_iter = 12
 epoch_num = 300
 max_iters = epoch_iter * epoch_num
 log_config = dict(
-    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),
-                                dict(type='TensorboardLoggerHook')])
+    interval=epoch_iter, hooks=[dict(type='TextLoggerHook', by_epoch=True),dict(type='TensorboardLoggerHook')])
 
 # runtime settings
 runner = dict(type='EpochBasedRunner', max_epochs=epoch_num)

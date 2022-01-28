@@ -1,6 +1,3 @@
-from matplotlib import use
-
-
 _base_ = [
     '../../_base_/datasets/monuseg_w_dir.py',
     '../../_base_/default_runtime.py',
