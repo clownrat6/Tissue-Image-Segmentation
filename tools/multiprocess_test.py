@@ -69,10 +69,8 @@ def main():
             if cur == ckpt_len:
                 break
 
-    model_name = osp.dirname(args.config).replace('configs/', '')
-    config_name = osp.splitext(osp.basename(args.config))[0]
     # calculate metrics
-    eval_dir = f'work_dirs/{model_name}/{config_name}/test'
+    eval_dir = f'{folder}/test'
     res_string = benchmark_analysis(eval_dir)
     with open(osp.join(eval_dir, 'res.log'), 'w') as fp:
         fp.write(res_string)
