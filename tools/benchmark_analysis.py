@@ -55,10 +55,17 @@ def benchmark_analysis(analysis_folder):
     res.update({'names': list(collect_res.keys())})
     res.move_to_end('names', last=False)
     combine_keys = inst_keys + sem_keys + dir_keys
+    empty_keys = []
     for key in combine_keys:
         res[key] = []
         for k, single_res in collect_res.items():
+            if key not in single_res:
+                continue
             res[key].append(single_res[key])
+        if len(res[key]) == 0:
+            empty_keys.append(key)
+    # remove empty key
+    [res.pop(key) for key in empty_keys]
 
     for key, val in res.items():
         res_table.add_column(key, val)
