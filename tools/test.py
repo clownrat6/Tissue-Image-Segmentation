@@ -90,9 +90,8 @@ def main():
 
         rank, _ = get_dist_info()
         if rank == 0:
-            model_name = osp.dirname(args.config).replace('configs/', '')
-            config_name = osp.splitext(osp.basename(args.config))[0]
-            dir_name = f'./work_dirs/{model_name}/{config_name}/test'
+            ckpt_folder = osp.dirname(args.checkpoint)
+            dir_name = f'./{ckpt_folder}/test'
             ckpt_name = osp.splitext(osp.basename(args.checkpoint))[0]
             eval_res, sotrage_res = dataset.evaluate(results, **eval_kwargs)
             if not osp.exists(dir_name):
