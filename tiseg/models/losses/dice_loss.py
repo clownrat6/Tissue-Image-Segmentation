@@ -207,3 +207,88 @@ class DiceLoss(nn.Module):
         dice_loss = 1 - dice_score
 
         return dice_loss
+
+
+
+
+
+class Weight_DiceLoss(nn.Module):
+    def __init__(self):
+        super(Weight_DiceLoss, self).__init__()
+
+    def forward(self, input, target, weights):
+        N = target.size(0)
+        smooth = 1e-4
+
+        input_flat = input.view(N, -1)
+        target_flat = target.view(N, -1)
+        weights = weights.view(N, -1)
+
+        intersection = input_flat * target_flat
+        intersection = intersection * weights
+
+        dice = (2 * intersection.sum(1) + smooth) / ((input_flat * weights).sum(1) + (target_flat * weights).sum(1) + smooth)
+        loss = 1 - dice.sum() / N
+
+        return loss
+
+
+class WeightMulticlassDiceLoss(nn.Module):
+    """
+    requires one hot encoded target. Applies DiceLoss on each class iteratively.
+    requires input.shape[0:1] and target.shape[0:1] to be (N, C) where N is
+      batch size and C is number of classes
+    """
+
+    def __init__(self, num_classes):
+        super(WeightMulticlassDiceLoss, self).__init__()
+        self.num_classes = num_classes
+
+    def forward(self, input, target, weights=None):
+
+        C = self.num_classes
+
+        # if weights is None:
+        # weights = torch.ones(C) #uniform weights for all classes
+        # weights[0] = 3
+        wdice = Weight_DiceLoss()
+        totalLoss = 0
+        target = _convert_to_one_hot(target, self.num_classes).permute(0, 3, 1, 2).contiguous()
+        for i in range(C):
+            # diceLoss = dice(input[:, i], target[:, i])
+            # diceLoss2 = 1 - wdice(input[:, i], target[:, i - 1])
+            # diceLoss3 = 1 - wdice(input[:, i], target[:, i%(C-1) + 1])
+            # diceLoss = diceLoss - diceLoss2 - diceLoss3
+
+            # diceLoss = dice(input[:, i - 1] + input[:, i] + input[:, i%(C-1) + 1], target[:, i])
+            ''''''
+            if (i == 0):
+                diceLoss = wdice(input[:, i], target[:, i], weights) * 2
+            elif (i == 1):
+                # diceLoss = dice(input[:, C - 1] + input[:, i] + input[:, i + 1], target[:, i])
+                diceLoss = wdice(input[:, i], target[:, i], weights)
+                diceLoss2 = 1 - wdice(input[:, i], target[:, C - 1], weights)
+                diceLoss3 = 1 - wdice(input[:, i], target[:, i + 1], weights)
+                diceLoss = diceLoss - diceLoss2 - diceLoss3
+
+            elif (i == C - 1):
+                # diceLoss = dice(input[:, i - 1] + input[:, i] + input[:, 1], target[:, i])
+                diceLoss = wdice(input[:, i], target[:, i], weights)
+                diceLoss2 = 1 - wdice(input[:, i], target[:, i - 1], weights)
+                diceLoss3 = 1 - wdice(input[:, i], target[:, 1], weights)
+                diceLoss = diceLoss - diceLoss2 - diceLoss3
+
+            else:
+                # diceLoss = dice(input[:, i - 1] + input[:, i] + input[:, i + 1], target[:, i])
+                diceLoss = wdice(input[:, i], target[:, i], weights)
+                diceLoss2 = 1 - wdice(input[:, i], target[:, i - 1], weights)
+                diceLoss3 = 1 - wdice(input[:, i], target[:, i + 1], weights)
+                diceLoss = diceLoss - diceLoss2 - diceLoss3
+
+            #if weights is not None:
+                #diceLoss *= weights[i]
+
+            totalLoss += diceLoss
+            avgLoss = totalLoss/C
+
+        return avgLoss

@@ -132,7 +132,7 @@ class DirectionLabelMake(object):
         reg_dir_map = self.calculate_regression_dir_map(inst_map, gradient_map)
         if self.num_angles == 8:
             weight_map = self.calculate_weight_map(dir_map, dist_map, self.num_angles)
-            weight_map = weight_map * 10.
+            # weight_map = weight_map * 10.
         else:
             weight_map = np.zeros_like(dir_map)
         if self.use_distance:
@@ -152,7 +152,7 @@ class DirectionLabelMake(object):
         dd_map = dd_map[0].numpy()
         weight_map = dd_map * (1 - dist_map)
         weight_map = morphology.dilation(dd_map, selem=morphology.selem.disk(1))
-        weight_map = weight_map.astype(np.float32)
+        weight_map = (weight_map.astype(np.float32) * 2 + 0.2)
 
         return weight_map
 
