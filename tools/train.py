@@ -59,6 +59,10 @@ def main():
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
 
+    # default seed is 2022
+    if args.seed is None:
+        args.seed = 2022
+    
     if args.work_dir is not None:
         cfg.work_dir = args.work_dir
     elif cfg.get('work_dir', None) is None:
