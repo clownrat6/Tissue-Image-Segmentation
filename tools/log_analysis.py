@@ -37,7 +37,7 @@ def log_analysis(log_path):
 
     inst_keys = ['imwAji', 'bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ']
     sem_keys = ['mDice']
-    dir_keys = ['dir_mDice']
+    dir_keys = ['dir_mDice', 'dir_mPrecision', 'dir_mRecall']
     for log in logs_:
         epoch = log['epoch']
         collect_res[epoch] = {}
@@ -73,7 +73,7 @@ def log_analysis(log_path):
     res = OrderedDict()
     res.update({'names': list(collect_res.keys())})
     res.move_to_end('names', last=False)
-    combine_keys = inst_keys + sem_keys
+    combine_keys = inst_keys + sem_keys + dir_keys
     for key in combine_keys:
         res[key] = []
         for k, single_res in collect_res.items():

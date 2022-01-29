@@ -14,7 +14,7 @@ def benchmark_analysis(analysis_folder):
 
     inst_keys = ['imwAji', 'bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ']
     sem_keys = ['mDice']
-    dir_keys = ['dir_mDice']
+    dir_keys = ['dir_mDice', 'dir_mPrecision', 'dir_mRecall']
     for analysis_log in analysis_logs:
         log_name = osp.splitext(osp.basename(analysis_log))[0]
         log_dict = p.load(open(analysis_log, 'rb'))
