@@ -194,7 +194,7 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
 
         return tc_logit, sem_logit
 
-    def _mask_loss(self, img, mask_logit, mask_label, inst_label):
+    def _mask_loss(self, img, mask_logit, mask_label, inst_label=None):
         """calculate semantic mask branch loss."""
         mask_loss = {}
 
