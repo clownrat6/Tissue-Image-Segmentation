@@ -89,6 +89,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
             tc_mask_gt[(tc_mask_gt != 0) * (tc_mask_gt != self.num_classes)] = 1
             tc_mask_gt[tc_mask_gt > 1] = 2
             mask_gt = label['sem_gt']
+            inst_label =  label['inst_gt']
             if self.use_regression:
                 dir_gt = label['reg_dir_gt']
             else:
@@ -105,7 +106,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
 
             # mask branch loss calculation
             if self.use_semantic:
-                mask_loss = self._mask_loss(downsampled_img, mask_logit, mask_gt)
+                mask_loss = self._mask_loss(downsampled_img, mask_logit, mask_gt, inst_label)
                 loss.update(mask_loss)
 
             # three classes mask branch loss calculation
@@ -313,7 +314,7 @@ class MultiTaskCDNetSegmentorNoPoint(BaseSegmentor):
 
         return mask_loss
 
-    def _mask_loss(self, img, mask_logit, mask_label, inst_label):
+    def _mask_loss(self, img, mask_logit, mask_label, inst_label=None):
         """calculate semantic mask branch loss."""
         mask_loss = {}
 
