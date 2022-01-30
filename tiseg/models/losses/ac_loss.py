@@ -111,7 +111,7 @@ class LossVariance(nn.Module):
         for k in range(B):
             unique_vals = target[k].unique()
             unique_vals = unique_vals[unique_vals != 0]
-            print(unique_vals)
+            # print(unique_vals)
             sum_var = 0
             for val in unique_vals:
                 # print(input[k].shape)
