@@ -251,6 +251,7 @@ class WeightMulticlassDiceLoss(nn.Module):
         # if weights is None:
         # weights = torch.ones(C) #uniform weights for all classes
         # weights[0] = 3
+        input = F.softmax(input, dim=1)
         wdice = Weight_DiceLoss()
         totalLoss = 0
         target = _convert_to_one_hot(target, self.num_classes).permute(0, 3, 1, 2).contiguous()

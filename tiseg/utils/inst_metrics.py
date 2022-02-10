@@ -416,7 +416,7 @@ def pre_eval_to_bin_aji(pre_eval_results, nan_to_num=None):
 
     # [0]: overall intersection
     # [1]: overall union
-    ret_metrics = {'bAji': sum(pre_eval_results[0]) / sum(pre_eval_results[1])}
+    ret_metrics = {'bAji': sum(pre_eval_results[0]) / (sum(pre_eval_results[1])+1e-6)}
 
     if nan_to_num is not None:
         ret_metrics = OrderedDict(
