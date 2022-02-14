@@ -136,9 +136,9 @@ class DirectionLabelMake(object):
         else:
             weight_map = np.zeros_like(dir_map)
         if self.use_distance:
-            results['point_gt'] = point_map
-        else:
             results['point_gt'] = dist_map
+        else:
+            results['point_gt'] = point_map
         results['dir_gt'] = dir_map
         results['reg_dir_gt'] = reg_dir_map
         results['loss_weight_map'] = weight_map
