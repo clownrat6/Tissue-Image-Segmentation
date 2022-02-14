@@ -177,5 +177,5 @@ class MultiTaskCDHead(UNetHead):
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg,
             noau=noau,
-            use_regression=False, 
-            parallel=False)
+            use_regression=use_regression, 
+            parallel=parallel)
