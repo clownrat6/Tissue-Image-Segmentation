@@ -5,7 +5,7 @@ from skimage import morphology
 
 from ..utils import (angle_to_vector, calculate_centerpoint, calculate_gradient, vector_to_label)
 from ...models.utils import generate_direction_differential_map
-
+from skimage import io # hhladd image save
 
 class GenBound:
     """Generate high quality boundary labels.
@@ -133,6 +133,10 @@ class DirectionLabelMake(object):
         if self.num_angles == 8:
             weight_map = self.calculate_weight_map(dir_map, dist_map, self.num_angles)
             # weight_map = weight_map * 10.
+            #print('weight_map.shape={}, weight_map.unique={}'.format(weight_map.shape, np.unique(weight_map)))
+            # weight_map.shape=(256, 256), weight_map.unique=[0.2 1.2 2.2]
+            #io.imsave('./work_vis/weight_map.png', weight_map)
+            #io.imsave('./work_vis/weight_map4.png', weight_map[0,0,0]) # for error to stop
         else:
             weight_map = np.zeros_like(dir_map)
         if self.use_distance:
@@ -150,24 +154,43 @@ class DirectionLabelMake(object):
         # torch style api
         dd_map = generate_direction_differential_map(dir_map, num_angle_types + 1)
         dd_map = dd_map[0].numpy()
-        weight_map = dd_map * (1 - dist_map)
-        weight_map = morphology.dilation(dd_map, selem=morphology.selem.disk(1))
+        #print('dd_map.shape={}, dist_map.shape={}'.format(dd_map.shape, dist_map.shape))
+        #print('dd_map.shape={}, dist_map.max={}'.format(np.unique(dd_map), np.max(dist_map)))
+        # dd_map.shape=(256, 256), dist_map.shape=(256, 256)
+        # dd_map.shape=[0.  0.5 1. ], dist_map.max=4.412756443023682
+
+        #io.imsave('./work_vis/dir_map.png', dir_map*20)
+        #io.imsave('./work_vis/dd_map.png', dd_map*20)
+        #io.imsave('./work_vis/dist_map.png', dist_map*20)
+        #weight_map = dd_map * (1 - dist_map)
+        weight_map = dd_map * (dist_map)
+        #io.imsave('./work_vis/weight_map2.png', weight_map*20)
+        weight_map = morphology.dilation(weight_map, selem=morphology.selem.disk(1))
+        #io.imsave('./work_vis/weight_map3.png', weight_map*20)
         weight_map = (weight_map.astype(np.float32) * 2 + 0.2)
+        #io.imsave('./work_vis/weight_map4.png', weight_map*20)
 
         return weight_map
 
     @classmethod
     def calculate_dir_map(self, instance_map, gradient_map, num_angle_types):
         # Prepare for gradient map & direction map calculation
-        # continue angle calculation
+        # continue angle calculation    instance_map.shape=(256, 256), gradient_map.shape=(256, 256, 2)
         angle_map = np.degrees(np.arctan2(gradient_map[:, :, 0], gradient_map[:, :, 1]))
+        #io.imsave('./work_vis/gradient_map0.png', gradient_map[:, :, 0])
+        #io.imsave('./work_vis/gradient_map1.png', gradient_map[:, :, 1])
+        #io.imsave('./work_vis/angle_map1.png', angle_map)
         angle_map[instance_map == 0] = 0
+        #io.imsave('./work_vis/angle_map2.png', angle_map)
+        #io.imsave('./work_vis/instance_map.png', instance_map)
         vector_map = angle_to_vector(angle_map, num_angle_types)
         # angle type judgement
         dir_map = vector_to_label(vector_map, num_angle_types)
-
+        #io.imsave('./work_vis/dir_map0.png', dir_map)
         dir_map[instance_map == 0] = -1
+        #io.imsave('./work_vis/dir_map1.png', dir_map)
         dir_map = dir_map + 1
+        #io.imsave('./work_vis/dir_map2.png', dir_map)
 
         return dir_map
 
@@ -218,7 +241,9 @@ class DirectionLabelMake(object):
 
         # Use gaussian filter to process center point map
         point_map_gaussian = gaussian_filter(point_map * 255, sigma=2, order=0).astype(np.float32)
-
+        #io.imsave('./work_vis/distance_to_center_map0.png', distance_to_center_map)
+        distance_to_center_map = (1-distance_to_center_map)*(instance_map>0) **3 * 5 # hhladd 1- and 3power
+        #io.imsave('./work_vis/distance_to_center_map1.png', distance_to_center_map)
         return point_map_gaussian, gradient_map, distance_to_center_map
 
     @classmethod
@@ -253,4 +278,6 @@ class DirectionLabelMake(object):
         gradient_map_instance = np.zeros((H, W, 2))
         gradient_map_instance = calculate_gradient(distance_to_center_instance, ksize=11)
         gradient_map_instance[(single_instance_map == 0), :] = 0
+        #io.imsave('./work_vis/gradient_map_instance0.png', gradient_map_instance[:, :, 0])
+        #io.imsave('./work_vis/gradient_map_instance1.png', gradient_map_instance[:, :, 1])
         return gradient_map_instance

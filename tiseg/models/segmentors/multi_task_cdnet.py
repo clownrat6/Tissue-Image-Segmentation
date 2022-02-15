@@ -12,7 +12,7 @@ from ..losses import WeightMulticlassDiceLoss, LossVariance, MultiClassBCELoss, 
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 from ...datasets.utils import (angle_to_vector, vector_to_label)
-
+from skimage import io # hhladd image save
 
 @SEGMENTORS.register_module()
 class MultiTaskCDNetSegmentor(BaseSegmentor):
@@ -123,6 +123,22 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
             # calculate training metric
             training_metric_dict = self._training_metric(mask_logit, dir_logit, point_logit, mask_gt, dir_gt, point_gt)
             loss.update(training_metric_dict)
+
+            # hhl 20220214add 测试生成图片样式
+            #print('tc_mask_logit.shape={}, tc_mask_gt.shape={}'.format(dir_logit.shape, dir_gt.shape))
+            #print('dir_logit.shape={}, dir_gt.shape={}'.format(dir_logit.shape, dir_gt.shape))
+            #print('point_logit.shape={}, point_gt.shape={}'.format(point_logit.shape, point_gt.shape))
+            # tc_mask_logit.shape=torch.Size([16, 9, 256, 256]), tc_mask_gt.shape=torch.Size([16, 256, 256])
+            # dir_logit.shape=torch.Size([16, 9, 256, 256]), dir_gt.shape=torch.Size([16, 256, 256])
+            # point_logit.shape=torch.Size([16, 1, 256, 256]), point_gt.shape=torch.Size([16, 1, 256, 256])
+
+            #io.imsave('./work_vis/tc_mask_gt2.png', tc_mask_gt.detach().cpu().numpy()[0,:,:]*80)
+            #io.imsave('./work_vis/dir_logit2.png', dir_logit.detach().cpu().numpy()[0,0,:,:]*30)
+            #io.imsave('./work_vis/dir_gt2.png', dir_gt.detach().cpu().numpy()[0,:,:]*30)
+            
+            #io.imsave('./work_vis/point_logit7.png', point_logit.detach().cpu().numpy()[0,0,:,:]*80)
+            #io.imsave('./work_vis/point_gt7.png', point_gt.detach().cpu().numpy()[0,0,:,:]*80)
+
             return loss
         else:
             assert self.test_cfg is not None
@@ -461,7 +477,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         point_mse_loss_calculator = nn.MSELoss()
         point_mse_loss = point_mse_loss_calculator(point_logit, point_gt)
         # loss weight
-        alpha = 1
+        alpha = 3
         point_loss['point_mse_loss'] = alpha * point_mse_loss
 
         return point_loss
