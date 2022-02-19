@@ -134,7 +134,7 @@ class DirectionLabelMake(object):
             weight_map = self.calculate_weight_map(dir_map, dist_map, self.num_angles)
             # weight_map = weight_map * 10.
             #print('weight_map.shape={}, weight_map.unique={}'.format(weight_map.shape, np.unique(weight_map)))
-            # weight_map.shape=(256, 256), weight_map.unique=[0.2 1.2 2.2]
+            # weight_map.shape=(256, 256), weight_map.unique=[0.2 1.2 2.2]   ====> (1.0, 6.6)
             #io.imsave('./work_vis/weight_map.png', weight_map)
             #io.imsave('./work_vis/weight_map4.png', weight_map[0,0,0]) # for error to stop
         else:
@@ -158,17 +158,18 @@ class DirectionLabelMake(object):
         #print('dd_map.shape={}, dist_map.max={}'.format(np.unique(dd_map), np.max(dist_map)))
         # dd_map.shape=(256, 256), dist_map.shape=(256, 256)
         # dd_map.shape=[0.  0.5 1. ], dist_map.max=4.412756443023682
-
+        # dir_map.shape=(256, 256), dir_map.unique=[0 1 2 3 4 5 6 7 8]
         #io.imsave('./work_vis/dir_map.png', dir_map*20)
         #io.imsave('./work_vis/dd_map.png', dd_map*20)
-        #io.imsave('./work_vis/dist_map.png', dist_map*20)
-        #weight_map = dd_map * (1 - dist_map)
-        weight_map = dd_map * (dist_map)
-        #io.imsave('./work_vis/weight_map2.png', weight_map*20)
+        #io.imsave('./work_vis/dist_map0.png', dist_map*20)
+        weight_map = dd_map * (10 - dist_map)# * (dir_map>0)*1
+        #weight_map = dd_map * (dist_map)
+        #io.imsave('./work_vis/dir_map0.png', (dir_map>0)*100)
+        #io.imsave('./work_vis/weight_map002.png', weight_map*20)
         weight_map = morphology.dilation(weight_map, selem=morphology.selem.disk(1))
-        #io.imsave('./work_vis/weight_map3.png', weight_map*20)
-        weight_map = (weight_map.astype(np.float32) * 2 + 0.2)
-        #io.imsave('./work_vis/weight_map4.png', weight_map*20)
+        #io.imsave('./work_vis/weight_map003.png', weight_map*20)
+        weight_map = (weight_map.astype(np.float32) * 2 + 1.0) #  + 0.2
+        #io.imsave('./work_vis/weight_map005.png', weight_map*20)
 
         return weight_map
 
@@ -241,9 +242,11 @@ class DirectionLabelMake(object):
 
         # Use gaussian filter to process center point map
         point_map_gaussian = gaussian_filter(point_map * 255, sigma=2, order=0).astype(np.float32)
-        #io.imsave('./work_vis/distance_to_center_map0.png', distance_to_center_map)
-        distance_to_center_map = (1-distance_to_center_map)*(instance_map>0) **3 * 5 # hhladd 1- and 3power
-        #io.imsave('./work_vis/distance_to_center_map1.png', distance_to_center_map)
+        #io.imsave('./work_vis/point_map_gaussian.png', point_map_gaussian)
+        #io.imsave('./work_vis/distance_to_center_map00.png', distance_to_center_map)
+        distance_to_center_map = ((distance_to_center_map) **0.5) * 10 # hhladd 1- and 3power
+        #io.imsave('./work_vis/distance_to_center_map01.png', distance_to_center_map)
+        #distance_to_center_map = distance_to_center_map[0,0,0,0] # 为了停止代码
         return point_map_gaussian, gradient_map, distance_to_center_map
 
     @classmethod

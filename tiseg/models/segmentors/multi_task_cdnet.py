@@ -431,11 +431,13 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
             if self.use_modify_dirloss:
                 dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
                 dir_dice_loss_calculator = WeightMulticlassDiceLoss(num_classes=self.num_angles + 1)
+                #dir_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_angles + 1)
                 # Assign weight map for each pixel position
                 dir_ce_loss = dir_ce_loss_calculator(dir_logit, dir_gt)
                 dir_ce_loss *= weight_map[:, 0]
                 dir_ce_loss = torch.mean(dir_ce_loss)
                 dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt, weight_map)
+                #dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
                 # loss weight
                 alpha = 3
                 beta = 1
@@ -477,7 +479,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         point_mse_loss_calculator = nn.MSELoss()
         point_mse_loss = point_mse_loss_calculator(point_logit, point_gt)
         # loss weight
-        alpha = 3
+        alpha = 1
         point_loss['point_mse_loss'] = alpha * point_mse_loss
 
         return point_loss
