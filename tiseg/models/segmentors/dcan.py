@@ -207,14 +207,14 @@ class DCAN(BaseSegmentor):
         """calculate mask branch loss."""
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes - 1)
+        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
         cont_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=2)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         cell_ce_loss = torch.mean(mask_ce_loss_calculator(cell_logit, sem_gt.long()))
         cell_dice_loss = mask_dice_loss_calculator(cell_logit, sem_gt.long())
-        cont_ce_loss = torch.mean(mask_ce_loss_calculator(cont_logit, cont_gt))
-        cont_dice_loss = cont_dice_loss_calculator(cont_logit, cont_gt)
+        cont_ce_loss = torch.mean(mask_ce_loss_calculator(cont_logit, cont_gt.long()))
+        cont_dice_loss = cont_dice_loss_calculator(cont_logit, cont_gt.long())
         # loss weight
         alpha = 5
         beta = 0.5

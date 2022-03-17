@@ -99,8 +99,6 @@ class BatchMultiClassDiceLoss(nn.Module):
         return loss
 
 
-
-
 class BatchMultiClassSigmoidDiceLoss(nn.Module):
     """Calculate each class dice loss, then sum per class dice loss as a total
     loss."""
@@ -136,9 +134,6 @@ class BatchMultiClassSigmoidDiceLoss(nn.Module):
             loss += dice_loss_per_class
 
         return loss
-
-
-
 
 
 class MultiClassDiceLoss(nn.Module):
@@ -209,10 +204,8 @@ class DiceLoss(nn.Module):
         return dice_loss
 
 
-
-
-
 class Weight_DiceLoss(nn.Module):
+
     def __init__(self):
         super(Weight_DiceLoss, self).__init__()
 
@@ -227,7 +220,8 @@ class Weight_DiceLoss(nn.Module):
         intersection = input_flat * target_flat
         intersection = intersection * weights
 
-        dice = (2 * intersection.sum(1) + smooth) / ((input_flat * weights).sum(1) + (target_flat * weights).sum(1) + smooth)
+        dice = (2 * intersection.sum(1) + smooth) / ((input_flat * weights).sum(1) +
+                                                     (target_flat * weights).sum(1) + smooth)
         loss = 1 - dice.sum() / N
 
         return loss
@@ -251,7 +245,7 @@ class WeightMulticlassDiceLoss(nn.Module):
         if weights is None:
             #weights = torch.ones(C) #uniform weights for all classes
             # weights[0] = 3
-            weights = torch.ones(input.shape[0]).cuda() # N
+            weights = torch.ones(input.shape[0]).cuda()  # N
         input = F.softmax(input, dim=1)
         wdice = Weight_DiceLoss()
         totalLoss = 0
@@ -288,9 +282,9 @@ class WeightMulticlassDiceLoss(nn.Module):
                 diceLoss = diceLoss - diceLoss2 - diceLoss3
 
             #if weights is not None:
-                #diceLoss *= weights[i]
+            #diceLoss *= weights[i]
 
             totalLoss += diceLoss
-            avgLoss = totalLoss # /C
+            avgLoss = totalLoss  # /C
 
         return avgLoss
