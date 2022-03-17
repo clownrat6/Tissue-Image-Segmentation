@@ -181,8 +181,8 @@ def parse_single_item(item, raw_image_folder, raw_label_folder, new_path, w_size
     patch_batches = zip(image_patches, instance_patches, semantic_patches)
     for patch, sub_item in zip(patch_batches, sub_item_list):
         # jump when exists
-        # if osp.exists(osp.join(new_path, sub_item + '.tif')):
-        #     continue
+        if osp.exists(osp.join(new_path, sub_item + '.tif')):
+            continue
         # save image
         cv2.imwrite(osp.join(new_path, sub_item + '.tif'), patch[0])
         # save instance level label
@@ -281,8 +281,8 @@ def main():
         for item in item_list:
             name_list = [x.rstrip('.tif') for x in os.listdir(train_img_folder)]
             for name in name_list:
-                if item in name and '_instance.npy' in name:
-                    name = name.replace('_instance.npy', '')
+                if item in name and '_inst.npy' in name:
+                    name = name.replace('_inst.npy', '')
                     train_item_list.append(name)
         val_item_list = None
         test_item_list = split_dict['test1'] + split_dict['test2']
@@ -292,8 +292,8 @@ def main():
         for item in item_list:
             name_list = [x.rstrip('.tif') for x in os.listdir(train_img_folder)]
             for name in name_list:
-                if item in name and '_instance.npy' in name:
-                    name = name.replace('_instance.npy', '')
+                if item in name and '_inst.npy' in name:
+                    name = name.replace('_inst.npy', '')
                     train_item_list.append(name)
         val_item_list = split_dict['val']
         test_item_list = split_dict['test1'] + split_dict['test2']

@@ -1,6 +1,4 @@
 from .test import multi_gpu_test, single_gpu_test
-from .train import set_random_seed, train_segmentor
+from .train import set_random_seed, train_segmentor, init_random_seed
 
-__all__ = [
-    'set_random_seed', 'train_segmentor', 'single_gpu_test', 'multi_gpu_test'
-]
+__all__ = ['init_random_seed', 'set_random_seed', 'train_segmentor', 'single_gpu_test', 'multi_gpu_test']

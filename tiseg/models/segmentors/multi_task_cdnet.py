@@ -12,7 +12,7 @@ from ..losses import WeightMulticlassDiceLoss, LossVariance, MultiClassBCELoss, 
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 from ...datasets.utils import (angle_to_vector, vector_to_label)
-from skimage import io # hhladd image save
+
 
 @SEGMENTORS.register_module()
 class MultiTaskCDNetSegmentor(BaseSegmentor):
@@ -37,7 +37,6 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         self.use_ac = self.train_cfg.get('use_ac', False)
         self.use_sigmoid = self.train_cfg.get('use_sigmoid', False)
 
-
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
 
         if self.use_twobranch:
@@ -51,7 +50,8 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
                 act_cfg=dict(type='ReLU'),
                 norm_cfg=dict(type='BN'),
                 noau=self.train_cfg.get('noau', False),
-                use_regression=self.use_regression,)
+                use_regression=self.use_regression,
+            )
         else:
             self.head = MultiTaskCDHead(
                 num_classes=self.num_classes,
@@ -91,7 +91,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
             tc_mask_gt = label['sem_gt_w_bound']
             tc_mask_gt[(tc_mask_gt != 0) * (tc_mask_gt != self.num_classes)] = 1
             tc_mask_gt[tc_mask_gt > 1] = 2
-            inst_label =  label['inst_gt']
+            inst_label = label['inst_gt']
             mask_gt = label['sem_gt']
             point_gt = label['point_gt']
             if self.use_regression:
@@ -123,22 +123,6 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
             # calculate training metric
             training_metric_dict = self._training_metric(mask_logit, dir_logit, point_logit, mask_gt, dir_gt, point_gt)
             loss.update(training_metric_dict)
-
-            # hhl 20220214add 测试生成图片样式
-            #print('tc_mask_logit.shape={}, tc_mask_gt.shape={}'.format(dir_logit.shape, dir_gt.shape))
-            #print('dir_logit.shape={}, dir_gt.shape={}'.format(dir_logit.shape, dir_gt.shape))
-            #print('point_logit.shape={}, point_gt.shape={}'.format(point_logit.shape, point_gt.shape))
-            # tc_mask_logit.shape=torch.Size([16, 9, 256, 256]), tc_mask_gt.shape=torch.Size([16, 256, 256])
-            # dir_logit.shape=torch.Size([16, 9, 256, 256]), dir_gt.shape=torch.Size([16, 256, 256])
-            # point_logit.shape=torch.Size([16, 1, 256, 256]), point_gt.shape=torch.Size([16, 1, 256, 256])
-
-            #io.imsave('./work_vis/tc_mask_gt2.png', tc_mask_gt.detach().cpu().numpy()[0,:,:]*80)
-            #io.imsave('./work_vis/dir_logit2.png', dir_logit.detach().cpu().numpy()[0,0,:,:]*30)
-            #io.imsave('./work_vis/dir_gt2.png', dir_gt.detach().cpu().numpy()[0,:,:]*30)
-            
-            #io.imsave('./work_vis/point_logit7.png', point_logit.detach().cpu().numpy()[0,0,:,:]*80)
-            #io.imsave('./work_vis/point_gt7.png', point_gt.detach().cpu().numpy()[0,0,:,:]*80)
-
             return loss
         else:
             assert self.test_cfg is not None
@@ -368,8 +352,8 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
                 mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
                 mask_loss['mask_bce_loss'] = alpha * mask_bce_loss
                 mask_loss['mask_dice_loss'] = beta * mask_dice_loss
-                
-        else: 
+
+        else:
             if use_focal:
                 mask_focal_loss_calculator = RobustFocalLoss2d(type='softmax')
                 mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
@@ -385,7 +369,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
                 mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
                 mask_loss['mask_dice_loss'] = beta * mask_dice_loss
 
-            mask_logit = mask_logit.softmax(dim = 1)
+            mask_logit = mask_logit.softmax(dim=1)
             if use_ac:
                 ac_w_area = self.train_cfg.get('ac_w_area')
                 ac_loss_calculator = ActiveContourLoss(w_area=ac_w_area, len_weight=ac_len_weight)
@@ -399,7 +383,6 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
                 variance_loss_calculator = LossVariance()
                 variance_loss = variance_loss_calculator(mask_logit, inst_label[:, 0])
                 mask_loss['mask_variance_loss'] = gamma * variance_loss
-
 
         if use_level:
             # calculate deep level set loss for each semantic class.
@@ -431,13 +414,13 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
             if self.use_modify_dirloss:
                 dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
                 dir_dice_loss_calculator = WeightMulticlassDiceLoss(num_classes=self.num_angles + 1)
-                #dir_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_angles + 1)
+                # dir_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_angles + 1)
                 # Assign weight map for each pixel position
                 dir_ce_loss = dir_ce_loss_calculator(dir_logit, dir_gt)
                 dir_ce_loss *= weight_map[:, 0]
                 dir_ce_loss = torch.mean(dir_ce_loss)
                 dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt, weight_map)
-                #dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
+                # dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
                 # loss weight
                 alpha = 3
                 beta = 1

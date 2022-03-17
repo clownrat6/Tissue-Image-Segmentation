@@ -11,7 +11,7 @@ from mmcv.runner import init_dist
 from mmcv.utils import Config, DictAction, get_git_hash, collect_env, get_logger, print_log
 
 from tiseg import __version__
-from tiseg.apis import train_segmentor
+from tiseg.apis import train_segmentor, set_random_seed, init_random_seed
 from tiseg.datasets import build_dataset
 from tiseg.models import build_segmentor
 from tiseg.models.utils import revert_sync_batchnorm
@@ -36,8 +36,8 @@ def parse_args():
         '(only applicable to non-distributed training)')
     # Set pytorch initial seed and cudnn op selection
     parser.add_argument('--seed', type=int, help='random seed')
-    # parser.add_argument(
-    #     '--deterministic', action='store_true', help='whether to set deterministic options for CUDNN backend.')
+    parser.add_argument(
+        '--deterministic', action='store_true', help='whether to set deterministic options for CUDNN backend.')
     # Manual set some config option
     parser.add_argument('--options', nargs='+', action=DictAction, help='custom options')
     # Set runtime launcher. If launcher is not None, we will use MMDDP；
@@ -59,21 +59,13 @@ def main():
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
 
-    # default seed is 2022
-    if args.seed is None:
-        args.seed = 2022
-    
     if args.work_dir is not None:
         cfg.work_dir = args.work_dir
     elif cfg.get('work_dir', None) is None:
         # use config filename as default work_dir if cfg.work_dir is None
         model_name = osp.dirname(args.config).replace('configs/', '')
         config_name = osp.splitext(osp.basename(args.config))[0]
-        if args.seed is not None:
-            seed_name = "work_dirs_seed" + str(args.seed)
-            cfg.work_dir = f'./{seed_name}/{model_name}/{config_name}'
-        else:
-            cfg.work_dir = f'./work_dirs/{model_name}/{config_name}'
+        cfg.work_dir = f'./work_dirs/{model_name}/{config_name}'
 
     if args.load_from is not None:
         cfg.load_from = args.load_from
@@ -115,22 +107,12 @@ def main():
     logger.info(f'Config:\n{cfg.pretty_text}')
 
     # set random seeds
-    if args.seed is not None:
-        logger.info(f'Set random seed to {args.seed}, deterministic: True')
-        torch.manual_seed(args.seed)
-        torch.cuda.manual_seed_all(args.seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        # If seed is fixed and deterministic is False, the training
-        # results is surely reproducibility
-        # set_random_seed(args.seed, deterministic=args.deterministic)
-    else:
-        print('seed is ', 2021)
-        args.seed = 2021
-        torch.manual_seed(args.seed)
-        torch.cuda.manual_seed_all(args.seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
+    seed = init_random_seed(args.seed)
+    logger.info(f'Set random seed to {seed}, ' f'deterministic: {args.deterministic}')
+    set_random_seed(seed, deterministic=args.deterministic)
+    cfg.seed = seed
+    meta['seed'] = seed
+    meta['exp_name'] = osp.basename(args.config)
 
     cfg.seed = args.seed
     meta['seed'] = args.seed
