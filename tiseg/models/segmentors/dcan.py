@@ -1,10 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
+from skimage import morphology, measure
+from skimage.morphology import remove_small_objects
+from scipy.ndimage import binary_fill_holes
 from mmcv.cnn import ConvModule
 
 from tiseg.utils import resize
-from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..losses import mdice, tdice, BatchMultiClassDiceLoss
 from .base import BaseSegmentor
@@ -16,6 +19,10 @@ def conv1x1(in_dims, out_dims, norm_cfg=None, act_cfg=None):
 
 def conv3x3(in_dims, out_dims, norm_cfg=None, act_cfg=None):
     return ConvModule(in_dims, out_dims, 3, 1, 1, norm_cfg=norm_cfg, act_cfg=act_cfg)
+
+
+def conv(in_dims, out_dims, kernel, norm_cfg=None, act_cfg=None):
+    return ConvModule(in_dims, out_dims, kernel, 1, (kernel - 1) // 2, norm_cfg=norm_cfg, act_cfg=act_cfg)
 
 
 def up_convs(in_dims, out_dims, up_nums, norm_cfg=None, act_cfg=None):
@@ -61,42 +68,85 @@ class DCAN(BaseSegmentor):
         self.test_cfg = test_cfg
         self.num_classes = num_classes
 
-        self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
+        self.stage1 = nn.Sequential(
+            conv3x3(3, 64, None, dict(type='ReLU')),
+            conv3x3(64, 64, None, dict(type='ReLU')),
+        )
+        self.pool1 = nn.MaxPool2d(2, 2)
 
-        # NOTE: refine upsampling method.
-        self.up_conv_4_cell = up_convs(512, num_classes - 1, 3)
-        self.up_conv_4_cont = up_convs(512, 2, 3)
+        self.stage2 = nn.Sequential(
+            conv3x3(64, 128, None, dict(type='ReLU')),
+            conv3x3(128, 128, None, dict(type='ReLU')),
+        )
+        self.pool2 = nn.MaxPool2d(2, 2)
 
-        self.up_conv_5_cell = up_convs(512, num_classes - 1, 4)
-        self.up_conv_5_cont = up_convs(512, 2, 4)
+        self.stage3 = nn.Sequential(
+            conv3x3(128, 256, None, dict(type='ReLU')),
+            conv3x3(256, 256, None, dict(type='ReLU')),
+            conv3x3(256, 256, None, dict(type='ReLU')),
+        )
+        self.pool3 = nn.MaxPool2d(2, 2)
 
-        self.up_conv_6_cell = up_convs(512, num_classes - 1, 5)
-        self.up_conv_6_cont = up_convs(512, 2, 5)
+        self.stage4 = nn.Sequential(
+            conv3x3(256, 512, None, dict(type='ReLU')),
+            conv3x3(512, 512, None, dict(type='ReLU')),
+            conv3x3(512, 512, None, dict(type='ReLU')),
+        )
+        self.pool4 = nn.MaxPool2d(2, 2)
 
-        # NOTE: raw upsampling method.
-        # self.up_conv_4_cell = nn.Sequential(
-        #     *[nn.ConvTranspose2d(b_dims * 8, num_classes - 1, kernel_size=16, stride=8)])
-        # self.up_conv_4_cont = nn.Sequential(*[nn.ConvTranspose2d(b_dims * 8, 2, kernel_size=16, stride=8)])
+        self.stage5 = nn.Sequential(
+            conv3x3(512, 512, None, dict(type='ReLU')),
+            conv3x3(512, 512, None, dict(type='ReLU')),
+            conv3x3(512, 512, None, dict(type='ReLU')),
+        )
+        self.pool5 = nn.MaxPool2d(2, 2)
 
-        # self.up_conv_5_cell = nn.Sequential(
-        #     *[nn.ConvTranspose2d(b_dims * 8, num_classes - 1, kernel_size=32, stride=16)])
-        # self.up_conv_5_cont = nn.Sequential(*[nn.ConvTranspose2d(b_dims * 8, 2, kernel_size=32, stride=16)])
+        self.stage6 = nn.Sequential(
+            conv(512, 1024, 7, None, dict(type='ReLU')),
+            nn.Dropout(p=0.5),
+            conv1x1(1024, 1024, None, dict(type='ReLU')),
+        )
 
-        # self.up_conv_6_cell = nn.Sequential(
-        #     *[nn.ConvTranspose2d(b_dims * 16, num_classes - 1, kernel_size=64, stride=32)])
-        # self.up_conv_6_cont = nn.Sequential(*[nn.ConvTranspose2d(b_dims * 16, 2, kernel_size=64, stride=32)])
+        self.up_conv_4_cell = conv1x1(512, num_classes, None, None)
+        self.up_conv_4_cont = conv1x1(512, 2, None, None)
+
+        self.up_conv_5_cell = conv1x1(512, num_classes, None, None)
+        self.up_conv_5_cont = conv1x1(512, 2, None, None)
+
+        self.up_conv_6_cell = conv1x1(1024, num_classes, None, None)
+        self.up_conv_6_cont = conv1x1(1024, 2, None, None)
 
     def calculate(self, img):
-        img_feats = self.backbone(img)
+        B, _, H, W = img.shape
+        x1 = self.stage1(img)
+        p1 = self.pool1(x1)
 
-        cell_4 = self.up_conv_4_cell(img_feats[-3])
-        cont_4 = self.up_conv_4_cont(img_feats[-3])
+        x2 = self.stage2(p1)
+        p2 = self.pool2(x2)
 
-        cell_5 = self.up_conv_5_cell(img_feats[-2])
-        cont_5 = self.up_conv_5_cont(img_feats[-2])
+        x3 = self.stage3(p2)
+        p3 = self.pool3(x3)
 
-        cell_6 = self.up_conv_6_cell(img_feats[-1])
-        cont_6 = self.up_conv_6_cont(img_feats[-1])
+        x4 = self.stage4(p3)
+        p4 = self.pool4(x4)
+
+        x5 = self.stage5(p4)
+        p5 = self.pool5(x5)
+
+        x6 = self.stage6(p5)
+
+        out4 = F.interpolate(x4, (H, W), mode='bilinear', align_corners=False)
+        out5 = F.interpolate(x5, (H, W), mode='bilinear', align_corners=False)
+        out6 = F.interpolate(x6, (H, W), mode='bilinear', align_corners=False)
+
+        cell_4 = self.up_conv_4_cell(out4)
+        cont_4 = self.up_conv_4_cont(out4)
+
+        cell_5 = self.up_conv_5_cell(out5)
+        cont_5 = self.up_conv_5_cont(out5)
+
+        cell_6 = self.up_conv_6_cell(out6)
+        cont_6 = self.up_conv_6_cont(out6)
 
         cell_logit = cell_4 + cell_5 + cell_6
         cont_logit = cont_4 + cont_5 + cont_6
@@ -109,17 +159,18 @@ class DCAN(BaseSegmentor):
         if self.training:
             cell_logit, cont_logit = self.calculate(data['img'])
             assert label is not None
-            mask_label = label['sem_gt']
-            tc_mask_label = label['sem_gt_w_bound']
-            tc_mask_label[(tc_mask_label != 0) * (tc_mask_label != (self.num_classes - 1))] = 1
-            tc_mask_label[tc_mask_label > 1] = 2
+            sem_gt = label['sem_gt']
+            sem_gt_wb = label['sem_gt_w_bound']
+            # NOTE: 0 ~ (num_classes - 1) are regular semantic classes.
+            # num_classes is the id of edge class.
+            cont_gt = sem_gt_wb == self.num_classes
             loss = dict()
-            mask_label = mask_label.squeeze(1)
-            tc_mask_label = tc_mask_label.squeeze(1)
-            mask_loss = self._mask_loss(cell_logit, cont_logit, mask_label, tc_mask_label)
+            sem_gt = sem_gt.squeeze(1)
+            cont_gt = cont_gt.squeeze(1)
+            mask_loss = self._mask_loss(cell_logit, cont_logit, sem_gt, cont_gt)
             loss.update(mask_loss)
             # calculate training metric
-            training_metric_dict = self._training_metric(cell_logit, mask_label)
+            training_metric_dict = self._training_metric(cell_logit, sem_gt)
             loss.update(training_metric_dict)
             return loss
         else:
@@ -128,18 +179,31 @@ class DCAN(BaseSegmentor):
             cell_logit, cont_logit = self.inference(data['img'], metas[0], True)
             cell_pred = cell_logit.argmax(dim=1)
             cont_pred = cont_logit.argmax(dim=1)
-            seg_pred = cell_pred.clone()
-            seg_pred[cont_pred > 0] = self.num_classes - 1
-            # Extract inside class
-            seg_pred = seg_pred.cpu().numpy()
+            cell_pred = cell_pred.cpu().numpy()[0]
+            cont_pred = cont_pred.cpu().numpy()[0]
+            sem_pred, inst_pred = self.postprocess(cell_pred, cont_pred)
             # unravel batch dim
-            seg_pred = list(seg_pred)
             ret_list = []
-            for seg in seg_pred:
-                ret_list.append({'sem_pred': seg})
+            ret_list.append({'sem_pred': sem_pred, 'inst_pred': inst_pred})
             return ret_list
 
-    def _mask_loss(self, cell_logit, cont_logit, mask_label, tc_mask_label):
+    def postprocess(self, cell_pred, cont_pred):
+        """model free post-process for both instance-level & semantic-level."""
+        sem_pred = (cell_pred == 1).astype(np.uint8)
+        cell_pred[cont_pred > 0] = 0
+        # fill instance holes
+        cell_pred = binary_fill_holes(cell_pred)
+        # remove small instance
+        cell_pred = remove_small_objects(cell_pred, 5)
+        sem_pred = cell_pred.astype(np.uint8)
+
+        # instance process & dilation
+        inst_pred = measure.label(sem_pred, connectivity=1)
+        inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(3))
+
+        return sem_pred, inst_pred
+
+    def _mask_loss(self, cell_logit, cont_logit, sem_gt, cont_gt):
         """calculate mask branch loss."""
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
@@ -147,10 +211,10 @@ class DCAN(BaseSegmentor):
         cont_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=2)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
-        cell_ce_loss = torch.mean(mask_ce_loss_calculator(cell_logit, mask_label.long()))
-        cell_dice_loss = mask_dice_loss_calculator(cell_logit, mask_label.long())
-        cont_ce_loss = torch.mean(mask_ce_loss_calculator(cont_logit, (tc_mask_label == 2).long()))
-        cont_dice_loss = cont_dice_loss_calculator(cont_logit, (tc_mask_label == 2).long())
+        cell_ce_loss = torch.mean(mask_ce_loss_calculator(cell_logit, sem_gt.long()))
+        cell_dice_loss = mask_dice_loss_calculator(cell_logit, sem_gt.long())
+        cont_ce_loss = torch.mean(mask_ce_loss_calculator(cont_logit, cont_gt))
+        cont_dice_loss = cont_dice_loss_calculator(cont_logit, cont_gt)
         # loss weight
         alpha = 5
         beta = 0.5
@@ -229,7 +293,7 @@ class DCAN(BaseSegmentor):
         img_canvas = torch.zeros((B, C, H1, W1), dtype=img.dtype, device=img.device)
         img_canvas[:, :, pad_h // 2:pad_h // 2 + H, pad_w // 2:pad_w // 2 + W] = img
 
-        cell_logit = torch.zeros((B, 2, H1, W1), dtype=img.dtype, device=img.device)
+        cell_logit = torch.zeros((B, self.num_classes, H1, W1), dtype=img.dtype, device=img.device)
         cont_logit = torch.zeros((B, 2, H1, W1), dtype=img.dtype, device=img.device)
         for i in range(0, H1 - overlap_size, window_size - overlap_size):
             r_end = i + window_size if i + window_size < H1 else H1

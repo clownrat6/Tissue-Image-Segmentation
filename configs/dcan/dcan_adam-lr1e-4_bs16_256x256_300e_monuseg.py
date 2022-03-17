@@ -40,7 +40,7 @@ lr_config = dict(
 model = dict(
     type='DCAN',
     # model training and testing settings
-    num_classes=3,
+    num_classes=2,
     train_cfg=dict(),
     test_cfg=dict(
         mode='split',
