@@ -1,42 +1,51 @@
 # dataset settings
 dataset_type = 'NucleiMoNuSegDataset'
 data_root = 'data/monuseg'
-process_cfg = dict(
-    if_flip=True,
-    if_jitter=True,
-    if_elastic=True,
-    if_blur=True,
-    if_crop=True,
-    if_pad=True,
-    if_norm=False,
-    with_dir=False,
-    min_size=256,
-    max_size=2048,
-    resize_mode='fix',
-    edge_id=2,
-)
+train_processes = [
+    dict(type='Affine', scale=(0.8, 1.2), shear=5, rotate_degree=[-180, 180], translate_frac=(0, 0.01)),
+    dict(type='RandomFlip', prob=0.5, direction='horizontal'),
+    dict(type='RandomFlip', prob=0.5, direction='vertical'),
+    dict(type='RandomCrop', crop_size=(256, 256)),
+    dict(type='Pad', pad_size=(256, 256)),
+    dict(type='RandomBlur'),
+    dict(
+        type='ColorJitter', hue_delta=8, saturation_range=(0.8, 1.2), brightness_delta=26, contrast_range=(0.75, 1.25)),
+    dict(
+        type='Normalize',
+        mean=[0.68861804, 0.46102882, 0.61138992],
+        std=[0.19204499, 0.20979484, 0.1658672],
+        if_zscore=False),
+]
+test_processes = [
+    dict(
+        type='Normalize',
+        mean=[0.68861804, 0.46102882, 0.61138992],
+        std=[0.19204499, 0.20979484, 0.1658672],
+        if_zscore=False),
+]
+
 data = dict(
     samples_per_gpu=16,
     workers_per_gpu=16,
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='train/c300',
-        ann_dir='train/c300',
-        split='only-train_t12_v4_train_c300.txt',
-        process_cfg=process_cfg),
+        img_dir='train/w512_s256',
+        ann_dir='train/w512_s256',
+        split='only-train_t12_v4_train_w512_s256.txt',
+        processes=train_processes),
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='train/c0',
-        ann_dir='train/c0',
-        split='only-train_t12_v4_test_c0.txt',
-        process_cfg=process_cfg),
+        img_dir='train/w0_s0',
+        ann_dir='train/w0_s0',
+        split='only-train_t12_v4_test_w0_s0.txt',
+        processes=test_processes),
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        img_dir='train/c0',
-        ann_dir='train/c0',
-        split='only-train_t12_v4_test_c0.txt',
-        process_cfg=process_cfg),
+        img_dir='train/w0_s0',
+        ann_dir='train/w0_s0',
+        split='only-train_t12_v4_test_w0_s0.txt',
+        processes=test_processes),
 )

@@ -67,7 +67,7 @@ class ColorJitter(object):
             img = mmcv.hsv2bgr(img)
         return img
 
-    def __call__(self, img):
+    def __call__(self, img, segs):
         # random brightness
         img = self.brightness(img)
 
@@ -87,7 +87,21 @@ class ColorJitter(object):
         if mode == 0:
             img = self.contrast(img)
 
-        return img
+        return img, segs
+
+
+class AlbuColorJitter(object):
+
+    def __init__(self, brightness, contrast, saturation, hue, prob=0.5):
+        self.trans = A.ColorJitter(brightness, contrast, saturation, hue, prob=prob)
+
+    def __call__(self, img, segs):
+        res_dict = self.trans(image=img, masks=segs)
+
+        img = res_dict['image']
+        segs = res_dict['masks']
+
+        return img, segs
 
 
 class Resize(object):
@@ -358,6 +372,20 @@ class Identity(object):
             return args
 
 
+class Affine(object):
+
+    def __init__(self, scale=(0.8, 1.2), shear=5, rotate_degree=[-180, 180], translate_frac=(0, 0.01)):
+        self.trans = A.Affine(scale=scale, shear=shear, rotate=rotate_degree, translate_percent=translate_frac)
+
+    def __call__(self, img, segs):
+        res_dict = self.trans(image=img, masks=segs)
+
+        img = res_dict['image']
+        segs = res_dict['masks']
+
+        return img, segs
+
+
 class RandomBlur(object):
     """Random use filter to blur image.
 
@@ -376,28 +404,28 @@ class RandomBlur(object):
 
         self.trans = [self.blur, self.gauss, self.median]
 
-    def __call__(self, img):
+    def __call__(self, img, segs):
         if np.random.rand() < self.prob:
             index = random.randint(0, len(self.trans) - 1)
             img = self.trans[index](img)
 
-        return img
+        return img, segs
 
 
 class Normalize(object):
-    """z-score standardization."""
+    """z-score standardization or simple div 255."""
 
     def __init__(self, mean, std, if_zscore=False):
         self.mean = mean
         self.std = std
         self.if_zscore = if_zscore
 
-    def __call__(self, img):
+    def __call__(self, img, segs):
         img = img / 255.
         if self.if_zscore:
             img = (img - self.mean) / (self.std)
 
-        return img
+        return img, segs
 
 
 class Pad(object):

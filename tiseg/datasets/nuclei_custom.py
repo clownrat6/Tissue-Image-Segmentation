@@ -112,11 +112,10 @@ class NucleiCustomDataset(Dataset):
     """Nuclei Custom Foundation Segmentation Dataset.
     Although, this dataset is a instance segmentation task, this dataset also
     support a multiple class semantic segmentation task (Background, Nuclei1, Nuclei2, ...).
-    The basic settings only supports two-class nuclei segmentation task.
+
     related suffix:
-        "_semantic.png": raw semantic map (two class semantic map without
-            boundary).
-        "_instance.npy": instance level map.
+        "_sem.png": semantic level label map (multiple class semantic map without boundary).
+        "_inst.npy": instance level label map.
     """
 
     CLASSES = ('background', 'nuclei')
@@ -124,17 +123,17 @@ class NucleiCustomDataset(Dataset):
     PALETTE = [[0, 0, 0], [255, 2, 255]]
 
     def __init__(self,
-                 process_cfg,
+                 processes,
                  img_dir,
                  ann_dir,
                  data_root=None,
                  img_suffix='.tif',
-                 sem_suffix='_semantic.png',
-                 inst_suffix='_instance.npy',
+                 sem_suffix='_sem.png',
+                 inst_suffix='_inst.npy',
                  test_mode=False,
                  split=None):
 
-        self.mapper = NucleiDatasetMapper(test_mode, process_cfg=process_cfg)
+        self.mapper = NucleiDatasetMapper(test_mode, processes=processes)
 
         self.img_dir = img_dir
         self.ann_dir = ann_dir
@@ -594,7 +593,11 @@ class NucleiCustomDataset(Dataset):
         print_log('Analysis Total:', logger)
         print_log('\n' + total_analysis_table_data.get_string(), logger=logger)
 
-        storage_results = {'total_sem_metrics': total_sem_metrics, 'total_inst_metrics': total_inst_metrics, 'class_inst_metrics': classes_metrics}
+        storage_results = {
+            'total_sem_metrics': total_sem_metrics,
+            'total_inst_metrics': total_inst_metrics,
+            'class_inst_metrics': classes_metrics
+        }
 
         eval_results = {}
         # average results
