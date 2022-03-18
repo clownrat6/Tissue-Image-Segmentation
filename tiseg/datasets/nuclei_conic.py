@@ -40,17 +40,17 @@ class NucleiCoNICDataset(Dataset):
     PALETTE = [[0, 0, 0], [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [255, 0, 255], [0, 255, 255]]
 
     def __init__(self,
-                 process_cfg,
+                 processes,
                  img_dir,
                  ann_dir,
                  data_root=None,
                  img_suffix='.png',
-                 sem_suffix='_semantic.png',
-                 inst_suffix='_instance.npy',
+                 sem_suffix='_sem.png',
+                 inst_suffix='_inst.npy',
                  test_mode=False,
                  split=None):
 
-        self.mapper = NucleiDatasetMapper(test_mode, process_cfg=process_cfg)
+        self.mapper = NucleiDatasetMapper(test_mode, processes=processes)
 
         self.img_dir = img_dir
         self.ann_dir = ann_dir
@@ -457,7 +457,11 @@ class NucleiCoNICDataset(Dataset):
         print_log('Analysis Total:', logger)
         print_log('\n' + total_analysis_table_data.get_string(), logger=logger)
 
-        storage_results = {'total_sem_metrics': total_sem_metrics, 'total_inst_metrics': total_inst_metrics, 'class_inst_metrics': classes_metrics}
+        storage_results = {
+            'total_sem_metrics': total_sem_metrics,
+            'total_inst_metrics': total_inst_metrics,
+            'class_inst_metrics': classes_metrics
+        }
 
         eval_results = {}
         # average results

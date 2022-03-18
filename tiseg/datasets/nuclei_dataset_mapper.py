@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from .ops import class_dict, format_img, format_info, format_seg
+from .ops import class_dict
 
 
 def read_image(path):
@@ -45,34 +45,40 @@ class NucleiDatasetMapper(object):
         h, w = img.shape[:2]
         assert img.shape[:2] == sem_gt.shape[:2]
 
-        data = {'img': img, 'sem_gt': sem_gt, 'inst_gt': inst_gt, 'seg_fields': ['sem_gt', 'inst_gt']}
+        data = {
+            'img': img,
+            'sem_gt': sem_gt,
+            'inst_gt': inst_gt,
+            'seg_fields': ['sem_gt', 'inst_gt'],
+            'data_info': data_info
+        }
         for process in self.processes:
             data = process(data)
 
-        img = data['img']
-        sem_gt = data['sem_gt']
-        inst_gt = data['inst_gt']
-        sem_gt_w_bound = data['sem_gt_w_bound']
+        # img = data['img']
+        # sem_gt = data['sem_gt']
+        # inst_gt = data['inst_gt']
+        # sem_gt_w_bound = data['sem_gt_w_bound']
 
-        h, w = img.shape[:2]
-        data_info['input_hw'] = (h, w)
+        # h, w = img.shape[:2]
+        # data_info['input_hw'] = (h, w)
 
-        img_dc = format_img(img)
-        sem_dc = format_seg(sem_gt)
-        inst_dc = format_seg(inst_gt)
-        sem_dc_w_bound = format_seg(sem_gt_w_bound)
-        info_dc = format_info(data_info)
+        # img_dc = format_img(img)
+        # sem_dc = format_seg(sem_gt)
+        # inst_dc = format_seg(inst_gt)
+        # sem_dc_w_bound = format_seg(sem_gt_w_bound)
+        # info_dc = format_info(data_info)
 
-        ret = {
-            'data': {
-                'img': img_dc
-            },
-            'label': {
-                'sem_gt': sem_dc,
-                'inst_gt': inst_dc,
-                'sem_gt_w_bound': sem_dc_w_bound
-            },
-            'metas': info_dc,
-        }
+        # ret = {
+        #     'data': {
+        #         'img': img_dc
+        #     },
+        #     'label': {
+        #         'sem_gt': sem_dc,
+        #         'inst_gt': inst_dc,
+        #         'sem_gt_w_bound': sem_dc_w_bound
+        #     },
+        #     'metas': info_dc,
+        # }
 
-        return ret
+        return data

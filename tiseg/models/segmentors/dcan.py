@@ -189,17 +189,26 @@ class DCAN(BaseSegmentor):
 
     def postprocess(self, cell_pred, cont_pred):
         """model free post-process for both instance-level & semantic-level."""
-        sem_pred = (cell_pred == 1).astype(np.uint8)
+        sem_id_list = list(np.unique(cell_pred))
+        inst_pred = np.zeros_like(cell_pred).astype(np.int32)
+        sem_pred = np.zeros_like(cell_pred).astype(np.uint8)
         cell_pred[cont_pred > 0] = 0
-        # fill instance holes
-        cell_pred = binary_fill_holes(cell_pred)
-        # remove small instance
-        cell_pred = remove_small_objects(cell_pred, 5)
-        sem_pred = cell_pred.astype(np.uint8)
-
-        # instance process & dilation
-        inst_pred = measure.label(sem_pred, connectivity=1)
-        inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(3))
+        cur = 0
+        for sem_id in sem_id_list:
+            # 0 is background semantic class.
+            if sem_id == 0:
+                continue
+            sem_id_mask = cell_pred == sem_id
+            # fill instance holes
+            sem_id_mask = binary_fill_holes(sem_id_mask)
+            sem_id_mask = remove_small_objects(sem_id_mask, 5)
+            inst_sem_mask = measure.label(sem_id_mask)
+            inst_sem_mask = morphology.dilation(inst_sem_mask, selem=morphology.disk(3))
+            inst_sem_mask[inst_sem_mask > 0] += cur
+            inst_pred[inst_sem_mask > 0] = 0
+            inst_pred += inst_sem_mask
+            cur += len(np.unique(inst_sem_mask))
+            sem_pred[inst_sem_mask > 0] = sem_id
 
         return sem_pred, inst_pred
 

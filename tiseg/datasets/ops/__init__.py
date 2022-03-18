@@ -2,7 +2,7 @@ from .bound_map import BoundLabelMake
 from .direction_map import DirectionLabelMake
 from .distance_map import DistanceLabelMake
 from .hv_map import HVLabelMake
-from .formating import (format_img, format_info, format_reg, format_seg, format_, to_tensor)
+from .formating import (format_img, format_info, format_reg, format_seg, format_, to_tensor, Formatting)
 from .transform import (AlbuColorJitter, ColorJitter, RandomFlip, Resize, RandomElasticDeform, RandomCrop, RandomRotate,
                         RandomSparseRotate, Identity, RandomBlur, Normalize, Pad, Affine)
 
@@ -28,4 +28,5 @@ class_dict = {
     'Identity': Identity,
     'BoundLabelMake': BoundLabelMake,
     'DirectionLabelMake': DirectionLabelMake,
+    'Formatting': Formatting,
 }

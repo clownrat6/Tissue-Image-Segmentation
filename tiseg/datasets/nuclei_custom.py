@@ -288,7 +288,7 @@ class NucleiCustomDataset(Dataset):
             # This may be the dice metric calculation trick (Need be
             # considering carefully)
             # convert instance map (after postprocess) to semantic level
-            sem_pred = (inst_pred > 0).astype(np.uint8)
+            # sem_pred = (inst_pred > 0).astype(np.uint8)
 
             # semantic metric calculation (remove background class)
             # [1] will remove background class.

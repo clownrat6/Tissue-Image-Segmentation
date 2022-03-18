@@ -92,10 +92,10 @@ def colorize_seg_map(seg_map):
     colorful_seg_map = np.zeros((*seg_map.shape, ), dtype=np.float32)
     id_list = list(np.unique(seg_map))
 
-    for cell_id in id_list:
-        if cell_id == 0:
+    for id_ in id_list:
+        if id_ == 0:
             continue
-        colorful_seg_map[seg_map == cell_id] = random.random()
+        colorful_seg_map[seg_map == id_] = random.random()
 
     colorful_seg_map = cv2.applyColorMap((colorful_seg_map * 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
     colorful_seg_map[seg_map == 0, :] = (0, 0, 0)
