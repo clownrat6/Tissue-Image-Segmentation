@@ -18,8 +18,8 @@ evaluation = dict(
 
 checkpoint_config = dict(
     by_epoch=True,
-    interval=50,
-    max_keep_ckpts=1,
+    interval=1,
+    max_keep_ckpts=5,
 )
 
 optimizer = dict(type='Adam', lr=0.0001, weight_decay=0.0005)
