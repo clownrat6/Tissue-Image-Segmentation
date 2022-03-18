@@ -189,10 +189,11 @@ class DCAN(BaseSegmentor):
 
     def postprocess(self, cell_pred, cont_pred):
         """model free post-process for both instance-level & semantic-level."""
+        # Use boundary prediction to split cells.
+        cell_pred[cont_pred > 0] = 0
         sem_id_list = list(np.unique(cell_pred))
         inst_pred = np.zeros_like(cell_pred).astype(np.int32)
         sem_pred = np.zeros_like(cell_pred).astype(np.uint8)
-        cell_pred[cont_pred > 0] = 0
         cur = 0
         for sem_id in sem_id_list:
             # 0 is background semantic class.

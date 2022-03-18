@@ -1,5 +1,9 @@
 import torch
 import torch.nn as nn
+import numpy as np
+from skimage import morphology, measure
+from skimage.morphology import remove_small_objects
+from scipy.ndimage import binary_fill_holes
 
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
@@ -53,33 +57,40 @@ class UNetSegmentor(BaseSegmentor):
         else:
             assert metas is not None
             # NOTE: only support batch size = 1 now.
-            seg_logit = self.inference(data['img'], metas[0], True)
-            seg_pred = seg_logit.argmax(dim=1)
+            sem_logit = self.inference(data['img'], metas[0], True)
+            sem_pred = sem_logit.argmax(dim=1)
             # Extract inside class
-            seg_pred = seg_pred.cpu().numpy()
-            seg_pred = list(seg_pred)
+            sem_pred = sem_pred.cpu().numpy()[0]
+            sem_pred, inst_pred = self.postprocess(sem_pred)
+            # unravel batch dim
             ret_list = []
-            for seg in seg_pred:
-                ret_list.append({'sem_pred': seg})
-            # NOTE: modifications
-            # if self.num_classes == 3:
-            #     tc_sem_pred = seg_pred.copy()
-            #     tc_sem_pred[(tc_sem_pred != 0) * (tc_sem_pred != self.num_classes - 1)] = 1
-            #     tc_sem_pred[tc_sem_pred > 1] = 2
-            #     sem_pred = (seg_pred > 0).astype(np.uint8)
-            #     # unravel batch dim
-            #     tc_sem_pred = list(tc_sem_pred)
-            #     sem_pred = list(sem_pred)
-            #     ret_list = []
-
-            #     for tc_sem, sem in zip(tc_sem_pred, sem_pred):
-            #         ret_list.append({'tc_sem_pred': tc_sem, 'sem_pred': sem})
-            # else:
-            #     seg_pred = list(seg_pred)
-            #     ret_list = []
-            #     for seg in seg_pred:
-            #         ret_list.append({'sem_pred': seg})
+            ret_list.append({'sem_pred': sem_pred, 'inst_pred': inst_pred})
             return ret_list
+
+    def postprocess(self, sem_pred):
+        """model free post-process for both instance-level & semantic-level."""
+        sem_pred[sem_pred == self.num_classes] = 0
+        sem_id_list = list(np.unique(sem_pred))
+        inst_pred = np.zeros_like(sem_pred).astype(np.int32)
+        sem_pred = np.zeros_like(sem_pred).astype(np.uint8)
+        cur = 0
+        for sem_id in sem_id_list:
+            # 0 is background semantic class.
+            if sem_id == 0:
+                continue
+            sem_id_mask = sem_pred == sem_id
+            # fill instance holes
+            sem_id_mask = binary_fill_holes(sem_id_mask)
+            sem_id_mask = remove_small_objects(sem_id_mask, 5)
+            inst_sem_mask = measure.label(sem_id_mask)
+            inst_sem_mask = morphology.dilation(inst_sem_mask, selem=morphology.disk(3))
+            inst_sem_mask[inst_sem_mask > 0] += cur
+            inst_pred[inst_sem_mask > 0] = 0
+            inst_pred += inst_sem_mask
+            cur += len(np.unique(inst_sem_mask))
+            sem_pred[inst_sem_mask > 0] = sem_id
+
+        return sem_pred, inst_pred
 
     def _mask_loss(self, mask_logit, mask_label):
         """calculate mask branch loss."""
