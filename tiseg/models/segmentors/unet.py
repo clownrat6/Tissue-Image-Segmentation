@@ -24,7 +24,7 @@ class UNetSegmentor(BaseSegmentor):
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = UNetHead(
-            num_classes=self.num_classes,
+            num_classes=self.num_classes + 1,
             bottom_in_dim=512,
             skip_in_dims=(64, 128, 256, 512, 512),
             stage_dims=[16, 32, 64, 128, 256],
@@ -67,18 +67,18 @@ class UNetSegmentor(BaseSegmentor):
             ret_list.append({'sem_pred': sem_pred, 'inst_pred': inst_pred})
             return ret_list
 
-    def postprocess(self, sem_pred):
+    def postprocess(self, pred):
         """model free post-process for both instance-level & semantic-level."""
-        sem_pred[sem_pred == self.num_classes] = 0
-        sem_id_list = list(np.unique(sem_pred))
-        inst_pred = np.zeros_like(sem_pred).astype(np.int32)
-        sem_pred = np.zeros_like(sem_pred).astype(np.uint8)
+        pred[pred == self.num_classes] = 0
+        sem_id_list = list(np.unique(pred))
+        inst_pred = np.zeros_like(pred).astype(np.int32)
+        sem_pred = np.zeros_like(pred).astype(np.uint8)
         cur = 0
         for sem_id in sem_id_list:
             # 0 is background semantic class.
             if sem_id == 0:
                 continue
-            sem_id_mask = sem_pred == sem_id
+            sem_id_mask = pred == sem_id
             # fill instance holes
             sem_id_mask = binary_fill_holes(sem_id_mask)
             sem_id_mask = remove_small_objects(sem_id_mask, 5)
@@ -96,7 +96,7 @@ class UNetSegmentor(BaseSegmentor):
         """calculate mask branch loss."""
         mask_loss = {}
         mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes + 1)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
         mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
