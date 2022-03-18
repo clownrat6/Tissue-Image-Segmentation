@@ -15,6 +15,7 @@ train_processes = [
         mean=[0.68861804, 0.46102882, 0.61138992],
         std=[0.19204499, 0.20979484, 0.1658672],
         if_zscore=False),
+    dict(type='BoundLabelMake', edge_id=2, selem_radius=(3, 3))
 ]
 test_processes = [
     dict(

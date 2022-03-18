@@ -15,7 +15,7 @@ class DirectionLabelMake(object):
         self.num_angles = num_angles
         self.use_distance = use_distance
 
-    def __call__(self, sem_map, inst_map):
+    def __call__(self, data):
         """generate boundary label & direction from instance map and pure semantic map.
 
         sem_map:
@@ -41,27 +41,27 @@ class DirectionLabelMake(object):
             inst_map: instance map with each instance id. Use inst_map = inst_id
                 to extrach each instance.
         """
-        results = {}
+        inst_gt = data['inst_gt']
 
         # point map calculation & gradient map calculation
-        point_map, gradient_map, dist_map = self.calculate_point_map(inst_map, to_center=self.to_center)
+        point_map, gradient_map, dist_map = self.calculate_point_map(inst_gt, to_center=self.to_center)
 
         # direction map calculation
-        dir_map = self.calculate_dir_map(inst_map, gradient_map, self.num_angles)
-        reg_dir_map = self.calculate_regression_dir_map(inst_map, gradient_map)
+        dir_map = self.calculate_dir_map(inst_gt, gradient_map, self.num_angles)
+        reg_dir_map = self.calculate_regression_dir_map(inst_gt, gradient_map)
         if self.num_angles == 8:
             weight_map = self.calculate_weight_map(dir_map, dist_map, self.num_angles)
         else:
             weight_map = np.zeros_like(dir_map)
         if self.use_distance:
-            results['point_gt'] = dist_map
+            data['point_gt'] = dist_map
         else:
-            results['point_gt'] = point_map
-        results['dir_gt'] = dir_map
-        results['reg_dir_gt'] = reg_dir_map
-        results['loss_weight_map'] = weight_map
+            data['point_gt'] = point_map
+        data['dir_gt'] = dir_map
+        data['reg_dir_gt'] = reg_dir_map
+        data['loss_weight_map'] = weight_map
 
-        return results
+        return data
 
     @classmethod
     def calculate_weight_map(self, dir_map, dist_map, num_angle_types):

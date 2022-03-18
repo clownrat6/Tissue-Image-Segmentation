@@ -10,9 +10,11 @@ class BoundLabelMake:
 
     def __init__(self, edge_id=2, selem_radius=3):
         self.edge_id = edge_id
+        if isinstance(selem_radius, int):
+            selem_radius = (selem_radius, selem_radius)
         self.radius = selem_radius
 
-    def __call__(self, sem_map, inst_map):
+    def __call__(self, data):
         """generate boundary label from instance map and pure semantic map.
 
         sem_map:
@@ -39,27 +41,28 @@ class BoundLabelMake:
                 to extrach each instance.
         """
 
-        sem_map_w_bound = np.zeros_like(sem_map)
-        sem_map_w_bound += sem_map
+        sem_gt = data['sem_gt']
+        inst_gt = data['inst_gt']
 
-        # NOTE: sem_map must match inst_map
-        assert np.allclose(sem_map > 0, inst_map > 0)
-        inst_id_list = list(np.unique(inst_map))
+        sem_gt_w_bound = np.zeros_like(sem_gt)
+        sem_gt_w_bound += sem_gt
+
+        # NOTE: sem_map must have same size as inst_map
+        assert np.allclose(sem_gt > 0, inst_gt > 0)
+        inst_id_list = list(np.unique(inst_gt))
         for inst_id in inst_id_list:
             if inst_id == 0:
                 continue
-            inst_id_mask = inst_map == inst_id
+            inst_id_mask = inst_gt == inst_id
             bound = morphology.dilation(
-                inst_id_mask, selem=morphology.selem.diamond(
-                    self.radius)) & (~morphology.erosion(inst_id_mask, selem=morphology.selem.diamond(self.radius)))
+                inst_id_mask, selem=morphology.selem.diamond(self.radius[0])) & (
+                    ~morphology.erosion(inst_id_mask, selem=morphology.selem.diamond(self.radius[1])))
             # bound = inst_id_mask & ~morphology.erosion(inst_id_mask, selem=morphology.selem.diamond(self.radius))
-            sem_map_w_bound[bound > 0] = self.edge_id
-
-        results = {}
+            sem_gt_w_bound[bound > 0] = self.edge_id
 
         # NOTE: sem_map is raw semantic map (two-class or multi-class without boundary)
-        # NOTE: sem_map_w_bound is always a three-class map (background, foreground, edge)
-        results['sem_gt'] = sem_map
-        results['sem_gt_w_bound'] = sem_map_w_bound
+        # NOTE: sem_map_w_bound has an extra semantic class (background, class1, class2, ..., bound)
+        data['sem_gt_w_bound'] = sem_gt_w_bound
+        data['seg_fields'].append('sem_gt_w_bound')
 
-        return results
+        return data

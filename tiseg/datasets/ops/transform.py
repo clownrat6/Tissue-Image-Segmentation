@@ -67,7 +67,8 @@ class ColorJitter(object):
             img = mmcv.hsv2bgr(img)
         return img
 
-    def __call__(self, img, segs):
+    def __call__(self, data):
+        img = data['img']
         # random brightness
         img = self.brightness(img)
 
@@ -87,7 +88,8 @@ class ColorJitter(object):
         if mode == 0:
             img = self.contrast(img)
 
-        return img, segs
+        data['img'] = img
+        return data
 
 
 class AlbuColorJitter(object):
@@ -95,13 +97,12 @@ class AlbuColorJitter(object):
     def __init__(self, brightness, contrast, saturation, hue, prob=0.5):
         self.trans = A.ColorJitter(brightness, contrast, saturation, hue, prob=prob)
 
-    def __call__(self, img, segs):
-        res_dict = self.trans(image=img, masks=segs)
+    def __call__(self, data):
+        img = data['img']
+        res_dict = self.trans(image=img)
 
-        img = res_dict['image']
-        segs = res_dict['masks']
-
-        return img, segs
+        data['img'] = res_dict['image']
+        return data
 
 
 class Resize(object):
@@ -111,21 +112,37 @@ class Resize(object):
         self.max_size = max_size
         self.resize_mode = resize_mode
 
-    def __call__(self, img, segs):
+    def _img_resize(self, img):
         if self.resize_mode == 'fix':
             img = cv2.resize(img, (self.min_size, self.min_size))
-            for i, seg in enumerate(segs):
-                segs[i] = cv2.resize(seg, (self.min_size, self.min_size), interpolation=cv2.INTER_NEAREST)
         elif self.resize_mode == 'scale':
             h, w = img.shape[:2]
             min_len = min(h, w)
             scale_f = self.min_size / min_len
             scale_h, scale_w = h * scale_f, w * scale_f
             img = cv2.resize(img, (scale_h, scale_w))
-            for i, seg in enumerate(segs):
-                segs[i] = cv2.resize(seg, (scale_h, scale_w), interpolation=cv2.INTER_NEAREST)
 
-        return img, segs
+        return img
+
+    def _seg_resize(self, seg):
+        if self.resize_mode == 'fix':
+            seg = cv2.resize(seg, (self.min_size, self.min_size), interpolation=cv2.INTER_NEAREST)
+        elif self.resize_mode == 'scale':
+            h, w = seg.shape[:2]
+            min_len = min(h, w)
+            scale_f = self.min_size / min_len
+            scale_h, scale_w = h * scale_f, w * scale_f
+            seg = cv2.resize(seg, (scale_h, scale_w), interpolation=cv2.INTER_NEAREST)
+
+        return seg
+
+    def __call__(self, data):
+        seg_fields = data['seg_fields']
+        data['img'] = self._img_resize(data['img'])
+        for seg_key in seg_fields:
+            data[seg_key] = self._seg_resize(data[seg_key])
+
+        return data
 
 
 class RandomFlip(object):
@@ -155,7 +172,9 @@ class RandomFlip(object):
             direction = [direction]
         self.direction = direction
 
-    def __call__(self, img, segs):
+    def __call__(self, data):
+        img = data['img']
+        seg_fields = data['seg_fields']
         flip = True if np.random.rand() < self.prob else False
         # random select from direction list.
         select_index = np.random.randint(0, len(self.direction))
@@ -164,14 +183,12 @@ class RandomFlip(object):
             # flip image
             img = mmcv.imflip(img, direction=flip_direction)
 
-            new_segs = []
             # flip segs
-            for seg in segs:
-                seg = mmcv.imflip(seg, direction=flip_direction)
-                new_segs.append(seg)
-            segs = new_segs
+            for seg_key in seg_fields:
+                data[seg_key] = mmcv.imflip(data[seg_key], direction=flip_direction)
+        data['img'] = img
 
-        return img, segs
+        return data
 
 
 class RandomRotate(object):
@@ -207,8 +224,9 @@ class RandomRotate(object):
         self.center = center
         self.auto_bound = auto_bound
 
-    def __call__(self, img, segs):
-
+    def __call__(self, data):
+        img = data['img']
+        seg_fields = data['seg_fields']
         rotate = True if np.random.rand() < self.prob else False
         degree = np.random.uniform(min(*self.degree), max(*self.degree))
         if rotate:
@@ -217,31 +235,33 @@ class RandomRotate(object):
                 img, angle=degree, border_value=self.pad_val, center=self.center, auto_bound=self.auto_bound)
 
             # rotate segs
-            new_segs = []
-            for seg in segs:
-                seg = mmcv.imrotate(
-                    seg,
+            for seg_key in seg_fields:
+                data[seg_key] = mmcv.imrotate(
+                    data[seg_key],
                     angle=degree,
                     border_value=self.seg_pad_val,
                     center=self.center,
                     auto_bound=self.auto_bound,
                     interpolation='nearest')
-                new_segs.append(seg)
+        data['img'] = img
 
-        return img, segs
+        return data
 
 
 # TODO: Add doc string for this transform
 class RandomSparseRotate(object):
 
-    def __init__(self, degree_list=[90, 180, 270], prob=0.5, pad_value=0, center=None, auto_bound=False):
+    def __init__(self, degree_list=[90, 180, 270], prob=0.5, pad_val=0, seg_pad_val=0, center=None, auto_bound=False):
         self.degree_list = degree_list
         self.prob = prob
-        self.pad_value = pad_value
+        self.pad_val = pad_val
+        self.seg_pad_val = seg_pad_val
         self.center = center
         self.auto_bound = auto_bound
 
-    def __call__(self, img, segs):
+    def __call__(self, data):
+        img = data['img']
+        seg_fields = data['seg_fields']
         rotate = True if np.random.rand() < self.prob else False
         # random select from degree list.
         select_index = np.random.randint(0, len(self.degree_list))
@@ -253,18 +273,17 @@ class RandomSparseRotate(object):
                 img, angle=degree, border_value=self.pad_val, center=self.center, auto_bound=self.auto_bound)
 
             # rotate segs
-            new_segs = []
-            for seg in segs:
-                seg = mmcv.imrotate(
-                    seg,
+            for seg_key in seg_fields:
+                data[seg_key] = mmcv.imrotate(
+                    data[seg_key],
                     angle=degree,
                     border_value=self.seg_pad_val,
                     center=self.center,
                     auto_bound=self.auto_bound,
                     interpolation='nearest')
-                new_segs.append(seg)
+        data['img'] = img
 
-        return img, segs
+        return data
 
 
 # TODO: Add doc string for this transform
@@ -286,13 +305,18 @@ class RandomElasticDeform(object):
             border_mode=0,
             value=(0, 0, 0))
 
-    def __call__(self, img, segs):
+    def __call__(self, data):
+        img = data['img']
+        seg_fields = data['seg_fields']
+        segs = [data[seg_key] for seg_key in seg_fields]
+
         res_dict = self.trans(image=img, masks=segs)
 
-        img = res_dict['image']
+        data['img'] = res_dict['image']
         segs = res_dict['masks']
-
-        return img, segs
+        for seg_key, seg in zip(seg_fields, segs):
+            data[seg_key] = seg
+        return data
 
 
 class RandomCrop(object):
@@ -326,7 +350,11 @@ class RandomCrop(object):
         img = img[crop_y1:crop_y2, crop_x1:crop_x2, ...]
         return img
 
-    def __call__(self, img, segs):
+    def __call__(self, data):
+        img = data['img']
+        seg_fields = data['seg_fields']
+        segs = [data[seg_key] for seg_key in seg_fields]
+
         crop_bbox = self.get_crop_bbox(img)
         if self.cat_max_ratio < 1.:
             # Repeat 10 times
@@ -347,7 +375,11 @@ class RandomCrop(object):
             new_segs.append(seg)
         segs = new_segs
 
-        return img, segs
+        data['img'] = img
+        for seg_key, seg in zip(seg_fields, segs):
+            data[seg_key] = seg
+
+        return data
 
 
 class AlbuImgWarpper(object):
@@ -377,13 +409,21 @@ class Affine(object):
     def __init__(self, scale=(0.8, 1.2), shear=5, rotate_degree=[-180, 180], translate_frac=(0, 0.01)):
         self.trans = A.Affine(scale=scale, shear=shear, rotate=rotate_degree, translate_percent=translate_frac)
 
-    def __call__(self, img, segs):
+    def __call__(self, data):
+        img = data['img']
+        seg_fields = data['seg_fields']
+        segs = [data[seg_key] for seg_key in seg_fields]
+
         res_dict = self.trans(image=img, masks=segs)
 
         img = res_dict['image']
         segs = res_dict['masks']
 
-        return img, segs
+        data['img'] = img
+        for seg_key, seg in zip(seg_fields, segs):
+            data[seg_key] = seg
+
+        return data
 
 
 class RandomBlur(object):
@@ -404,12 +444,20 @@ class RandomBlur(object):
 
         self.trans = [self.blur, self.gauss, self.median]
 
-    def __call__(self, img, segs):
+    def __call__(self, data):
+        img = data['img']
+        seg_fields = data['seg_fields']
+        segs = [data[seg_key] for seg_key in seg_fields]
+
         if np.random.rand() < self.prob:
             index = random.randint(0, len(self.trans) - 1)
             img = self.trans[index](img)
 
-        return img, segs
+        data['img'] = img
+        for seg_key, seg in zip(seg_fields, segs):
+            data[seg_key] = seg
+
+        return data
 
 
 class Normalize(object):
@@ -420,12 +468,20 @@ class Normalize(object):
         self.std = std
         self.if_zscore = if_zscore
 
-    def __call__(self, img, segs):
+    def __call__(self, data):
+        img = data['img']
+        seg_fields = data['seg_fields']
+        segs = [data[seg_key] for seg_key in seg_fields]
+
         img = img / 255.
         if self.if_zscore:
             img = (img - self.mean) / (self.std)
 
-        return img, segs
+        data['img'] = img
+        for seg_key, seg in zip(seg_fields, segs):
+            data[seg_key] = seg
+
+        return data
 
 
 class Pad(object):
@@ -438,7 +494,11 @@ class Pad(object):
         else:
             self.pad_size = pad_size
 
-    def __call__(self, img, segs):
+    def __call__(self, data):
+        img = data['img']
+        seg_fields = data['seg_fields']
+        segs = [data[seg_key] for seg_key in seg_fields]
+
         h, w = img.shape[:2]
 
         pad_h = max(self.pad_size[0], h) - h
@@ -452,7 +512,11 @@ class Pad(object):
         for seg in segs:
             seg_canvas = np.zeros((h + pad_h, w + pad_w), dtype=seg.dtype)
             seg_canvas[pad_h // 2:pad_h // 2 + h, pad_w // 2:pad_w // 2 + w] = seg
-
             new_segs.append(seg_canvas)
+        segs = new_segs
 
-        return img, new_segs
+        data['img'] = img
+        for seg_key, seg in zip(seg_fields, segs):
+            data[seg_key] = seg
+
+        return data
