@@ -105,9 +105,14 @@ def main(args):
             pillow_save(osp.join(new_root, f'{i}.png'), images[i])
             np.save(osp.join(new_root, f'{i}_inst.npy'), labels[i, :, :, 0])
             pillow_save(osp.join(new_root, f'{i}_inst_color.png'), colorize_seg_map(labels[i, :, :, 0]))
-            palette = np.zeros((2, 3), dtype=np.uint8)
+            palette = np.zeros((7, 3), dtype=np.uint8)
             palette[0, :] = (0, 0, 0)
-            palette[1, :] = (255, 255, 2)
+            palette[1, :] = (255, 0, 0)
+            palette[2, :] = (0, 255, 0)
+            palette[3, :] = (0, 0, 255)
+            palette[4, :] = (255, 255, 0)
+            palette[5, :] = (255, 0, 255)
+            palette[6, :] = (0, 255, 255)
             pillow_save(osp.join(new_root, f'{i}_sem.png'), labels[i, :, :, 1], palette=palette)
 
         item_list = [x.rstrip('_inst.npy') for x in os.listdir(new_root) if '_inst.npy' in x]
