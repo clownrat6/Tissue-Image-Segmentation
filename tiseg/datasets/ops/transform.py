@@ -107,19 +107,27 @@ class AlbuColorJitter(object):
 
 class Resize(object):
 
-    def __init__(self, min_size, max_size, resize_mode):
+    def __init__(self, min_size=None, max_size=None, scale_factor=None, resize_mode='fix'):
         self.min_size = min_size
         self.max_size = max_size
+        self.scale_factor = scale_factor
         self.resize_mode = resize_mode
 
     def _img_resize(self, img):
         if self.resize_mode == 'fix':
             img = cv2.resize(img, (self.min_size, self.min_size))
-        elif self.resize_mode == 'scale':
+        elif self.resize_mode == 'ratio':
             h, w = img.shape[:2]
             min_len = min(h, w)
+            max_len = max(h, w)
             scale_f = self.min_size / min_len
+            if scale_f * max_len > self.max_size:
+                scale_f = self.max_size / max_len
             scale_h, scale_w = h * scale_f, w * scale_f
+            img = cv2.resize(img, (scale_h, scale_w))
+        elif self.resize_mode == 'scale':
+            h, w = img.shape[:2]
+            scale_h, scale_w = self.scale_factor * h, self.scale_factor * w
             img = cv2.resize(img, (scale_h, scale_w))
 
         return img
@@ -130,8 +138,15 @@ class Resize(object):
         elif self.resize_mode == 'scale':
             h, w = seg.shape[:2]
             min_len = min(h, w)
+            max_len = max(h, w)
             scale_f = self.min_size / min_len
+            if scale_f * max_len > self.max_size:
+                scale_f = self.max_size / max_len
             scale_h, scale_w = h * scale_f, w * scale_f
+            seg = cv2.resize(seg, (scale_h, scale_w), interpolation=cv2.INTER_NEAREST)
+        elif self.resize_mode == 'scale':
+            h, w = seg.shape[:2]
+            scale_h, scale_w = self.scale_factor * h, self.scale_factor * w
             seg = cv2.resize(seg, (scale_h, scale_w), interpolation=cv2.INTER_NEAREST)
 
         return seg

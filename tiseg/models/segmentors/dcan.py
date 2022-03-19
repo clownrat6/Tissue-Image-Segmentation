@@ -167,6 +167,17 @@ class DCAN(BaseSegmentor):
             loss = dict()
             sem_gt = sem_gt.squeeze(1)
             cont_gt = cont_gt.squeeze(1)
+            # import matplotlib.pyplot as plt
+            # plt.figure(dpi=300)
+            # plt.subplot(221)
+            # plt.imshow(sem_gt[0].cpu().numpy())
+            # plt.subplot(222)
+            # plt.imshow(cont_gt[0].cpu().numpy())
+            # plt.subplot(223)
+            # plt.imshow(cell_logit.argmax(dim=1).cpu().numpy()[0])
+            # plt.subplot(224)
+            # plt.imshow(cont_logit.argmax(dim=1).cpu().numpy()[0])
+            # plt.savefig('2.png')
             mask_loss = self._mask_loss(cell_logit, cont_logit, sem_gt, cont_gt)
             loss.update(mask_loss)
             # calculate training metric
@@ -204,7 +215,7 @@ class DCAN(BaseSegmentor):
             sem_id_mask = binary_fill_holes(sem_id_mask)
             sem_id_mask = remove_small_objects(sem_id_mask, 5)
             inst_sem_mask = measure.label(sem_id_mask)
-            inst_sem_mask = morphology.dilation(inst_sem_mask, selem=morphology.disk(3))
+            inst_sem_mask = morphology.dilation(inst_sem_mask, selem=morphology.disk(self.test_cfg.get('radius', 3)))
             inst_sem_mask[inst_sem_mask > 0] += cur
             inst_pred[inst_sem_mask > 0] = 0
             inst_pred += inst_sem_mask
