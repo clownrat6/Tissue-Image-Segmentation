@@ -52,7 +52,7 @@ class MultiTaskUNet(BaseSegmentor):
             tc_logit, sem_logit = self.calculate(data['img'])
             sem_gt = label['sem_gt']
             sem_gt_wb = label['sem_gt_w_bound']
-            tc_gt = sem_gt_wb.copy()
+            tc_gt = sem_gt_wb.clone()
             tc_gt[(tc_gt != 0) * (tc_gt != self.num_classes)] = 1
             tc_gt[tc_gt > 1] = 2
             loss = dict()
@@ -73,8 +73,8 @@ class MultiTaskUNet(BaseSegmentor):
             tc_pred = tc_logit.argmax(dim=1)
             sem_pred = sem_logit.argmax(dim=1)
             # Extract inside class
-            tc_pred = tc_pred.cpu().numpy()
-            sem_pred = sem_pred.cpu().numpy()
+            tc_pred = tc_pred.cpu().numpy()[0]
+            sem_pred = sem_pred.cpu().numpy()[0]
             sem_pred, inst_pred = self.postprocess(tc_pred, sem_pred)
             # unravel batch dim
             ret_list = []

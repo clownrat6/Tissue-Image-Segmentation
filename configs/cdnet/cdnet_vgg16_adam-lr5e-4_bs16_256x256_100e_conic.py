@@ -43,8 +43,11 @@ model = dict(
     num_classes=7,
     train_cfg=dict(),
     test_cfg=dict(
-        mode='whole',
+        mode='split',
         radius=2,
+        if_ddm=True,
+        crop_size=(256, 256),
+        overlap_size=(40, 40),
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),

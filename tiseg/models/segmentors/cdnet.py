@@ -46,11 +46,6 @@ class CDNet(BaseSegmentor):
         skip_feats = img_feats[:-1]
         sem_logit, dir_logit, point_logit = self.head(bottom_feat, skip_feats)
 
-        if rescale:
-            sem_logit = resize(input=sem_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
-            dir_logit = resize(input=dir_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
-            point_logit = resize(input=point_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
-
         return sem_logit, dir_logit, point_logit
 
     def forward(self, data, label=None, metas=None, **kwargs):
@@ -199,9 +194,15 @@ class CDNet(BaseSegmentor):
         sem_logit = sum(sem_logit_list) / len(sem_logit_list)
         point_logit = sum(point_logit_list) / len(point_logit_list)
 
+        if rescale:
+            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+            point_logit = resize(point_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+
         dd_map_list = []
         dir_map_list = []
         for dir_logit in dir_logit_list:
+            if rescale:
+                dir_logit = resize(dir_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
             dir_logit[:, 0] = dir_logit[:, 0] * sem_logit[:, 0]
             dir_map = torch.argmax(dir_logit, dim=1)
             dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)

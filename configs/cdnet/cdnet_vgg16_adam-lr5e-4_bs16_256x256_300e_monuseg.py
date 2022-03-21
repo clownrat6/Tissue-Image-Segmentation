@@ -44,6 +44,7 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(
         mode='split',
+        radius=3,
         if_ddm=True,
         crop_size=(256, 256),
         overlap_size=(40, 40),
