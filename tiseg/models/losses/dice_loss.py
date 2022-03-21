@@ -243,7 +243,7 @@ class WeightMulticlassDiceLoss(nn.Module):
         C = self.num_classes
 
         if weights is None:
-            #weights = torch.ones(C) #uniform weights for all classes
+            # weights = torch.ones(C) #uniform weights for all classes
             # weights[0] = 3
             weights = torch.ones(input.shape[0]).cuda()  # N
         input = F.softmax(input, dim=1)
@@ -281,8 +281,8 @@ class WeightMulticlassDiceLoss(nn.Module):
                 diceLoss3 = 1 - wdice(input[:, i], target[:, i + 1], weights)
                 diceLoss = diceLoss - diceLoss2 - diceLoss3
 
-            #if weights is not None:
-            #diceLoss *= weights[i]
+            # if weights is not None:
+            # diceLoss *= weights[i]
 
             totalLoss += diceLoss
             avgLoss = totalLoss  # /C
