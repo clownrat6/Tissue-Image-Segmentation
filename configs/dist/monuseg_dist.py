@@ -16,7 +16,7 @@ train_processes = [
         std=[0.19204499, 0.20979484, 0.1658672],
         if_zscore=False),
     dict(type='DistanceLabelMake', inst_norm=False),
-    dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt', 'inst_gt', 'dist_gt']),
+    dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt', 'dist_gt']),
 ]
 test_processes = [
     dict(
