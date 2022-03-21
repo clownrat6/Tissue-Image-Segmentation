@@ -6,7 +6,6 @@ import numpy as np
 from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..heads.multi_task_cd_head import MultiTaskCDHead
-from ..heads.multi_task_cd_head_twobranch import MultiTaskCDHeadTwobranch
 from ..builder import SEGMENTORS
 from ..losses import WeightMulticlassDiceLoss, LossVariance, MultiClassBCELoss, BatchMultiClassDiceLoss, BatchMultiClassSigmoidDiceLoss, MultiClassDiceLoss, TopologicalLoss, RobustFocalLoss2d, LevelsetLoss, ActiveContourLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
@@ -40,18 +39,7 @@ class MultiTaskCDNetSegmentor(BaseSegmentor):
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
 
         if self.use_twobranch:
-            self.head = MultiTaskCDHeadTwobranch(
-                num_classes=self.num_classes,
-                num_angles=self.num_angles,
-                dgm_dims=64,
-                bottom_in_dim=512,
-                skip_in_dims=(64, 128, 256, 512, 512),
-                stage_dims=[16, 32, 64, 128, 256],
-                act_cfg=dict(type='ReLU'),
-                norm_cfg=dict(type='BN'),
-                noau=self.train_cfg.get('noau', False),
-                use_regression=self.use_regression,
-            )
+            pass
         else:
             self.head = MultiTaskCDHead(
                 num_classes=self.num_classes,

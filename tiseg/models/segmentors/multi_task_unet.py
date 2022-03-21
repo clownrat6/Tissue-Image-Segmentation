@@ -52,7 +52,7 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
             assert label is not None
             mask_label = label['sem_gt']
             tc_mask_label = label['sem_gt_w_bound']
-            inst_label =  label['inst_gt']
+            inst_label = label['inst_gt']
             tc_mask_label[(tc_mask_label != 0) * (tc_mask_label != self.num_classes)] = 1
             tc_mask_label[tc_mask_label > 1] = 2
             loss = dict()
@@ -225,8 +225,8 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
                 mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
                 mask_loss['mask_bce_loss'] = alpha * mask_bce_loss
                 mask_loss['mask_dice_loss'] = beta * mask_dice_loss
-                
-        else: 
+
+        else:
             if use_focal:
                 mask_focal_loss_calculator = RobustFocalLoss2d(type='softmax')
                 mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
@@ -242,7 +242,7 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
                 mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
                 mask_loss['mask_dice_loss'] = beta * mask_dice_loss
 
-            mask_logit = mask_logit.softmax(dim = 1)
+            mask_logit = mask_logit.softmax(dim=1)
             if use_ac:
                 ac_w_area = self.train_cfg.get('ac_w_area')
                 ac_loss_calculator = ActiveContourLoss(w_area=ac_w_area, len_weight=ac_len_weight)
@@ -256,7 +256,6 @@ class MultiTaskUNetSegmentor(BaseSegmentor):
                 variance_loss_calculator = LossVariance()
                 variance_loss = variance_loss_calculator(mask_logit, inst_label[:, 0])
                 mask_loss['mask_variance_loss'] = gamma * variance_loss
-
 
         if use_level:
             # calculate deep level set loss for each semantic class.

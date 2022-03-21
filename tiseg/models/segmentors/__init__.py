@@ -1,19 +1,10 @@
 from .cdnet import CDNet
 from .unet import UNet
-from .cdnet_voronoi import CDNetVoronoiSegmentor
 from .multi_task_unet import MultiTaskUNetSegmentor
 from .multi_task_cdnet import MultiTaskCDNetSegmentor
-from .regression_cdnet import RegCDNetSegmentor
-from .reg_degree_cdnet import RegDegreeCDNetSegmentor
-from .multi_task_cdnet_no_point import MultiTaskCDNetSegmentorNoPoint
-from .multi_task_cdnet_voronoi import MultiTaskCDNetVoronoiSegmentor
 from .dcan import DCAN
 from .dist import DIST
 from .fullnet import FullNet
 from .hovernet import HoverNet
 
-__all__ = [
-    'UNet', 'CDNet', 'CDNetVoronoiSegmentor', 'MultiTaskUNetSegmentor', 'MultiTaskCDNetSegmentor', 'RegCDNetSegmentor',
-    'RegDegreeCDNetSegmentor', 'MultiTaskCDNetSegmentorNoPoint', 'MultiTaskCDNetVoronoiSegmentor', 'DCAN', 'DIST',
-    'FullNet', 'HoverNet'
-]
+__all__ = ['UNet', 'CDNet', 'MultiTaskUNetSegmentor', 'MultiTaskCDNetSegmentor', 'DCAN', 'DIST', 'FullNet', 'HoverNet']
