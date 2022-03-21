@@ -18,7 +18,7 @@ train_processes = [
         if_zscore=False),
     dict(type='BoundLabelMake', edge_id=7, selem_radius=(2, 2)),
     dict(type='DistanceLabelMake', inst_norm=False),
-    dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt', 'sem_gt_w_bound'])
+    dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt', 'sem_gt_w_bound', 'dist_gt'])
 ]
 test_processes = [
     dict(type='Resize', scale_factor=2, resize_mode='scale'),
