@@ -277,7 +277,7 @@ class DIST(BaseSegmentor):
         dist_logit = dist_logit.astype('int32')
         # lamb is p1 and p_thresh is p2 in the paper, DIST param
         inst_pred = dynamic_watershed_alias(dist_logit, 0.0, 0.5)
-        sem_pred = (inst_pred > 0).astype(np.uint8)
+        # sem_pred = (inst_pred > 0).astype(np.uint8)
 
         return sem_pred, inst_pred
 

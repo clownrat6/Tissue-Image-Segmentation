@@ -34,7 +34,7 @@ optimizer_config = dict()
 
 # NOTE: step learning rate decay
 lr_config = dict(
-    policy='step', by_epoch=True, step=[200], gamma=0.1, warmup='linear', warmup_iters=100, warmup_ratio=1e-6)
+    policy='step', by_epoch=True, step=[70], gamma=0.1, warmup='linear', warmup_iters=100, warmup_ratio=1e-6)
 
 # model settings
 model = dict(

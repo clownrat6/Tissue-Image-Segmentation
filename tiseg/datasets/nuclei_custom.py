@@ -284,12 +284,6 @@ class NucleiCustomDataset(Dataset):
                 sem_pred = sem_pred
                 inst_pred = pred['inst_pred']
 
-            # TODO: (Important issue about post process)
-            # This may be the dice metric calculation trick (Need be
-            # considering carefully)
-            # convert instance map (after postprocess) to semantic level
-            # sem_pred = (inst_pred > 0).astype(np.uint8)
-
             # semantic metric calculation (remove background class)
             # [1] will remove background class.
             precision_metric, recall_metric = precision_recall(sem_pred, sem_seg, 2)

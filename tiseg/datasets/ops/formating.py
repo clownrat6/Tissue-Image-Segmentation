@@ -89,7 +89,10 @@ class Formatting(object):
                 ret['data'][data_key] = format_(data[data_key])
 
         for label_key in self.label_keys:
-            ret['label'][label_key] = format_seg(data[label_key])
+            if label_key == 'dist_gt':
+                ret['label'][label_key] = format_reg(data[label_key])
+            else:
+                ret['label'][label_key] = format_seg(data[label_key])
 
         ret['metas'] = format_info(data_info)
 

@@ -16,7 +16,7 @@ train_processes = [
         std=[0.19204499, 0.20979484, 0.1658672],
         if_zscore=False),
     dict(type='BoundLabelMake', edge_id=2, selem_radius=(3, 3)),
-    dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt', 'inst_gt', 'sem_gt_w_bound']),
+    dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt', 'sem_gt_w_bound']),
 ]
 test_processes = [
     dict(
@@ -24,7 +24,7 @@ test_processes = [
         mean=[0.68861804, 0.46102882, 0.61138992],
         std=[0.19204499, 0.20979484, 0.1658672],
         if_zscore=False),
-    dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt']),
+    dict(type='Formatting', data_keys=['img'], label_keys=[]),
 ]
 
 data = dict(

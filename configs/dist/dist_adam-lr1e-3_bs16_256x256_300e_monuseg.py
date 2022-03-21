@@ -34,7 +34,7 @@ optimizer_config = dict()
 
 # NOTE: step learning rate decay
 lr_config = dict(
-    policy='step', by_epoch=True, step=[300], gamma=0.1, warmup='linear', warmup_iters=10, warmup_ratio=1e-6)
+    policy='step', by_epoch=True, step=[200], gamma=0.1, warmup='linear', warmup_iters=10, warmup_ratio=1e-6)
 
 # model settings
 model = dict(
@@ -46,8 +46,8 @@ model = dict(
         mode='split',
         crop_size=(256, 256),
         overlap_size=(40, 40),
-        rotate_degrees=[0],
-        flip_directions=['none'],
+        rotate_degrees=[0, 90],
+        flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
 )
 
