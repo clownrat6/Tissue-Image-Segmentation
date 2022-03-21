@@ -43,15 +43,15 @@ class UNetSegmentor(BaseSegmentor):
         """detectron2 style forward functions. Segmentor can be see as meta_arch of detectron2.
         """
         if self.training:
-            mask_logit = self.calculate(data['img'])
+            sem_logit = self.calculate(data['img'])
             assert label is not None
-            mask_label = label['sem_gt_w_bound']
+            sem_gt_wb = label['sem_gt_w_bound']
             loss = dict()
-            mask_label = mask_label.squeeze(1)
-            mask_loss = self._mask_loss(mask_logit, mask_label)
-            loss.update(mask_loss)
+            sem_gt_wb = sem_gt_wb.squeeze(1)
+            sem_loss = self._sem_loss(sem_logit, sem_gt_wb)
+            loss.update(sem_loss)
             # calculate training metric
-            training_metric_dict = self._training_metric(mask_logit, mask_label)
+            training_metric_dict = self._training_metric(sem_logit, sem_gt_wb)
             loss.update(training_metric_dict)
             return loss
         else:
@@ -83,7 +83,7 @@ class UNetSegmentor(BaseSegmentor):
             sem_id_mask = binary_fill_holes(sem_id_mask)
             sem_id_mask = remove_small_objects(sem_id_mask, 5)
             inst_sem_mask = measure.label(sem_id_mask)
-            inst_sem_mask = morphology.dilation(inst_sem_mask, selem=morphology.disk(3))
+            inst_sem_mask = morphology.dilation(inst_sem_mask, selem=morphology.disk(self.test_cfg.get('radius', 3)))
             inst_sem_mask[inst_sem_mask > 0] += cur
             inst_pred[inst_sem_mask > 0] = 0
             inst_pred += inst_sem_mask
@@ -92,22 +92,22 @@ class UNetSegmentor(BaseSegmentor):
 
         return sem_pred, inst_pred
 
-    def _mask_loss(self, mask_logit, mask_label):
+    def _sem_loss(self, sem_logit, sem_gt_wb):
         """calculate mask branch loss."""
-        mask_loss = {}
-        mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes + 1)
+        sem_loss = {}
+        sem_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes + 1)
         # Assign weight map for each pixel position
         # mask_loss *= weight_map
-        mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
-        mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
+        sem_ce_loss = torch.mean(sem_ce_loss_calculator(sem_logit, sem_gt_wb))
+        sem_dice_loss = sem_dice_loss_calculator(sem_logit, sem_gt_wb)
         # loss weight
         alpha = 5
         beta = 0.5
-        mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
-        mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+        sem_loss['sem_ce_loss'] = alpha * sem_ce_loss
+        sem_loss['sem_dice_loss'] = beta * sem_dice_loss
 
-        return mask_loss
+        return sem_loss
 
     def _training_metric(self, mask_logit, mask_label):
         """metric calculation when training."""
