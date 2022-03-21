@@ -131,6 +131,8 @@ def dynamic_watershed_alias(p_img, lamb, p_thresh=0.5):
 
 @SEGMENTORS.register_module()
 class DIST(BaseSegmentor):
+    """Implementation of `Segmentation of Nuclei in Histopathology Images by Deep Regression of the Distance Map`.
+    """
 
     def __init__(self, num_classes, train_cfg, test_cfg):
         super(DIST, self).__init__()

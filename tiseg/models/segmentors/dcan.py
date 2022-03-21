@@ -1,3 +1,7 @@
+"""
+Modified from vqdang code at https://github.com/vqdang/hover_net/blob/tensorflow-final/src/model/dcan.py
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -58,8 +62,7 @@ class BottleNeck(nn.Module):
 
 @SEGMENTORS.register_module()
 class DCAN(BaseSegmentor):
-    """Implementation of `Deep Contour-Aware Networks`.
-        Modified from https://github.com/chelovek21/BioImageSegmentation/blob/master/model.py
+    """Implementation of `DCAN: deep contour-aware networks for accurate gland segmentation`.
     """
 
     def __init__(self, num_classes, train_cfg, test_cfg):

@@ -37,6 +37,7 @@ class RU(nn.Module):
         out = ide_value + res_value
         return self.act_layer(out)
 
+
 class MultiTaskBranches(nn.Module):
 
     def __init__(self, in_dims, feed_dims, num_classes, norm_cfg=dict(type='BN'), act_cfg=dict(type='ReLU')):
@@ -54,7 +55,7 @@ class MultiTaskBranches(nn.Module):
         self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
         self.tc_mask_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
 
-        assert(num_classes[0] == 3)
+        assert (num_classes[0] == 3)
         self.tc_mask_conv = nn.Conv2d(self.feed_dims, num_classes[0], kernel_size=1)
         self.mask_conv = nn.Conv2d(self.feed_dims, num_classes[1], kernel_size=1)
         # num_convs = 3
@@ -83,7 +84,6 @@ class MultiTaskBranches(nn.Module):
         tc_mask_logit = self.tc_mask_conv(tc_mask_feature)
 
         return tc_mask_logit, mask_logit
-        
 
 
 class MultiTaskUNetHead(nn.Module):
