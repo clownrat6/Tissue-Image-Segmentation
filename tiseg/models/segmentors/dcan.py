@@ -167,19 +167,8 @@ class DCAN(BaseSegmentor):
             loss = dict()
             sem_gt = sem_gt.squeeze(1)
             cont_gt = cont_gt.squeeze(1)
-            # import matplotlib.pyplot as plt
-            # plt.figure(dpi=300)
-            # plt.subplot(221)
-            # plt.imshow(sem_gt[0].cpu().numpy())
-            # plt.subplot(222)
-            # plt.imshow(cont_gt[0].cpu().numpy())
-            # plt.subplot(223)
-            # plt.imshow(cell_logit.argmax(dim=1).cpu().numpy()[0])
-            # plt.subplot(224)
-            # plt.imshow(cont_logit.argmax(dim=1).cpu().numpy()[0])
-            # plt.savefig('2.png')
-            mask_loss = self._mask_loss(cell_logit, cont_logit, sem_gt, cont_gt)
-            loss.update(mask_loss)
+            sem_loss = self._sem_loss(cell_logit, cont_logit, sem_gt, cont_gt)
+            loss.update(sem_loss)
             # calculate training metric
             training_metric_dict = self._training_metric(cell_logit, sem_gt)
             loss.update(training_metric_dict)
@@ -224,27 +213,27 @@ class DCAN(BaseSegmentor):
 
         return sem_pred, inst_pred
 
-    def _mask_loss(self, cell_logit, cont_logit, sem_gt, cont_gt):
+    def _sem_loss(self, cell_logit, cont_logit, sem_gt, cont_gt):
         """calculate mask branch loss."""
-        mask_loss = {}
-        mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+        sem_loss = {}
+        sem_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
         cont_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=2)
         # Assign weight map for each pixel position
-        # mask_loss *= weight_map
-        cell_ce_loss = torch.mean(mask_ce_loss_calculator(cell_logit, sem_gt.long()))
-        cell_dice_loss = mask_dice_loss_calculator(cell_logit, sem_gt.long())
-        cont_ce_loss = torch.mean(mask_ce_loss_calculator(cont_logit, cont_gt.long()))
+        # sem_loss *= weight_map
+        cell_ce_loss = torch.mean(sem_ce_loss_calculator(cell_logit, sem_gt.long()))
+        cell_dice_loss = sem_dice_loss_calculator(cell_logit, sem_gt.long())
+        cont_ce_loss = torch.mean(sem_ce_loss_calculator(cont_logit, cont_gt.long()))
         cont_dice_loss = cont_dice_loss_calculator(cont_logit, cont_gt.long())
         # loss weight
         alpha = 5
         beta = 0.5
-        mask_loss['cell_ce_loss'] = alpha * cell_ce_loss
-        mask_loss['cont_ce_loss'] = alpha * cont_ce_loss
-        mask_loss['cell_dice_loss'] = beta * cell_dice_loss
-        mask_loss['cont_dice_loss'] = beta * cont_dice_loss
+        sem_loss['cell_ce_loss'] = alpha * cell_ce_loss
+        sem_loss['cont_ce_loss'] = alpha * cont_ce_loss
+        sem_loss['cell_dice_loss'] = beta * cell_dice_loss
+        sem_loss['cont_dice_loss'] = beta * cont_dice_loss
 
-        return mask_loss
+        return sem_loss
 
     def inference(self, img, meta, rescale):
         """Inference with split/whole style.
@@ -345,28 +334,28 @@ class DCAN(BaseSegmentor):
 
         return cell_logit, cont_logit
 
-    def _training_metric(self, mask_logit, mask_label):
+    def _training_metric(self, sem_logit, sem_label):
         """metric calculation when training."""
         wrap_dict = {}
 
         # loss
-        clean_mask_logit = mask_logit.clone().detach()
-        clean_mask_label = mask_label.clone().detach()
+        clean_sem_logit = sem_logit.clone().detach()
+        clean_sem_label = sem_label.clone().detach()
 
-        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_label, self.num_classes)
-        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_label, self.num_classes)
+        wrap_dict['sem_tdice'] = tdice(clean_sem_logit, clean_sem_label, self.num_classes)
+        wrap_dict['sem_mdice'] = mdice(clean_sem_logit, clean_sem_label, self.num_classes)
 
         # NOTE: training aji calculation metric calculate (This will be deprecated.)
         # (the edge id is set `self.num_classes - 1` in default)
-        # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
-        # mask_pred[mask_pred == (self.num_classes - 1)] = 0
-        # mask_target = mask_label.cpu().numpy().astype(np.uint8)
-        # mask_target[mask_target == (self.num_classes - 1)] = 0
+        # sem_pred = torch.argmax(sem_logit, dim=1).cpu().numpy().astype(np.uint8)
+        # sem_pred[sem_pred == (self.num_classes - 1)] = 0
+        # sem_target = sem_label.cpu().numpy().astype(np.uint8)
+        # sem_target[sem_target == (self.num_classes - 1)] = 0
 
-        # N = mask_pred.shape[0]
+        # N = sem_pred.shape[0]
         # wrap_dict['aji'] = 0.
         # for i in range(N):
-        #     aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
+        #     aji_single_image = aggregated_jaccard_index(sem_pred[i], sem_target[i])
         #     wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
         # # distributed environment requires cuda tensor
         # wrap_dict['aji'] /= N
