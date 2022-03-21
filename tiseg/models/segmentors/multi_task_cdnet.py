@@ -14,11 +14,11 @@ from ...datasets.utils import (angle_to_vector, vector_to_label)
 
 
 @SEGMENTORS.register_module()
-class MultiTaskCDNetSegmentor(BaseSegmentor):
+class MultiTaskCDNet(BaseSegmentor):
     """Base class for segmentors."""
 
     def __init__(self, num_classes, train_cfg, test_cfg):
-        super(MultiTaskCDNetSegmentor, self).__init__()
+        super(MultiTaskCDNet, self).__init__()
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
