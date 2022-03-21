@@ -44,6 +44,7 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(
         mode='whole',
+        radius=2,
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
