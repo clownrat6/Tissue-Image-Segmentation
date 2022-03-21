@@ -1,35 +1,37 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
+from skimage import morphology, measure
+from skimage.morphology import remove_small_objects
+from scipy.ndimage import binary_fill_holes
 
 from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
 from ..heads.cd_head import CDHead
 from ..builder import SEGMENTORS
-from ..losses import MultiClassDiceLoss, mdice, tdice
+from ..losses import BatchMultiClassDiceLoss, mdice, tdice
 from ..utils import generate_direction_differential_map
 from .base import BaseSegmentor
 
 
 @SEGMENTORS.register_module()
-class CDNetSegmentor(BaseSegmentor):
+class CDNet(BaseSegmentor):
     """Base class for segmentors."""
 
     def __init__(self, num_classes, train_cfg, test_cfg):
-        super(CDNetSegmentor, self).__init__()
+        super(CDNet, self).__init__()
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
         self.num_angles = 8
 
         # argument
-        self.if_weighted_loss = self.train_cfg.get('if_weighted_loss', False)
-        self.if_ddm = self.test_cfg.get('if_ddm', False)
         self.if_mudslide = self.test_cfg.get('if_mudslide', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
         self.head = CDHead(
-            num_classes=self.num_classes,
+            num_classes=self.num_classes + 1,
             num_angles=self.num_angles,
             dgm_dims=64,
             bottom_in_dim=512,
@@ -42,36 +44,36 @@ class CDNetSegmentor(BaseSegmentor):
         img_feats = self.backbone(img)
         bottom_feat = img_feats[-1]
         skip_feats = img_feats[:-1]
-        mask_logit, dir_logit, point_logit = self.head(bottom_feat, skip_feats)
+        sem_logit, dir_logit, point_logit = self.head(bottom_feat, skip_feats)
 
         if rescale:
-            mask_logit = resize(input=mask_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
+            sem_logit = resize(input=sem_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
             dir_logit = resize(input=dir_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
             point_logit = resize(input=point_logit, size=img.shape[2:], mode='bilinear', align_corners=False)
 
-        return mask_logit, dir_logit, point_logit
+        return sem_logit, dir_logit, point_logit
 
     def forward(self, data, label=None, metas=None, **kwargs):
         """detectron2 style forward functions. Segmentor can be see as meta_arch of detectron2.
         """
         if self.training:
-            mask_logit, dir_logit, point_logit = self.calculate(data['img'])
+            sem_logit, dir_logit, point_logit = self.calculate(data['img'])
 
             assert label is not None
-            mask_gt = label['sem_gt_w_bound']
+            sem_gt_wb = label['sem_gt_w_bound']
             point_gt = label['point_gt']
             dir_gt = label['dir_gt']
-            weight_map = label['loss_weight_map'] if self.if_weighted_loss else None
+            weight_map = label['loss_weight_map'] if self.train_cfg.get('if_weighted_loss', False) else None
 
             loss = dict()
 
-            mask_gt = mask_gt.squeeze(1)
+            sem_gt_wb = sem_gt_wb.squeeze(1)
             dir_gt = dir_gt.squeeze(1)
 
             # TODO: Conside to remove some edge loss value.
             # mask branch loss calculation
-            mask_loss = self._mask_loss(mask_logit, mask_gt, weight_map)
-            loss.update(mask_loss)
+            sem_loss = self._sem_loss(sem_logit, sem_gt_wb, weight_map)
+            loss.update(sem_loss)
             # direction branch loss calculation
             dir_loss = self._dir_loss(dir_logit, dir_gt, weight_map)
             loss.update(dir_loss)
@@ -80,26 +82,79 @@ class CDNetSegmentor(BaseSegmentor):
             loss.update(point_loss)
 
             # calculate training metric
-            training_metric_dict = self._training_metric(mask_logit, dir_logit, point_logit, mask_gt, dir_gt, point_gt)
+            training_metric_dict = self._training_metric(sem_logit, dir_logit, point_logit, sem_gt_wb, dir_gt, point_gt)
             loss.update(training_metric_dict)
             return loss
         else:
             assert self.test_cfg is not None
             # NOTE: only support batch size = 1 now.
-            seg_logit, dir_map = self.inference(data['img'], metas[0], True)
-            seg_pred = seg_logit.argmax(dim=1)
-            seg_pred = seg_pred.to('cpu').numpy()
-            dir_map = dir_map.to('cpu').numpy()
-            # unravel batch dim
-            seg_pred = list(seg_pred)
-            dir_map = list(dir_map)
+            sem_logit, dir_pred = self.inference(data['img'], metas[0], True)
+            sem_pred = sem_logit.argmax(dim=1)
+            sem_pred = sem_pred.to('cpu').numpy()[0]
+            dir_pred = dir_pred.to('cpu').numpy()[0]
+            sem_pred, inst_pred = self.postprocess(sem_pred)
+            # # unravel batch dim
             ret_list = []
-            for seg, dir in zip(seg_pred, dir_map):
-                ret_dict = {'sem_pred': seg}
-                if self.if_mudslide:
-                    ret_dict['dir_pred'] = dir
-                ret_list.append(ret_dict)
+            ret_list.append({'sem_pred': sem_pred, 'inst_pred': inst_pred})
             return ret_list
+
+    def postprocess(self, pred):
+        """model free post-process for both instance-level & semantic-level."""
+        pred[pred == self.num_classes] = 0
+        sem_id_list = list(np.unique(pred))
+        inst_pred = np.zeros_like(pred).astype(np.int32)
+        sem_pred = np.zeros_like(pred).astype(np.uint8)
+        cur = 0
+        for sem_id in sem_id_list:
+            # 0 is background semantic class.
+            if sem_id == 0:
+                continue
+            sem_id_mask = pred == sem_id
+            # fill instance holes
+            sem_id_mask = binary_fill_holes(sem_id_mask)
+            sem_id_mask = remove_small_objects(sem_id_mask, 5)
+            inst_sem_mask = measure.label(sem_id_mask)
+            inst_sem_mask = morphology.dilation(inst_sem_mask, selem=morphology.disk(self.test_cfg.get('radius', 3)))
+            inst_sem_mask[inst_sem_mask > 0] += cur
+            inst_pred[inst_sem_mask > 0] = 0
+            inst_pred += inst_sem_mask
+            cur += len(np.unique(inst_sem_mask))
+            sem_pred[inst_sem_mask > 0] = sem_id
+
+        return sem_pred, inst_pred
+
+    # def postprocess_dir(self, sem_pred, dir_pred=None):
+    #     """model free post-process for both instance-level & semantic-level."""
+    #     # fill instance holes
+    #     sem_pred = sem_pred.copy()
+    #     sem_pred[sem_pred == self.num_classes] = 0
+    #     bin_sem_pred = binary_fill_holes(bin_sem_pred)
+    #     # remove small instance
+    #     bin_sem_pred = remove_small_objects(bin_sem_pred, 5)
+    #     bin_sem_pred = bin_sem_pred.astype(np.uint8)
+
+    #     sem_id_list = list(np.unique(sem_pred))
+    #     sem_canvas = np.zeros_like(sem_pred).astype(np.uint8)
+    #     for sem_id in sem_id_list:
+    #         # 0 is background semantic class.
+    #         if sem_id == 0:
+    #             continue
+    #         sem_id_mask = sem_pred == sem_id
+    #         # fill instance holes
+    #         sem_id_mask = binary_fill_holes(sem_id_mask)
+    #         # remove small instance
+    #         sem_id_mask = remove_small_objects(sem_id_mask, 20)
+    #         sem_id_mask_dila = morphology.dilation(sem_id_mask, selem=morphology.disk(2))
+    #         sem_canvas[sem_id_mask_dila > 0] = sem_id
+    #     sem_pred = sem_canvas
+
+    #     bin_sem_pred, bound = mudslide_watershed(bin_sem_pred, dir_pred, sem_pred > 0)
+
+    #     bin_sem_pred = remove_small_objects(bin_sem_pred, 20)
+    #     inst_pred = measure.label(bin_sem_pred, connectivity=1)
+    #     inst_pred = align_foreground(inst_pred, sem_pred > 0, 20)
+
+    #     return sem_pred, inst_pred
 
     def inference(self, img, meta, rescale):
         """Inference with split/whole style.
@@ -144,15 +199,9 @@ class CDNetSegmentor(BaseSegmentor):
         sem_logit = sum(sem_logit_list) / len(sem_logit_list)
         point_logit = sum(point_logit_list) / len(point_logit_list)
 
-        if rescale:
-            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            point_logit = resize(point_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-
         dd_map_list = []
         dir_map_list = []
         for dir_logit in dir_logit_list:
-            if rescale:
-                dir_logit = resize(dir_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
             dir_logit[:, 0] = dir_logit[:, 0] * sem_logit[:, 0]
             dir_map = torch.argmax(dir_logit, dim=1)
             dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
@@ -161,7 +210,7 @@ class CDNetSegmentor(BaseSegmentor):
 
         dd_map = sum(dd_map_list) / len(dd_map_list)
 
-        if self.if_ddm:
+        if self.test_cfg.get('if_ddm', False):
             sem_logit = self._ddm_enhencement(sem_logit, dd_map, point_logit)
 
         return sem_logit, dir_map_list[0]
@@ -189,7 +238,7 @@ class CDNetSegmentor(BaseSegmentor):
         img_canvas = torch.zeros((B, C, H1, W1), dtype=img.dtype, device=img.device)
         img_canvas[:, :, pad_h // 2:pad_h // 2 + H, pad_w // 2:pad_w // 2 + W] = img
 
-        sem_logit = torch.zeros((B, self.num_classes, H1, W1), dtype=img.dtype, device=img.device)
+        sem_logit = torch.zeros((B, self.num_classes + 1, H1, W1), dtype=img.dtype, device=img.device)
         dir_logit = torch.zeros((B, self.num_angles + 1, H1, W1), dtype=img.dtype, device=img.device)
         point_logit = torch.zeros((B, 1, H1, W1), dtype=img.dtype, device=img.device)
         for i in range(0, H1 - overlap_size, window_size - overlap_size):
@@ -224,28 +273,28 @@ class CDNetSegmentor(BaseSegmentor):
 
         return sem_logit, dir_logit, point_logit
 
-    def _mask_loss(self, mask_logit, mask_gt, weight_map=None):
-        mask_loss = {}
-        mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_classes)
+    def _sem_loss(self, sem_logit, sem_gt, weight_map=None):
+        sem_loss = {}
+        sem_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes + 1)
         # Assign weight map for each pixel position
-        mask_ce_loss = mask_ce_loss_calculator(mask_logit, mask_gt)
+        sem_ce_loss = sem_ce_loss_calculator(sem_logit, sem_gt)
         if weight_map is not None:
-            mask_ce_loss *= weight_map[:, 0]
-        mask_ce_loss = torch.mean(mask_ce_loss)
-        mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_gt)
+            sem_ce_loss *= weight_map[:, 0]
+        sem_ce_loss = torch.mean(sem_ce_loss)
+        sem_dice_loss = sem_dice_loss_calculator(sem_logit, sem_gt)
         # loss weight
         alpha = 1
         beta = 1
-        mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
-        mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+        sem_loss['sem_ce_loss'] = alpha * sem_ce_loss
+        sem_loss['sem_dice_loss'] = beta * sem_dice_loss
 
-        return mask_loss
+        return sem_loss
 
     def _dir_loss(self, dir_logit, dir_gt, weight_map=None):
         dir_loss = {}
         dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        dir_dice_loss_calculator = MultiClassDiceLoss(num_classes=self.num_angles + 1)
+        dir_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_angles + 1)
         # Assign weight map for each pixel position
         dir_ce_loss = dir_ce_loss_calculator(dir_logit, dir_gt)
         if weight_map is not None:
@@ -270,30 +319,30 @@ class CDNetSegmentor(BaseSegmentor):
 
         return point_loss
 
-    def _training_metric(self, mask_logit, dir_logit, point_logit, mask_gt, dir_gt, point_gt):
+    def _training_metric(self, sem_logit, dir_logit, point_logit, sem_gt, dir_gt, point_gt):
         wrap_dict = {}
         # detach these training variable to avoid gradient noise.
-        clean_mask_logit = mask_logit.clone().detach()
-        clean_mask_gt = mask_gt.clone().detach()
+        clean_sem_logit = sem_logit.clone().detach()
+        clean_sem_gt = sem_gt.clone().detach()
         clean_dir_logit = dir_logit.clone().detach()
         clean_dir_gt = dir_gt.clone().detach()
 
-        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        wrap_dict['sem_mdice'] = mdice(clean_sem_logit, clean_sem_gt, self.num_classes)
         wrap_dict['dir_mdice'] = mdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
-        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        wrap_dict['sem_tdice'] = tdice(clean_sem_logit, clean_sem_gt, self.num_classes)
         wrap_dict['dir_tdice'] = tdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
         # NOTE: training aji calculation metric calculate (This will be deprecated.)
-        # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
-        # mask_pred[mask_pred == (self.num_classes - 1)] = 0
-        # mask_target = mask_gt.cpu().numpy().astype(np.uint8)
-        # mask_target[mask_target == (self.num_classes - 1)] = 0
+        # sem_pred = torch.argmax(sem_logit, dim=1).cpu().numpy().astype(np.uint8)
+        # sem_pred[sem_pred == (self.num_classes - 1)] = 0
+        # sem_target = sem_gt.cpu().numpy().astype(np.uint8)
+        # sem_target[sem_target == (self.num_classes - 1)] = 0
 
-        # N = mask_pred.shape[0]
+        # N = sem_pred.shape[0]
         # wrap_dict['aji'] = 0.
         # for i in range(N):
-        #     aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
+        #     aji_single_image = aggregated_jaccard_index(sem_pred[i], sem_target[i])
         #     wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
         # # distributed environment requires cuda tensor
         # wrap_dict['aji'] /= N
@@ -302,7 +351,7 @@ class CDNetSegmentor(BaseSegmentor):
         return wrap_dict
 
     @classmethod
-    def _ddm_enhencement(self, mask_logit, dd_map, point_logit):
+    def _ddm_enhencement(self, sem_logit, dd_map, point_logit):
         # using point map to remove center point direction differential map
         point_logit = point_logit[:, 0, :, :]
         point_map = (point_logit / torch.max(point_logit)) > 0.2
@@ -312,6 +361,6 @@ class CDNetSegmentor(BaseSegmentor):
         dd_map = dd_map - (dd_map * point_map)
 
         # using direction differential map to enhance edge
-        mask_logit[:, -1, :, :] = (mask_logit[:, -1, :, :] + dd_map) * (1 + dd_map)
+        sem_logit[:, -1, :, :] = (sem_logit[:, -1, :, :] + dd_map) * (1 + dd_map)
 
-        return mask_logit
+        return sem_logit
