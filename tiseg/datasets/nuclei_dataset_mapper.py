@@ -55,30 +55,4 @@ class NucleiDatasetMapper(object):
         for process in self.processes:
             data = process(data)
 
-        # img = data['img']
-        # sem_gt = data['sem_gt']
-        # inst_gt = data['inst_gt']
-        # sem_gt_w_bound = data['sem_gt_w_bound']
-
-        # h, w = img.shape[:2]
-        # data_info['input_hw'] = (h, w)
-
-        # img_dc = format_img(img)
-        # sem_dc = format_seg(sem_gt)
-        # inst_dc = format_seg(inst_gt)
-        # sem_dc_w_bound = format_seg(sem_gt_w_bound)
-        # info_dc = format_info(data_info)
-
-        # ret = {
-        #     'data': {
-        #         'img': img_dc
-        #     },
-        #     'label': {
-        #         'sem_gt': sem_dc,
-        #         'inst_gt': inst_dc,
-        #         'sem_gt_w_bound': sem_dc_w_bound
-        #     },
-        #     'metas': info_dc,
-        # }
-
         return data
