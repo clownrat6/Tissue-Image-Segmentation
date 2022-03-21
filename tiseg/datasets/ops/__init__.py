@@ -4,7 +4,7 @@ from .distance_map import DistanceLabelMake
 from .hv_map import HVLabelMake
 from .formating import (format_img, format_info, format_reg, format_seg, format_, to_tensor, Formatting)
 from .transform import (AlbuColorJitter, ColorJitter, RandomFlip, Resize, RandomElasticDeform, RandomCrop, RandomRotate,
-                        RandomSparseRotate, Identity, RandomBlur, Normalize, Pad, Affine)
+                        RandomSparseRotate, Identity, RandomBlur, Normalize, Pad, Affine, CenterCrop)
 
 __all__ = [
     'ColorJitter', 'RandomFlip', 'DirectionLabelMake', 'GenBound', 'Resize', 'to_tensor', 'format_img', 'format_seg',
@@ -15,6 +15,7 @@ __all__ = [
 class_dict = {
     'AlbuColorJitter': AlbuColorJitter,
     'ColorJitter': ColorJitter,
+    'CenterCrop': CenterCrop,
     'RandomFlip': RandomFlip,
     'Resize': Resize,
     'RandomElasticDeform': RandomElasticDeform,
@@ -28,5 +29,6 @@ class_dict = {
     'Identity': Identity,
     'BoundLabelMake': BoundLabelMake,
     'DirectionLabelMake': DirectionLabelMake,
+    'DistanceLabelMake': DistanceLabelMake,
     'Formatting': Formatting,
 }

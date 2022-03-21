@@ -135,7 +135,7 @@ class Resize(object):
     def _seg_resize(self, seg):
         if self.resize_mode == 'fix':
             seg = cv2.resize(seg, (self.min_size, self.min_size), interpolation=cv2.INTER_NEAREST)
-        elif self.resize_mode == 'scale':
+        elif self.resize_mode == 'ratio':
             h, w = seg.shape[:2]
             min_len = min(h, w)
             max_len = max(h, w)
@@ -156,6 +156,30 @@ class Resize(object):
         data['img'] = self._img_resize(data['img'])
         for seg_key in seg_fields:
             data[seg_key] = self._seg_resize(data[seg_key])
+
+        return data
+
+
+class CenterCrop(object):
+
+    def __init__(self, crop_size):
+        if isinstance(crop_size, int):
+            crop_size = (crop_size, crop_size)
+        self.crop_size = crop_size
+
+    def __call__(self, data):
+        img = data['img']
+        seg_fields = data['seg_fields']
+
+        h, w = img.shape[:2]
+        ch, cw = self.crop_size[0], self.crop_size[1]
+
+        diff_h = (h - ch) // 2
+        diff_w = (w - cw) // 2
+
+        data['img'] = img[diff_h:diff_h + ch, diff_w:diff_w + cw]
+        for seg_key in seg_fields:
+            data[seg_key] = data[seg_key][diff_h:diff_h + ch, diff_w:diff_w + cw]
 
         return data
 

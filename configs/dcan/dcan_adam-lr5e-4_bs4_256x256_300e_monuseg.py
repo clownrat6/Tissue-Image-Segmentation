@@ -7,7 +7,7 @@ _base_ = [
 runner = dict(type='EpochBasedRunner', max_epochs=300)
 
 evaluation = dict(
-    interval=50,
+    interval=10,
     custom_intervals=[1],
     custom_milestones=[295],
     by_epoch=True,
@@ -18,8 +18,8 @@ evaluation = dict(
 
 checkpoint_config = dict(
     by_epoch=True,
-    interval=50,
-    max_keep_ckpts=1,
+    interval=1,
+    max_keep_ckpts=5,
 )
 
 optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
@@ -30,7 +30,7 @@ optimizer_config = dict()
 #     policy='poly', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, power=1.0, min_lr=0.0, by_epoch=False)
 
 # NOTE: fixed learning rate decay
-# lr_config = dict(policy='fixed', warmup='linear', warmup_iters=100, warmup_ratio=1e-6, by_epoch=False)
+# lr_config = dict(policy='fixed', warmup=None, warmup_iters=100, warmup_ratio=1e-6, by_epoch=False)
 
 # NOTE: step learning rate decay
 lr_config = dict(
@@ -38,9 +38,9 @@ lr_config = dict(
 
 # model settings
 model = dict(
-    type='DIST',
+    type='DCAN',
     # model training and testing settings
-    num_classes=1,
+    num_classes=2,
     train_cfg=dict(),
     test_cfg=dict(
         mode='split',
@@ -50,3 +50,5 @@ model = dict(
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
 )
+
+data = dict(samples_per_gpu=4, workers_per_gpu=4)

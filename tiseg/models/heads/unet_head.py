@@ -60,7 +60,7 @@ class UNetHead(nn.Module):
     """
 
     def __init__(self,
-                 num_classes,
+                 num_classes=None,
                  bottom_in_dim=512,
                  skip_in_dims=[64, 128, 256, 512, 512],
                  stage_dims=[16, 32, 64, 128, 256],
@@ -87,7 +87,8 @@ class UNetHead(nn.Module):
                     UNetLayer(self.stage_dims[idx + 1], self.skip_in_dims[idx], self.stage_dims[idx], 2, norm_cfg,
                               act_cfg))
 
-        self.postprocess = nn.Conv2d(self.stage_dims[0], self.num_classes, kernel_size=1, stride=1)
+        if self.num_classes is not None:
+            self.postprocess = nn.Conv2d(self.stage_dims[0], self.num_classes, kernel_size=1, stride=1)
 
     def forward(self, bottom_input, skip_inputs):
         # decode stage feed forward
@@ -98,6 +99,8 @@ class UNetHead(nn.Module):
         for skip, decode_stage in zip(skips, decode_layers):
             x = decode_stage(x, skip)
 
-        out = self.postprocess(x)
+        out = x
+        if self.num_classes is not None:
+            out = self.postprocess(out)
 
         return out
