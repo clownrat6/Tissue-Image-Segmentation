@@ -3,6 +3,7 @@ Modified from huiqu code at https://github.com/huiqu18/FullNet-varCE/blob/master
 """
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class VarianceLoss(nn.Module):
@@ -13,6 +14,7 @@ class VarianceLoss(nn.Module):
         super(VarianceLoss, self).__init__()
 
     def forward(self, logit, inst_gt):
+        logit = F.softmax(logit, dim=1)
         B = logit.shape[0]
 
         loss = 0
