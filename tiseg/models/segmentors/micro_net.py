@@ -82,7 +82,7 @@ class DecodeBlock(nn.Module):
 
         self.feed_conv = conv(feed_dims, feed_dims, 3, norm_cfg=None)
         self.dropout = nn.Dropout(0.5)
-        self.sem_conv = conv(feed_dims, num_classes, 1, pad=True, norm_cfg=None, act_cfg=None)
+        self.sem_conv = conv(feed_dims, num_classes, 3, pad=False, norm_cfg=None, act_cfg=None)
 
     def forward(self, x):
         x = self.upsample(x)
@@ -122,7 +122,7 @@ class MicroNet(BaseSegmentor):
         self.out_branch3 = DecodeBlock(512, 256, num_classes + 1, 8)
 
         self.dropout = nn.Dropout(0.5)
-        self.final_sem_conv = nn.Conv2d(64 + 128 + 256, num_classes + 1, 1)
+        self.final_sem_conv = nn.Conv2d(64 + 128 + 256, num_classes + 1, 3)
 
     def calculate(self, img, test_mode=True):
         b1 = self.db1(img, img)
@@ -210,7 +210,7 @@ class MicroNet(BaseSegmentor):
         """calculate mask branch loss."""
         sem_loss = {}
         sem_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+        sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes + 1)
         # Assign weight map for each pixel position
         # sem_loss *= weight_map
         sem_ce_loss = torch.mean(sem_ce_loss_calculator(sem_logit, sem_gt))
@@ -226,7 +226,7 @@ class MicroNet(BaseSegmentor):
     def _aux_loss(self, sem_logit, sem_gt, idx):
         sem_loss = {}
         sem_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+        sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes + 1)
         # Assign weight map for each pixel position
         # sem_loss *= weight_map
         sem_ce_loss = torch.mean(sem_ce_loss_calculator(sem_logit, sem_gt))
