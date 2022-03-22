@@ -7,7 +7,7 @@ _base_ = [
 runner = dict(type='EpochBasedRunner', max_epochs=100)
 
 evaluation = dict(
-    interval=50,
+    interval=20,
     custom_intervals=[1],
     custom_milestones=[95],
     by_epoch=True,
@@ -17,7 +17,7 @@ evaluation = dict(
 )
 checkpoint_config = dict(
     by_epoch=True,
-    interval=50,
+    interval=5,
     max_keep_ckpts=1,
 )
 
@@ -39,7 +39,7 @@ lr_config = dict(
 model = dict(
     type='FullNet',
     # model training and testing settings
-    num_classes=8,
+    num_classes=7,
     train_cfg=dict(),
     test_cfg=dict(
         mode='whole',

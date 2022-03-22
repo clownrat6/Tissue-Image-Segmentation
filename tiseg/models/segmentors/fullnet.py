@@ -3,9 +3,13 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
+from skimage import morphology, measure
+from skimage.morphology import remove_small_objects
+from scipy.ndimage import binary_fill_holes
 
 from ..builder import SEGMENTORS
-from ..losses import BatchMultiClassDiceLoss, mdice, tdice
+from ..losses import BatchMultiClassDiceLoss, VarianceLoss, mdice, tdice
 from .base import BaseSegmentor
 
 
@@ -28,7 +32,6 @@ class ConvLayer(nn.Sequential):
         self.add_module('bn', nn.BatchNorm2d(out_channels))
 
 
-# --- different types of layers --- #
 class BasicLayer(nn.Sequential):
 
     def __init__(self, in_channels, growth_rate, drop_rate, dilation=1):
@@ -60,7 +63,6 @@ class BottleneckLayer(nn.Sequential):
         return torch.cat([x, out], 1)
 
 
-# --- dense block structure --- #
 class DenseBlock(nn.Sequential):
 
     def __init__(self, in_channels, growth_rate, drop_rate, layer_type, dilations):
@@ -134,7 +136,7 @@ class FullNet(BaseSegmentor):
             in_channels = num_trans_out
 
         # final conv
-        self.conv2 = nn.Conv2d(in_channels, num_classes, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(in_channels, num_classes + 1, kernel_size=3, stride=1, padding=1, bias=False)
         # initialization
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -157,70 +159,99 @@ class FullNet(BaseSegmentor):
         """detectron2 style forward functions. Segmentor can be see as meta_arch of detectron2.
         """
         if self.training:
-            mask_logit = self.calculate(data['img'])
+            sem_logit = self.calculate(data['img'])
             assert label is not None
-            mask_label = label['sem_gt_w_bound']
+            sem_label = label['sem_gt_w_bound']
+            inst_label = label['inst_gt']
             loss = dict()
-            mask_label = mask_label.squeeze(1)
-            mask_loss = self._mask_loss(mask_logit, mask_label)
-            loss.update(mask_loss)
+            sem_label = sem_label.squeeze(1)
+            inst_label = inst_label.squeeze(1)
+            sem_loss = self._sem_loss(sem_logit, sem_label, inst_label)
+            loss.update(sem_loss)
             # calculate training metric
-            training_metric_dict = self._training_metric(mask_logit, mask_label)
+            training_metric_dict = self._training_metric(sem_logit, sem_label)
             loss.update(training_metric_dict)
             return loss
         else:
             assert metas is not None
             # NOTE: only support batch size = 1 now.
-            seg_logit = self.inference(data['img'], metas[0], True)
-            seg_pred = seg_logit.argmax(dim=1)
+            sem_logit = self.inference(data['img'], metas[0], True)
+            sem_pred = sem_logit.argmax(dim=1)
             # Extract inside class
-            seg_pred = seg_pred.cpu().numpy()
+            sem_pred = sem_pred.cpu().numpy()[0]
+            sem_pred, inst_pred = self.postprocess(sem_pred)
             # unravel batch dim
-            seg_pred = list(seg_pred)
             ret_list = []
-            for seg in seg_pred:
-                ret_list.append({'sem_pred': seg})
+            ret_list.append({'sem_pred': sem_pred, 'inst_pred': inst_pred})
             return ret_list
 
-    def _mask_loss(self, mask_logit, mask_label):
+    def postprocess(self, pred):
+        """model free post-process for both instance-level & semantic-level."""
+        pred[pred == self.num_classes] = 0
+        sem_id_list = list(np.unique(pred))
+        inst_pred = np.zeros_like(pred).astype(np.int32)
+        sem_pred = np.zeros_like(pred).astype(np.uint8)
+        cur = 0
+        for sem_id in sem_id_list:
+            # 0 is background semantic class.
+            if sem_id == 0:
+                continue
+            sem_id_mask = pred == sem_id
+            # fill instance holes
+            sem_id_mask = binary_fill_holes(sem_id_mask)
+            sem_id_mask = remove_small_objects(sem_id_mask, 5)
+            inst_sem_mask = measure.label(sem_id_mask)
+            inst_sem_mask = morphology.dilation(inst_sem_mask, selem=morphology.disk(self.test_cfg.get('radius', 3)))
+            inst_sem_mask[inst_sem_mask > 0] += cur
+            inst_pred[inst_sem_mask > 0] = 0
+            inst_pred += inst_sem_mask
+            cur += len(np.unique(inst_sem_mask))
+            sem_pred[inst_sem_mask > 0] = sem_id
+
+        return sem_pred, inst_pred
+
+    def _sem_loss(self, sem_logit, sem_label, inst_label):
         """calculate mask branch loss."""
-        mask_loss = {}
-        mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+        sem_loss = {}
+        sem_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes + 1)
+        sem_var_loss_calculator = VarianceLoss()
         # Assign weight map for each pixel position
-        # mask_loss *= weight_map
-        mask_ce_loss = torch.mean(mask_ce_loss_calculator(mask_logit, mask_label))
-        mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_label)
+        # sem_loss *= weight_map
+        sem_ce_loss = torch.mean(sem_ce_loss_calculator(sem_logit, sem_label))
+        sem_var_loss = sem_var_loss_calculator(sem_logit, inst_label)
+        sem_dice_loss = sem_dice_loss_calculator(sem_logit, sem_label)
         # loss weight
         alpha = 5
         beta = 0.5
-        mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
-        mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+        sem_loss['sem_ce_loss'] = alpha * sem_ce_loss
+        sem_loss['sem_var_loss'] = alpha * sem_var_loss
+        sem_loss['sem_dice_loss'] = beta * sem_dice_loss
 
-        return mask_loss
+        return sem_loss
 
-    def _training_metric(self, mask_logit, mask_label):
+    def _training_metric(self, sem_logit, sem_label):
         """metric calculation when training."""
         wrap_dict = {}
 
         # loss
-        clean_mask_logit = mask_logit.clone().detach()
-        clean_mask_label = mask_label.clone().detach()
+        clean_sem_logit = sem_logit.clone().detach()
+        clean_sem_label = sem_label.clone().detach()
 
-        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_label, self.num_classes)
-        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_label, self.num_classes)
+        wrap_dict['sem_tdice'] = tdice(clean_sem_logit, clean_sem_label, self.num_classes)
+        wrap_dict['sem_mdice'] = mdice(clean_sem_logit, clean_sem_label, self.num_classes)
 
         # NOTE: training aji calculation metric calculate (This will be deprecated.)
         # (the edge id is set `self.num_classes - 1` in default)
-        # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
-        # mask_pred[mask_pred == (self.num_classes - 1)] = 0
-        # mask_target = mask_label.cpu().numpy().astype(np.uint8)
-        # mask_target[mask_target == (self.num_classes - 1)] = 0
+        # sem_pred = torch.argmax(sem_logit, dim=1).cpu().numpy().astype(np.uint8)
+        # sem_pred[sem_pred == (self.num_classes - 1)] = 0
+        # sem_target = sem_label.cpu().numpy().astype(np.uint8)
+        # sem_target[sem_target == (self.num_classes - 1)] = 0
 
-        # N = mask_pred.shape[0]
+        # N = sem_pred.shape[0]
         # wrap_dict['aji'] = 0.
         # for i in range(N):
-        #     aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
+        #     aji_single_image = aggregated_jaccard_index(sem_pred[i], sem_target[i])
         #     wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
         # # distributed environment requires cuda tensor
         # wrap_dict['aji'] /= N
