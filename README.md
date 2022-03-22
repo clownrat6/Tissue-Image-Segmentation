@@ -47,6 +47,10 @@ python tools/test.py [config_path]
 Support Model:
 
 - [x] UNet
+- [x] Dist
+- [x] DCAN
+- [x] MicroNet
+- [x] FullNet
 - [x] CDNet
 
 ## Thanks
