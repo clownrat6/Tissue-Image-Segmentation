@@ -1,3 +1,7 @@
+"""
+Modified from vqdang code at https://github.com/vqdang/hover_net/blob/conic/models/hovernet/net_desc.py
+"""
+
 import math
 from collections import OrderedDict
 
@@ -57,8 +61,8 @@ class ResNetExt(ResNet):
 
 class DenseBlock(nn.Module):
     """Dense Block as defined in:
-    Huang, Gao, Zhuang Liu, Laurens Van Der Maaten, and Kilian Q. Weinberger. 
-    "Densely connected convolutional networks." In Proceedings of the IEEE conference 
+    Huang, Gao, Zhuang Liu, Laurens Van Der Maaten, and Kilian Q. Weinberger.
+    "Densely connected convolutional networks." In Proceedings of the IEEE conference
     on computer vision and pattern recognition, pp. 4700-4708. 2017.
     Only performs `valid` convolution.
     """

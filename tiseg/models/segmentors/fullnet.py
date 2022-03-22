@@ -1,3 +1,7 @@
+"""
+Modified from huiqu code at https://github.com/huiqu18/FullNet-varCE/blob/master/FullNet.py
+"""
+
 import math
 
 import torch
