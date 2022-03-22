@@ -72,6 +72,7 @@ class UpBlock(nn.Module):
 class DecodeBlock(nn.Module):
 
     def __init__(self, in_dims, feed_dims, num_classes, up_factor):
+        super().__init__()
         self.in_dims = in_dims
         self.up_factor = up_factor
 
@@ -81,7 +82,7 @@ class DecodeBlock(nn.Module):
 
         self.feed_conv = conv(feed_dims, feed_dims, 3, norm_cfg=None)
         self.dropout = nn.Dropout(0.5)
-        self.sem_conv = conv(feed_dims, num_classes)
+        self.sem_conv = conv(feed_dims, num_classes, 1, pad=True, norm_cfg=None, act_cfg=None)
 
     def forward(self, x):
         x = self.upsample(x)
@@ -95,6 +96,7 @@ class DecodeBlock(nn.Module):
 @SEGMENTORS.register_module()
 class MicroNet(BaseSegmentor):
     """Implementation of `Micro-Net: A unified model for segmentation of various objects in microscopy images`.
+    The input image size must be [252x252, 508x508]
     """
 
     def __init__(self, num_classes, train_cfg, test_cfg):
@@ -104,16 +106,16 @@ class MicroNet(BaseSegmentor):
         self.num_classes = num_classes
 
         self.db1 = DownBlock(3, 64)
-        self.db2 = DownBlock(64, 128)
-        self.db3 = DownBlock(128, 256)
-        self.db4 = DownBlock(256, 512)
+        self.db2 = DownBlock(128, 128)
+        self.db3 = DownBlock(256, 256)
+        self.db4 = DownBlock(512, 512)
 
-        self.db5 = nn.Sequential(conv(512, 2048, 3, norm_cfg=None), conv(512, 2048, 3, norm_cfg=None))
+        self.db5 = nn.Sequential(conv(1024, 2048, 3, norm_cfg=None), conv(2048, 2048, 3, norm_cfg=None))
 
-        self.ub4 = UpBlock(2048, 512, 1024)
-        self.ub3 = UpBlock(1024, 256, 512)
-        self.ub2 = UpBlock(512, 128, 256)
-        self.ub1 = UpBlock(256, 64, 128)
+        self.ub4 = UpBlock(2048, 1024, 1024)
+        self.ub3 = UpBlock(1024, 512, 512)
+        self.ub2 = UpBlock(512, 256, 256)
+        self.ub1 = UpBlock(256, 128, 128)
 
         self.out_branch1 = DecodeBlock(128, 64, num_classes + 1, 2)
         self.out_branch2 = DecodeBlock(256, 128, num_classes + 1, 4)
@@ -123,10 +125,10 @@ class MicroNet(BaseSegmentor):
         self.final_sem_conv = nn.Conv2d(64 + 128 + 256, num_classes + 1, 1)
 
     def calculate(self, img, test_mode=True):
-        b1 = self.db1(img)
-        b2 = self.db2(b1)
-        b3 = self.db3(b2)
-        b4 = self.db4(b3)
+        b1 = self.db1(img, img)
+        b2 = self.db2(b1, img)
+        b3 = self.db3(b2, img)
+        b4 = self.db4(b3, img)
         b5 = self.db5(b4)
         b6 = self.ub4(b5, b4)
         b7 = self.ub3(b6, b3)
