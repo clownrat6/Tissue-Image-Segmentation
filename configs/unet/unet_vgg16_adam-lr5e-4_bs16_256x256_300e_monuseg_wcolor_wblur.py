@@ -8,6 +8,7 @@ data_root = 'data/monuseg'
 train_processes = [
     dict(type='RandomCrop', crop_size=(256, 256)),
     dict(type='Pad', pad_size=(256, 256)),
+    dict(type='RandomBlur'),
     dict(
         type='ColorJitter', hue_delta=8, saturation_range=(0.8, 1.2), brightness_delta=26, contrast_range=(0.75, 1.25)),
     dict(
