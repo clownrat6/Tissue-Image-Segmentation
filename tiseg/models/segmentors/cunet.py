@@ -13,11 +13,11 @@ from .base import BaseSegmentor
 
 
 @SEGMENTORS.register_module()
-class UNet(BaseSegmentor):
+class CUNet(BaseSegmentor):
     """Base class for segmentors."""
 
     def __init__(self, num_classes, train_cfg, test_cfg):
-        super(UNet, self).__init__()
+        super(CUNet, self).__init__()
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
