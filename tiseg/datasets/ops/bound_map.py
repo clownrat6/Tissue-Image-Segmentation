@@ -61,8 +61,10 @@ class BoundLabelMake:
 
         sem_gt = data['sem_gt']
         inst_gt = data['inst_gt']
-
         inst_gt = self._fix_inst(inst_gt)
+        sem_gt[inst_gt == 0] = 0
+        data['sem_gt'] = sem_gt
+
         sem_gt_w_bound = np.zeros_like(sem_gt)
         sem_gt_w_bound += sem_gt
 

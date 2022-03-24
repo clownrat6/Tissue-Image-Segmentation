@@ -55,8 +55,12 @@ class DistanceLabelMake(object):
         return new_inst_gt
 
     def __call__(self, data):
+        sem_gt = data['sem_gt']
         inst_gt = data['inst_gt']
         inst_gt = self._fix_inst(inst_gt)
+        sem_gt[inst_gt == 0] = 0
+        data['sem_gt'] = sem_gt
+
         dist_gt = np.zeros(inst_gt.shape, dtype=np.float32)
 
         h, w = inst_gt.shape[:2]

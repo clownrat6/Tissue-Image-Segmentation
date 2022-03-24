@@ -97,8 +97,10 @@ class UNetLabelMake(object):
     def __call__(self, data):
         inst_gt = data['inst_gt']
         sem_gt = data['sem_gt']
-
         inst_gt = self._fix_inst(inst_gt)
+        sem_gt[inst_gt == 0] = 0
+        data['sem_gt'] = sem_gt
+
         # setting 1 boundary pix of each instance to background
         inst_gt = self._remove_1px_boundary(inst_gt)
         sem_gt_inner = sem_gt.copy()

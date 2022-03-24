@@ -59,8 +59,12 @@ class DirectionLabelMake(object):
             inst_map: instance map with each instance id. Use inst_map = inst_id
                 to extrach each instance.
         """
+        sem_gt = data['sem_gt']
         inst_gt = data['inst_gt']
         inst_gt = self._fix_inst(inst_gt)
+        sem_gt[inst_gt == 0] = 0
+        data['sem_gt'] = sem_gt
+
         # point map calculation & gradient map calculation
         point_map, gradient_map, dist_map = self.calculate_point_map(inst_gt, to_center=self.to_center)
 
