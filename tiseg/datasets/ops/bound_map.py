@@ -1,5 +1,6 @@
 import numpy as np
-from skimage import morphology
+from skimage import morphology, measure
+from skimage.morphology import remove_small_objects
 
 
 class BoundLabelMake:
@@ -13,6 +14,23 @@ class BoundLabelMake:
         if isinstance(selem_radius, int):
             selem_radius = (selem_radius, selem_radius)
         self.radius = selem_radius
+
+    def _fix_inst(self, inst_gt):
+        cur = 0
+        new_inst_gt = np.zeros_like(inst_gt)
+        inst_id_list = list(np.unique(inst_gt))
+        for inst_id in inst_id_list:
+            if inst_id == 0:
+                continue
+            inst_map = inst_gt == inst_id
+            inst_map = remove_small_objects(inst_map, 5)
+            inst_map = np.array(inst_map, np.uint8)
+            remapped_ids = measure.label(inst_map)
+            remapped_ids[remapped_ids > 0] += cur
+            new_inst_gt[remapped_ids > 0] = remapped_ids[remapped_ids > 0]
+            cur += len(np.unique(remapped_ids[remapped_ids > 0]))
+
+        return new_inst_gt
 
     def __call__(self, data):
         """generate boundary label from instance map and pure semantic map.
@@ -44,6 +62,7 @@ class BoundLabelMake:
         sem_gt = data['sem_gt']
         inst_gt = data['inst_gt']
 
+        inst_gt = self._fix_inst(inst_gt)
         sem_gt_w_bound = np.zeros_like(sem_gt)
         sem_gt_w_bound += sem_gt
 
