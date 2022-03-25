@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/datasets/monuseg_w_hv.py',
+    './monuseg_hv.py',
     '../_base_/default_runtime.py',
 ]
 
@@ -7,7 +7,7 @@ _base_ = [
 runner = dict(type='EpochBasedRunner', max_epochs=300)
 
 evaluation = dict(
-    interval=50,
+    interval=20,
     custom_intervals=[1],
     custom_milestones=[295],
     by_epoch=True,
@@ -18,8 +18,8 @@ evaluation = dict(
 
 checkpoint_config = dict(
     by_epoch=True,
-    interval=50,
-    max_keep_ckpts=1,
+    interval=5,
+    max_keep_ckpts=5,
 )
 
 optimizer = dict(type='Adam', lr=0.0001, weight_decay=0.0005)
@@ -46,10 +46,8 @@ model = dict(
         mode='split',
         crop_size=(256, 256),
         overlap_size=(40, 40),
-        # rotate_degrees=[0, 90],
-        # flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
-        rotate_degrees=[0],
-        flip_directions=['none'],
+        rotate_degrees=[0, 90],
+        flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
 )
 

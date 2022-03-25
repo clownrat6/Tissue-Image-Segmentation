@@ -93,8 +93,10 @@ def gen_instance_hv_map(ann):
 class HVLabelMake(object):
     """build direction label & point label for any dataset."""
 
-    def __call__(self, sem_gt, inst_gt):
+    def __call__(self, data):
         results = {}
+
+        inst_gt = data['inst_gt']
 
         # [H, W, 2]
         hv_gt = gen_instance_hv_map(inst_gt)

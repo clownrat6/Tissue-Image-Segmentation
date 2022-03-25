@@ -167,9 +167,12 @@ class HoverNet(BaseSegmentor):
         self.conv_bot = nn.Conv2d(2048, 1024, 1, stride=1, padding=0, bias=False)
 
         ksize = 3
-        self.mask_decoder = self.create_decoder_branch(ksize=ksize, out_ch=num_classes)
-        self.hv_decoder = self.create_decoder_branch(ksize=ksize, out_ch=2)
-        self.fore_decoder = self.create_decoder_branch(ksize=ksize, out_ch=2)
+        self.decoder = nn.ModuleDict(
+            OrderedDict([
+                ("tp", self.create_decoder_branch(ksize=ksize, out_ch=num_classes)),
+                ("np", self.create_decoder_branch(ksize=ksize, out_ch=2)),
+                ("hv", self.create_decoder_branch(ksize=ksize, out_ch=2)),
+            ]))
 
         self.upsample2x = UpSample2x()
 
@@ -223,33 +226,33 @@ class HoverNet(BaseSegmentor):
         d3 = self.conv_bot(d3)
         d = [d0, d1, d2, d3]
 
-        mask_logit = self.decoder_forward(d, self.mask_decoder)
-        hv_logit = self.decoder_forward(d, self.hv_decoder)
-        fore_logit = self.decoder_forward(d, self.fore_decoder)
+        sem_logit = self.decoder_forward(d, self.decoder['tp'])
+        hv_logit = self.decoder_forward(d, self.decoder['hv'])
+        fore_logit = self.decoder_forward(d, self.decoder['np'])
 
-        return mask_logit, hv_logit, fore_logit
+        return sem_logit, hv_logit, fore_logit
 
     def forward(self, data, label=None, metas=None, **kwargs):
         """detectron2 style forward functions. Segmentor can be see as meta_arch of detectron2.
         """
         if self.training:
-            mask_logit, hv_logit, fore_logit = self.calculate(data['img'])
+            sem_logit, hv_logit, fore_logit = self.calculate(data['img'])
 
             assert label is not None
-            mask_gt = label['sem_gt']
+            sem_gt = label['sem_gt']
             hv_gt = label['hv_gt']
-            fore_gt = mask_gt.clone()
-            fore_gt[fore_gt > 0] = 1
+            fore_gt = sem_gt.clone()
+            fore_gt = (sem_gt > 0).long()
 
             loss = dict()
 
-            mask_gt = mask_gt.squeeze(1)
+            sem_gt = sem_gt.squeeze(1)
             fore_gt = fore_gt.squeeze(1)
 
             # TODO: Conside to remove some edge loss value.
             # mask branch loss calculation
-            mask_loss = self._mask_loss(mask_logit, mask_gt)
-            loss.update(mask_loss)
+            sem_loss = self._sem_loss(sem_logit, sem_gt)
+            loss.update(sem_loss)
             # direction branch loss calculation
             hv_loss = self._hv_loss(hv_logit, hv_gt, fore_gt)
             loss.update(hv_loss)
@@ -258,31 +261,26 @@ class HoverNet(BaseSegmentor):
             loss.update(fore_loss)
 
             # calculate training metric
-            training_metric_dict = self._training_metric(mask_logit, fore_logit, mask_gt, fore_gt)
+            training_metric_dict = self._training_metric(sem_logit, fore_logit, sem_gt, fore_gt)
             loss.update(training_metric_dict)
             return loss
         else:
             assert metas is not None
             # NOTE: only support batch size = 1 now.
-            mask_logit, hv_logit, fore_logit = self.inference(data['img'], metas[0], True)
-            mask_pred = mask_logit.argmax(dim=1)
-            fore_logit = F.softmax(fore_logit, dim=1)
+            sem_logit, hv_logit, fore_logit = self.inference(data['img'], metas[0], True)
+            sem_pred = sem_logit.argmax(dim=1)
             # Extract inside class
-            mask_pred = mask_pred.cpu().numpy()
-            hv_pred = hv_logit.cpu().numpy()
-            fore_logit = fore_logit.cpu().numpy()
+            sem_pred = sem_pred.cpu().numpy()[0]
+            hv_pred = hv_logit.cpu().numpy()[0]
+            fore_logit = fore_logit.cpu().numpy()[0][1]
             # unravel batch dim
-            mask_pred = list(mask_pred)
-            hv_pred = list(hv_pred)
-            fore_logit = list(fore_logit)
+            inst_pred = self.hover_post_proc(fore_logit, hv_pred)
             ret_list = []
-            for mask, hv, fore in zip(mask_pred, hv_pred, fore_logit):
-                inst = self.hover_post_proc(fore[1:], hv)
-                ret_list.append({'sem_pred': mask, 'inst_pred': inst})
+            ret_list.append({'sem_pred': sem_pred, 'inst_pred': inst_pred})
             return ret_list
 
     def hover_post_proc(self, fore_map, hv_map, fx=1):
-        blb_raw = fore_map[0]
+        blb_raw = fore_map
         h_dir_raw = hv_map[0]
         v_dir_raw = hv_map[1]
 
@@ -373,7 +371,7 @@ class HoverNet(BaseSegmentor):
 
         self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])
-        mask_logit_list = []
+        sem_logit_list = []
         hv_logit_list = []
         fore_logit_list = []
         img_ = img
@@ -383,26 +381,31 @@ class HoverNet(BaseSegmentor):
 
                 # inference
                 if self.test_cfg.mode == 'split':
-                    mask_logit, hv_logit, fore_logit = self.split_inference(img, meta, rescale)
+                    sem_logit, hv_logit, fore_logit = self.split_inference(img, meta, rescale)
                 else:
-                    mask_logit, hv_logit, fore_logit = self.whole_inference(img, meta, rescale)
+                    sem_logit, hv_logit, fore_logit = self.whole_inference(img, meta, rescale)
 
-                mask_logit = self.reverse_tta_transform(mask_logit, rotate_degree, flip_direction)
+                sem_logit = self.reverse_tta_transform(sem_logit, rotate_degree, flip_direction)
                 hv_logit = self.reverse_tta_transform(hv_logit, rotate_degree, flip_direction)
                 fore_logit = self.reverse_tta_transform(fore_logit, rotate_degree, flip_direction)
 
-                mask_logit = F.softmax(mask_logit, dim=1)
+                sem_logit = F.softmax(sem_logit, dim=1)
                 fore_logit = F.softmax(fore_logit, dim=1)
 
-                mask_logit_list.append(mask_logit)
+                sem_logit_list.append(sem_logit)
                 hv_logit_list.append(hv_logit)
                 fore_logit_list.append(fore_logit)
 
-        mask_logit = sum(mask_logit_list) / len(mask_logit_list)
+        sem_logit = sum(sem_logit_list) / len(sem_logit_list)
         hv_logit = sum(hv_logit_list) / len(hv_logit_list)
         fore_logit = sum(fore_logit_list) / len(fore_logit_list)
 
-        return mask_logit, hv_logit, fore_logit
+        if rescale:
+            sem_logit = resize(sem_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+            hv_logit = resize(hv_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+            fore_logit = resize(fore_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+
+        return sem_logit, hv_logit, fore_logit
 
     def split_inference(self, img, meta, rescale):
         """using half-and-half strategy to slide inference."""
@@ -427,7 +430,7 @@ class HoverNet(BaseSegmentor):
         img_canvas = torch.zeros((B, C, H1, W1), dtype=img.dtype, device=img.device)
         img_canvas[:, :, pad_h // 2:pad_h // 2 + H, pad_w // 2:pad_w // 2 + W] = img
 
-        mask_logit = torch.zeros((B, self.num_classes, H1, W1), dtype=img.dtype, device=img.device)
+        sem_logit = torch.zeros((B, self.num_classes, H1, W1), dtype=img.dtype, device=img.device)
         hv_logit = torch.zeros((B, 2, H1, W1), dtype=img.dtype, device=img.device)
         fore_logit = torch.zeros((B, 2, H1, W1), dtype=img.dtype, device=img.device)
         for i in range(0, H1 - overlap_size, window_size - overlap_size):
@@ -438,54 +441,47 @@ class HoverNet(BaseSegmentor):
                 c_end = j + window_size if j + window_size < W1 else W1
 
                 img_patch = img_canvas[:, :, i:r_end, j:c_end]
-                mask_patch, hv_patch, fore_patch = self.calculate(img_patch)
+                sem_patch, hv_patch, fore_patch = self.calculate(img_patch)
 
                 ind2_s = j + overlap_size // 2 if j > 0 else 0
                 ind2_e = (j + window_size - overlap_size // 2 if j + window_size < W1 else W1)
-                mask_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = mask_patch[:, :, ind1_s - i:ind1_e - i,
-                                                                            ind2_s - j:ind2_e - j]
+                sem_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = sem_patch[:, :, ind1_s - i:ind1_e - i,
+                                                                          ind2_s - j:ind2_e - j]
                 hv_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = hv_patch[:, :, ind1_s - i:ind1_e - i,
                                                                         ind2_s - j:ind2_e - j]
                 fore_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = fore_patch[:, :, ind1_s - i:ind1_e - i,
                                                                             ind2_s - j:ind2_e - j]
 
-        mask_logit = mask_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
+        sem_logit = sem_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
         hv_logit = hv_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
         fore_logit = fore_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
-        if rescale:
-            mask_logit = resize(mask_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            hv_logit = resize(hv_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            fore_logit = resize(fore_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-        return mask_logit, hv_logit, fore_logit
+
+        return sem_logit, hv_logit, fore_logit
 
     def whole_inference(self, img, meta, rescale):
         """Inference with full image."""
 
-        mask_logit, hv_logit, fore_logit = self.calculate(img)
-        if rescale:
-            mask_logit = resize(mask_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            hv_logit = resize(hv_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            fore_logit = resize(fore_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
+        sem_logit, hv_logit, fore_logit = self.calculate(img)
 
-        return mask_logit, hv_logit, fore_logit
+        return sem_logit, hv_logit, fore_logit
 
-    def _mask_loss(self, mask_logit, mask_gt, weight_map=None):
-        mask_loss = {}
-        mask_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-        mask_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
+    def _sem_loss(self, sem_logit, sem_gt, weight_map=None):
+        sem_loss = {}
+        sem_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
+        sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
         # Assign weight map for each pixel position
-        mask_ce_loss = mask_ce_loss_calculator(mask_logit, mask_gt)
+        sem_ce_loss = sem_ce_loss_calculator(sem_logit, sem_gt)
         if weight_map is not None:
-            mask_ce_loss *= weight_map[:, 0]
-        mask_ce_loss = torch.mean(mask_ce_loss)
-        mask_dice_loss = mask_dice_loss_calculator(mask_logit, mask_gt)
+            sem_ce_loss *= weight_map[:, 0]
+        sem_ce_loss = torch.mean(sem_ce_loss)
+        sem_dice_loss = sem_dice_loss_calculator(sem_logit, sem_gt)
         # loss weight
         alpha = 5
         beta = 0.5
-        mask_loss['mask_ce_loss'] = alpha * mask_ce_loss
-        mask_loss['mask_dice_loss'] = beta * mask_dice_loss
+        sem_loss['sem_ce_loss'] = alpha * sem_ce_loss
+        sem_loss['sem_dice_loss'] = beta * sem_dice_loss
 
-        return mask_loss
+        return sem_loss
 
     def _hv_loss(self, hv_logit, hv_gt, fore_gt):
         hv_loss = {}
@@ -516,30 +512,30 @@ class HoverNet(BaseSegmentor):
 
         return fore_loss
 
-    def _training_metric(self, mask_logit, fore_logit, mask_gt, fore_gt):
+    def _training_metric(self, sem_logit, fore_logit, sem_gt, fore_gt):
         wrap_dict = {}
         # detach these training variable to avoid gradient noise.
-        clean_mask_logit = mask_logit.clone().detach()
-        clean_mask_gt = mask_gt.clone().detach()
+        clean_sem_logit = sem_logit.clone().detach()
+        clean_sem_gt = sem_gt.clone().detach()
         clean_fore_logit = fore_logit.clone().detach()
         clean_fore_gt = fore_gt.clone().detach()
 
-        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        wrap_dict['sem_mdice'] = mdice(clean_sem_logit, clean_sem_gt, self.num_classes)
         wrap_dict['fore_mdice'] = mdice(clean_fore_logit, clean_fore_gt, 2)
 
-        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_gt, self.num_classes)
+        wrap_dict['sem_tdice'] = tdice(clean_sem_logit, clean_sem_gt, self.num_classes)
         wrap_dict['fore_tdice'] = tdice(clean_fore_logit, clean_fore_gt, 2)
 
         # NOTE: training aji calculation metric calculate (This will be deprecated.)
-        # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
-        # mask_pred[mask_pred == (self.num_classes - 1)] = 0
-        # mask_target = mask_gt.cpu().numpy().astype(np.uint8)
-        # mask_target[mask_target == (self.num_classes - 1)] = 0
+        # sem_pred = torch.argmax(sem_logit, dim=1).cpu().numpy().astype(np.uint8)
+        # sem_pred[sem_pred == (self.num_classes - 1)] = 0
+        # sem_target = sem_gt.cpu().numpy().astype(np.uint8)
+        # sem_target[sem_target == (self.num_classes - 1)] = 0
 
-        # N = mask_pred.shape[0]
+        # N = sem_pred.shape[0]
         # wrap_dict['aji'] = 0.
         # for i in range(N):
-        #     aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
+        #     aji_single_image = aggregated_jaccard_index(sem_pred[i], sem_target[i])
         #     wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
         # # distributed environment requires cuda tensor
         # wrap_dict['aji'] /= N

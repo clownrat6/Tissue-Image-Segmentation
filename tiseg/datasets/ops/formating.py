@@ -89,7 +89,7 @@ class Formatting(object):
                 ret['data'][data_key] = format_(data[data_key])
 
         for label_key in self.label_keys:
-            if label_key == 'dist_gt' or label_key == 'point_gt' or label_key == 'loss_weight_map':
+            if label_key in ['dist_gt', 'point_gt', 'hv_gt', 'loss_weight_map']:
                 ret['label'][label_key] = format_reg(data[label_key])
             else:
                 ret['label'][label_key] = format_seg(data[label_key])
