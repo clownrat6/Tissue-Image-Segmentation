@@ -117,12 +117,12 @@ class MicroNet(BaseSegmentor):
         self.ub2 = UpBlock(512, 256, 256)
         self.ub1 = UpBlock(256, 128, 128)
 
-        self.out_branch1 = DecodeBlock(128, 64, num_classes + 1, 2)
-        self.out_branch2 = DecodeBlock(256, 128, num_classes + 1, 4)
-        self.out_branch3 = DecodeBlock(512, 256, num_classes + 1, 8)
+        self.out_branch1 = DecodeBlock(128, 64, num_classes, 2)
+        self.out_branch2 = DecodeBlock(256, 128, num_classes, 4)
+        self.out_branch3 = DecodeBlock(512, 256, num_classes, 8)
 
         self.dropout = nn.Dropout(0.5)
-        self.final_sem_conv = nn.Conv2d(64 + 128 + 256, num_classes + 1, 3)
+        self.final_sem_conv = nn.Conv2d(64 + 128 + 256, num_classes, 3)
 
     def calculate(self, img, test_mode=True):
         b1 = self.db1(img, img)
