@@ -240,3 +240,45 @@ class CMicroNet(BaseSegmentor):
         sem_loss[f'sem_dice_loss_aux{idx}'] = beta * sem_dice_loss
 
         return sem_loss
+
+    def split_inference(self, img, meta, rescale):
+        """using half-and-half strategy to slide inference."""
+        window_size = self.test_cfg.crop_size[0]
+        overlap_size = self.test_cfg.overlap_size[0]
+
+        B, C, H, W = img.shape
+
+        # zero pad for border patches
+        pad_h = 0
+        if H - window_size > 0:
+            pad_h = (window_size - overlap_size) - (H - window_size) % (window_size - overlap_size)
+        else:
+            pad_h = window_size - H
+
+        if W - window_size > 0:
+            pad_w = (window_size - overlap_size) - (W - window_size) % (window_size - overlap_size)
+        else:
+            pad_w = window_size - W
+
+        H1, W1 = pad_h + H, pad_w + W
+        img_canvas = torch.zeros((B, C, H1, W1), dtype=img.dtype, device=img.device)
+        img_canvas[:, :, pad_h // 2:pad_h // 2 + H, pad_w // 2:pad_w // 2 + W] = img
+
+        sem_logit = torch.zeros((B, self.num_classes + 1, H1, W1), dtype=img.dtype, device=img.device)
+        for i in range(0, H1 - overlap_size, window_size - overlap_size):
+            r_end = i + window_size if i + window_size < H1 else H1
+            ind1_s = i + overlap_size // 2 if i > 0 else 0
+            ind1_e = (i + window_size - overlap_size // 2 if i + window_size < H1 else H1)
+            for j in range(0, W1 - overlap_size, window_size - overlap_size):
+                c_end = j + window_size if j + window_size < W1 else W1
+
+                img_patch = img_canvas[:, :, i:r_end, j:c_end]
+                sem_patch = self.calculate(img_patch)
+
+                ind2_s = j + overlap_size // 2 if j > 0 else 0
+                ind2_e = (j + window_size - overlap_size // 2 if j + window_size < W1 else W1)
+                sem_logit[:, :, ind1_s:ind1_e, ind2_s:ind2_e] = sem_patch[:, :, ind1_s - i:ind1_e - i,
+                                                                          ind2_s - j:ind2_e - j]
+
+        sem_logit = sem_logit[:, :, (H1 - H) // 2:(H1 - H) // 2 + H, (W1 - W) // 2:(W1 - W) // 2 + W]
+        return sem_logit
