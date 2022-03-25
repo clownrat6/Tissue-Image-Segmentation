@@ -7,5 +7,7 @@ from .dist import DIST
 from .cmicronet import CMicroNet
 from .fullnet import FullNet
 from .hovernet import HoverNet
+from .unet import UNet
+from .micronet import MicroNet
 
-__all__ = ['CUNet', 'CDNet', 'CMicroNet', 'MultiTaskUNet', 'MultiTaskCDNet', 'DCAN', 'DIST', 'FullNet', 'HoverNet']
+__all__ = ['CUNet', 'CDNet', 'CMicroNet', 'MultiTaskUNet', 'MultiTaskCDNet', 'DCAN', 'DIST', 'FullNet', 'HoverNet', 'UNet', 'MicroNet']
