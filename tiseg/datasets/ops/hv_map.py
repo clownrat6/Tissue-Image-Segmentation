@@ -94,8 +94,6 @@ class HVLabelMake(object):
     """build direction label & point label for any dataset."""
 
     def __call__(self, data):
-        results = {}
-
         inst_gt = data['inst_gt']
 
         # [H, W, 2]
@@ -103,6 +101,7 @@ class HVLabelMake(object):
         # [2, H, W]
         hv_gt = hv_gt.transpose(2, 0, 1)
 
-        results['hv_gt'] = hv_gt
+        data['hv_gt'] = hv_gt
+        data['seg_fields'].append('hv_gt')
 
-        return results
+        return data

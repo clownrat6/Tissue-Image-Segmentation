@@ -32,5 +32,6 @@ class_dict = {
     'DirectionLabelMake': DirectionLabelMake,
     'DistanceLabelMake': DistanceLabelMake,
     'UNetLabelMake': UNetLabelMake,
+    'HVLabelMake': HVLabelMake,
     'Formatting': Formatting,
 }
