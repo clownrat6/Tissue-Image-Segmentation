@@ -44,15 +44,19 @@ def format_img(img):
 
 
 def format_seg(seg):
+    if len(seg.shape) < 3:
+        seg = seg[None, ...]
     # segmentation gt convert to long
-    seg = DC(to_tensor(seg[None, ...].astype(np.int64)), stack=True)
+    seg = DC(to_tensor(seg.astype(np.int64)), stack=True)
 
     return seg
 
 
 def format_reg(reg):
+    if len(reg.shape) < 3:
+        reg = reg[None, ...]
     # regression gt convert to float
-    reg = DC(to_tensor(reg[None, ...].astype(np.float32)), stack=True)
+    reg = DC(to_tensor(reg.astype(np.float32)), stack=True)
 
     return reg
 

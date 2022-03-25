@@ -15,7 +15,7 @@ def get_bounding_box(img):
     return [rmin, rmax, cmin, cmax]
 
 
-def gen_instance_hv_map(ann):
+def gen_instance_hv_map(inst_gt):
     """Input annotation must be of original shape.
 
     The map is calculated only for instances within the crop portion
@@ -24,15 +24,17 @@ def gen_instance_hv_map(ann):
     Obtain the horizontal and vertical distance maps for each
     nuclear instance.
     """
-    orig_ann = ann.copy()  # instance ID map
 
-    x_map = np.zeros(orig_ann.shape[:2], dtype=np.float32)
-    y_map = np.zeros(orig_ann.shape[:2], dtype=np.float32)
+    x_map = np.zeros(inst_gt.shape[:2], dtype=np.float32)
+    y_map = np.zeros(inst_gt.shape[:2], dtype=np.float32)
 
-    inst_list = list(np.unique(orig_ann))
-    inst_list.remove(0)  # 0 is background
-    for inst_id in inst_list:
-        inst_map = np.array(orig_ann == inst_id, np.uint8)
+    h, w = inst_gt.shape[:2]
+
+    inst_ids = list(np.unique(inst_gt))
+    for inst_id in inst_ids:
+        if inst_id == 0:
+            continue
+        inst_map = np.array(inst_gt == inst_id, np.uint8)
         inst_box = get_bounding_box(inst_map)
 
         # expand the box by 2px
@@ -42,6 +44,11 @@ def gen_instance_hv_map(ann):
         inst_box[2] -= 2
         inst_box[1] += 2
         inst_box[3] += 2
+
+        inst_box[0] = max(inst_box[0], 0)
+        inst_box[2] = max(inst_box[2], 0)
+        inst_box[1] = min(inst_box[1], h)
+        inst_box[3] = min(inst_box[3], w)
 
         inst_map = inst_map[inst_box[0]:inst_box[1], inst_box[2]:inst_box[3]]
 
