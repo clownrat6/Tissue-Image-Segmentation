@@ -8,7 +8,7 @@ from scipy.ndimage import binary_fill_holes
 from mmcv.cnn import ConvModule
 
 from ..builder import SEGMENTORS
-from ..losses import BatchMultiClassDiceLoss, mdice, tdice
+from ..losses import BatchMultiClassDiceLoss
 from .base import BaseSegmentor
 
 
@@ -240,16 +240,3 @@ class CMicroNet(BaseSegmentor):
         sem_loss[f'sem_dice_loss_aux{idx}'] = beta * sem_dice_loss
 
         return sem_loss
-
-    def _training_metric(self, sem_logit, sem_gt):
-        """metric calculation when training."""
-        wrap_dict = {}
-
-        # loss
-        clean_sem_logit = sem_logit.clone().detach()
-        clean_sem_gt = sem_gt.clone().detach()
-
-        wrap_dict['sem_tdice'] = tdice(clean_sem_logit, clean_sem_gt, self.num_classes)
-        wrap_dict['sem_mdice'] = mdice(clean_sem_logit, clean_sem_gt, self.num_classes)
-
-        return wrap_dict

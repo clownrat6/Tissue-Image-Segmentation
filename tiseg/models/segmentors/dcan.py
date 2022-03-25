@@ -13,7 +13,7 @@ from mmcv.cnn import ConvModule
 
 from tiseg.utils import resize
 from ..builder import SEGMENTORS
-from ..losses import mdice, tdice, BatchMultiClassDiceLoss
+from ..losses import BatchMultiClassDiceLoss
 from .base import BaseSegmentor
 
 
@@ -336,32 +336,3 @@ class DCAN(BaseSegmentor):
         cell_logit, cont_logit = self.calculate(img)
 
         return cell_logit, cont_logit
-
-    def _training_metric(self, sem_logit, sem_label):
-        """metric calculation when training."""
-        wrap_dict = {}
-
-        # loss
-        clean_sem_logit = sem_logit.clone().detach()
-        clean_sem_label = sem_label.clone().detach()
-
-        wrap_dict['sem_tdice'] = tdice(clean_sem_logit, clean_sem_label, self.num_classes)
-        wrap_dict['sem_mdice'] = mdice(clean_sem_logit, clean_sem_label, self.num_classes)
-
-        # NOTE: training aji calculation metric calculate (This will be deprecated.)
-        # (the edge id is set `self.num_classes - 1` in default)
-        # sem_pred = torch.argmax(sem_logit, dim=1).cpu().numpy().astype(np.uint8)
-        # sem_pred[sem_pred == (self.num_classes - 1)] = 0
-        # sem_target = sem_label.cpu().numpy().astype(np.uint8)
-        # sem_target[sem_target == (self.num_classes - 1)] = 0
-
-        # N = sem_pred.shape[0]
-        # wrap_dict['aji'] = 0.
-        # for i in range(N):
-        #     aji_single_image = aggregated_jaccard_index(sem_pred[i], sem_target[i])
-        #     wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
-        # # distributed environment requires cuda tensor
-        # wrap_dict['aji'] /= N
-        # wrap_dict['aji'] = wrap_dict['aji'].cuda()
-
-        return wrap_dict

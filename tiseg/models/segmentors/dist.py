@@ -12,7 +12,7 @@ from mmcv.cnn import ConvModule
 
 from tiseg.utils import resize
 from ..builder import SEGMENTORS
-from ..losses import mdice, tdice, BatchMultiClassDiceLoss
+from ..losses import BatchMultiClassDiceLoss
 from .base import BaseSegmentor
 
 
@@ -312,35 +312,6 @@ class DIST(BaseSegmentor):
         mask_loss['dist_mse_loss'] = alpha * mask_mse_loss
 
         return mask_loss
-
-    def _training_metric(self, mask_logit, mask_label):
-        """metric calculation when training."""
-        wrap_dict = {}
-
-        # loss
-        clean_mask_logit = mask_logit.clone().detach()
-        clean_mask_label = mask_label.clone().detach()
-
-        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_label, self.num_classes)
-        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_label, self.num_classes)
-
-        # NOTE: training aji calculation metric calculate (This will be deprecated.)
-        # (the edge id is set `self.num_classes - 1` in default)
-        # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
-        # mask_pred[mask_pred == (self.num_classes - 1)] = 0
-        # mask_target = mask_label.cpu().numpy().astype(np.uint8)
-        # mask_target[mask_target == (self.num_classes - 1)] = 0
-
-        # N = mask_pred.shape[0]
-        # wrap_dict['aji'] = 0.
-        # for i in range(N):
-        #     aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
-        #     wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
-        # # distributed environment requires cuda tensor
-        # wrap_dict['aji'] /= N
-        # wrap_dict['aji'] = wrap_dict['aji'].cuda()
-
-        return wrap_dict
 
     # NOTE: old style split inference
     def split_inference(self, img, meta, rescale):

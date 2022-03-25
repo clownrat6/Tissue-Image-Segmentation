@@ -8,7 +8,7 @@ from scipy.ndimage import binary_fill_holes
 from ..backbones import TorchVGG16BN
 from ..builder import SEGMENTORS
 from ..heads import UNetHead
-from ..losses import BatchMultiClassDiceLoss, mdice, tdice
+from ..losses import BatchMultiClassDiceLoss
 from .base import BaseSegmentor
 
 
@@ -35,9 +35,9 @@ class CUNet(BaseSegmentor):
         img_feats = self.backbone(img)
         bottom_feat = img_feats[-1]
         skip_feats = img_feats[:-1]
-        mask_logit = self.head(bottom_feat, skip_feats)
+        sem_logit = self.head(bottom_feat, skip_feats)
 
-        return mask_logit
+        return sem_logit
 
     def forward(self, data, label=None, metas=None, **kwargs):
         """detectron2 style forward functions. Segmentor can be see as meta_arch of detectron2.
@@ -92,15 +92,15 @@ class CUNet(BaseSegmentor):
 
         return sem_pred, inst_pred
 
-    def _sem_loss(self, sem_logit, sem_gt_wb):
+    def _sem_loss(self, sem_logit, sem_gt):
         """calculate mask branch loss."""
         sem_loss = {}
         sem_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
         sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes + 1)
         # Assign weight map for each pixel position
-        # mask_loss *= weight_map
-        sem_ce_loss = torch.mean(sem_ce_loss_calculator(sem_logit, sem_gt_wb))
-        sem_dice_loss = sem_dice_loss_calculator(sem_logit, sem_gt_wb)
+        # sem_loss *= weight_map
+        sem_ce_loss = torch.mean(sem_ce_loss_calculator(sem_logit, sem_gt))
+        sem_dice_loss = sem_dice_loss_calculator(sem_logit, sem_gt)
         # loss weight
         alpha = 5
         beta = 0.5
@@ -108,32 +108,3 @@ class CUNet(BaseSegmentor):
         sem_loss['sem_dice_loss'] = beta * sem_dice_loss
 
         return sem_loss
-
-    def _training_metric(self, mask_logit, mask_label):
-        """metric calculation when training."""
-        wrap_dict = {}
-
-        # loss
-        clean_mask_logit = mask_logit.clone().detach()
-        clean_mask_label = mask_label.clone().detach()
-
-        wrap_dict['mask_tdice'] = tdice(clean_mask_logit, clean_mask_label, self.num_classes)
-        wrap_dict['mask_mdice'] = mdice(clean_mask_logit, clean_mask_label, self.num_classes)
-
-        # NOTE: training aji calculation metric calculate (This will be deprecated.)
-        # (the edge id is set `self.num_classes - 1` in default)
-        # mask_pred = torch.argmax(mask_logit, dim=1).cpu().numpy().astype(np.uint8)
-        # mask_pred[mask_pred == (self.num_classes - 1)] = 0
-        # mask_target = mask_label.cpu().numpy().astype(np.uint8)
-        # mask_target[mask_target == (self.num_classes - 1)] = 0
-
-        # N = mask_pred.shape[0]
-        # wrap_dict['aji'] = 0.
-        # for i in range(N):
-        #     aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
-        #     wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
-        # # distributed environment requires cuda tensor
-        # wrap_dict['aji'] /= N
-        # wrap_dict['aji'] = wrap_dict['aji'].cuda()
-
-        return wrap_dict
