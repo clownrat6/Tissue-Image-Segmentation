@@ -4,8 +4,8 @@ from .multi_task_unet import MultiTaskUNet
 from .multi_task_cdnet import MultiTaskCDNet
 from .dcan import DCAN
 from .dist import DIST
-from .micro_net import MicroNet
+from .cmicronet import CMicroNet
 from .fullnet import FullNet
 from .hovernet import HoverNet
 
-__all__ = ['CUNet', 'CDNet', 'MicroNet', 'MultiTaskUNet', 'MultiTaskCDNet', 'DCAN', 'DIST', 'FullNet', 'HoverNet']
+__all__ = ['CUNet', 'CDNet', 'CMicroNet', 'MultiTaskUNet', 'MultiTaskCDNet', 'DCAN', 'DIST', 'FullNet', 'HoverNet']

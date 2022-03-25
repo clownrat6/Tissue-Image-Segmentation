@@ -94,13 +94,15 @@ class DecodeBlock(nn.Module):
 
 
 @SEGMENTORS.register_module()
-class MicroNet(BaseSegmentor):
+class CMicroNet(BaseSegmentor):
     """Implementation of `Micro-Net: A unified model for segmentation of various objects in microscopy images`.
     The input image size must be [252x252, 508x508]
+
+    Contour aware MicroNet is slightly different from raw micronet.
     """
 
     def __init__(self, num_classes, train_cfg, test_cfg):
-        super(MicroNet, self).__init__()
+        super(CMicroNet, self).__init__()
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
