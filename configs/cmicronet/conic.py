@@ -30,8 +30,8 @@ test_processes = [
 ]
 
 data = dict(
-    samples_per_gpu=16,
-    workers_per_gpu=16,
+    samples_per_gpu=4,
+    workers_per_gpu=4,
     train=dict(
         type=dataset_type,
         data_root=data_root,
