@@ -43,6 +43,7 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(
         mode='split',
+        radius=3,
         crop_size=(256, 256),
         overlap_size=(40, 40),
         rotate_degrees=[0, 90],
