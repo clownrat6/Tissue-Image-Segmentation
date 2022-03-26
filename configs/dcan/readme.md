@@ -8,10 +8,10 @@
 
 | Method | Crop Size | Batch Size | Slide Size | Learning Rate | Aji   | Dice  | DQ    | SQ    | PQ    |
 | :--    | :--:      | :--        | :--:       | :--           | :-:   | :--:  | :--:  | :--:  | :--:  |
-| CDNet  | 256x256   | 4          | 40x40      | Adam-Lr1e-4   | - | 78.53 | 80.1  | 79.56 | 63.73 |
+| DCAN   | 256x256   | 4          | 40x40      | Adam-Lr1e-4   | - | 78.53 | 80.1  | 79.56 | 63.73 |
 
 ### CoNIC
 
 | Method | Crop Size | Batch Size | Slide Size | Learning Rate | mean Aji | mAji   | mDice  | mDQ   | mSQ   | mPQ   |
 | :--    | :--:      | :--        | :--:       | :--           | :-:      | :--:   | :--:   | :--:  | :--:  | :--:  |
-| CUNet  | 256x256   | 4          | 40x40      | Adam-Lr1e-4   | -    | 44.86  | 62.59  | 61.65 | 73.14 | 45.13 |
+| DCAN   | 256x256   | 4          | 40x40      | Adam-Lr1e-4   | 46.66    | 37.45  | 58.95  | 53.66 | 68.01 | 36.43 |
