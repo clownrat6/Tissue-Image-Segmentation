@@ -1,6 +1,6 @@
 # Contour Aware U-Net
 
-The U-Net with contour aware learning (popular).
+The U-Net with contour aware learning (popular 🔥🔥🔥).
 
 ## Results
 
