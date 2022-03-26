@@ -50,5 +50,3 @@ model = dict(
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
 )
-
-data = dict(samples_per_gpu=8, workers_per_gpu=8)

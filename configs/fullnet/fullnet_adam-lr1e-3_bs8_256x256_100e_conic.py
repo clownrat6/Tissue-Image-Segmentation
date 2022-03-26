@@ -18,7 +18,7 @@ evaluation = dict(
 checkpoint_config = dict(
     by_epoch=True,
     interval=5,
-    max_keep_ckpts=1,
+    max_keep_ckpts=5,
 )
 
 optimizer = dict(type='Adam', lr=0.001, weight_decay=0.0005)
@@ -50,5 +50,3 @@ model = dict(
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
     ),
 )
-
-data = dict(samples_per_gpu=8, workers_per_gpu=8)
