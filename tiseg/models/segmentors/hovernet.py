@@ -397,7 +397,7 @@ class HoverNet(BaseSegmentor):
                 fore_logit_list.append(fore_logit)
 
         sem_logit = sum(sem_logit_list) / len(sem_logit_list)
-        hv_logit = sum(hv_logit_list) / len(hv_logit_list)
+        hv_logit = hv_logit_list[0]
         fore_logit = sum(fore_logit_list) / len(fore_logit_list)
 
         if rescale:
