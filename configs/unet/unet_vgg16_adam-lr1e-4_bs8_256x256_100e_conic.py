@@ -22,7 +22,7 @@ checkpoint_config = dict(
     max_keep_ckpts=5,
 )
 
-optimizer = dict(type='Adam', lr=0.0005, weight_decay=0.0005)
+optimizer = dict(type='Adam', lr=0.0001, weight_decay=0.0005)
 optimizer_config = dict()
 
 # NOTE: poly learning rate decay
