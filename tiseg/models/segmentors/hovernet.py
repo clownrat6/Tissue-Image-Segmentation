@@ -271,18 +271,24 @@ class HoverNet(BaseSegmentor):
             sem_pred = sem_logit.argmax(dim=1)
             # Extract inside class
             sem_pred = sem_pred.cpu().numpy()[0]
-            hv_pred = hv_logit.cpu().numpy()[0]
+            # NHW -> HWN
+            hv_pred = hv_logit.permute(0, 2, 3, 1).cpu().numpy()[0]
             fore_logit = fore_logit.cpu().numpy()[0][1]
             # unravel batch dim
-            inst_pred = self.hover_post_proc(fore_logit, hv_pred)
+            inst_pred = self.hover_post_proc(fore_logit, hv_pred, scale_factor=self.test_cfg.get('scale_factor', 1))
             ret_list = []
             ret_list.append({'sem_pred': sem_pred, 'inst_pred': inst_pred})
             return ret_list
 
-    def hover_post_proc(self, fore_map, hv_map, fx=1):
+    def hover_post_proc(self, fore_map, hv_map, fx=1, scale_factor=1):
+        raw_h, raw_w = hv_map.shape[:2]
+
+        fore_map = cv2.resize(fore_map, (0, 0), fx=scale_factor, fy=scale_factor)
+        hv_map = cv2.resize(hv_map, (0, 0), fx=scale_factor, fy=scale_factor)
+
         blb_raw = fore_map
-        h_dir_raw = hv_map[0]
-        v_dir_raw = hv_map[1]
+        h_dir_raw = hv_map[:, :, 0]
+        v_dir_raw = hv_map[:, :, 1]
 
         # processing
         blb = np.array(blb_raw >= 0.5, dtype=np.int32)
@@ -353,6 +359,8 @@ class HoverNet(BaseSegmentor):
         marker = remove_small_objects(marker, min_size=obj_size)
 
         proced_pred = watershed(dist, markers=marker, mask=blb)
+
+        proced_pred = cv2.resize(proced_pred, (raw_w, raw_h), interpolation=cv2.INTER_NEAREST)
 
         return proced_pred
 

@@ -5,7 +5,6 @@ train_processes = [
     dict(type='Affine', scale=(0.8, 1.2), shear=5, rotate_degree=[-180, 180], translate_frac=(0, 0.01)),
     dict(type='RandomFlip', prob=0.5, direction='horizontal'),
     dict(type='RandomFlip', prob=0.5, direction='vertical'),
-    dict(type='Resize', scale_factor=2, resize_mode='scale'),
     dict(type='RandomCrop', crop_size=(256, 256)),
     dict(type='Pad', pad_size=(256, 256)),
     dict(type='RandomBlur'),
@@ -20,7 +19,6 @@ train_processes = [
     dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt', 'hv_gt'])
 ]
 test_processes = [
-    dict(type='Resize', scale_factor=2, resize_mode='scale'),
     dict(
         type='Normalize',
         mean=[0.68861804, 0.46102882, 0.61138992],

@@ -13,7 +13,7 @@ from skimage.morphology import remove_small_objects
 from scipy.ndimage import binary_fill_holes
 
 from ..builder import SEGMENTORS
-from ..losses import BatchMultiClassDiceLoss, VarianceLoss
+from ..losses import BatchMultiClassDiceLoss
 from .base import BaseSegmentor
 
 
@@ -166,11 +166,9 @@ class FullNet(BaseSegmentor):
             sem_logit = self.calculate(data['img'])
             assert label is not None
             sem_label = label['sem_gt_w_bound']
-            inst_label = label['inst_gt']
             loss = dict()
             sem_label = sem_label.squeeze(1)
-            inst_label = inst_label.squeeze(1)
-            sem_loss = self._sem_loss(sem_logit, sem_label, inst_label)
+            sem_loss = self._sem_loss(sem_logit, sem_label)
             loss.update(sem_loss)
             # calculate training metric
             training_metric_dict = self._training_metric(sem_logit, sem_label)
@@ -214,22 +212,18 @@ class FullNet(BaseSegmentor):
 
         return sem_pred, inst_pred
 
-    def _sem_loss(self, sem_logit, sem_label, inst_label):
+    def _sem_loss(self, sem_logit, sem_gt):
         """calculate mask branch loss."""
         sem_loss = {}
         sem_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
         sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes + 1)
-        sem_var_loss_calculator = VarianceLoss()
         # Assign weight map for each pixel position
-        # sem_loss *= weight_map
-        sem_ce_loss = torch.mean(sem_ce_loss_calculator(sem_logit, sem_label))
-        sem_var_loss = sem_var_loss_calculator(sem_logit, inst_label)
-        sem_dice_loss = sem_dice_loss_calculator(sem_logit, sem_label)
+        sem_ce_loss = torch.mean(sem_ce_loss_calculator(sem_logit, sem_gt))
+        sem_dice_loss = sem_dice_loss_calculator(sem_logit, sem_gt)
         # loss weight
         alpha = 5
         beta = 0.5
         sem_loss['sem_ce_loss'] = alpha * sem_ce_loss
-        sem_loss['sem_var_loss'] = alpha * sem_var_loss
         sem_loss['sem_dice_loss'] = beta * sem_dice_loss
 
         return sem_loss
