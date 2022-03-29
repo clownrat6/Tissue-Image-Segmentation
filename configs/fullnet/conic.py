@@ -7,7 +7,6 @@ train_processes = [
     dict(type='RandomFlip', prob=0.5, direction=['horizontal']),
     dict(type='RandomElasticDeform'),
     dict(type='RandomBlur'),
-    dict(type='Resize', scale_factor=2, resize_mode='scale'),
     dict(type='RandomCrop', crop_size=(256, 256)),
     dict(type='Pad', pad_size=(256, 256)),
     dict(
@@ -15,11 +14,10 @@ train_processes = [
         mean=[0.68861804, 0.46102882, 0.61138992],
         std=[0.19204499, 0.20979484, 0.1658672],
         if_zscore=False),
-    dict(type='BoundLabelMake', edge_id=7, selem_radius=(2, 2)),
+    dict(type='BoundLabelMake', edge_id=7, selem_radius=(0, 2)),
     dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt', 'inst_gt', 'sem_gt_w_bound'])
 ]
 test_processes = [
-    dict(type='Resize', scale_factor=2, resize_mode='scale'),
     dict(
         type='Normalize',
         mean=[0.68861804, 0.46102882, 0.61138992],
