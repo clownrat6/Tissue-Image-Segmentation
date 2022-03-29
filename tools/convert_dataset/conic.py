@@ -115,10 +115,11 @@ def main(args):
             palette[6, :] = (0, 255, 255)
             pillow_save(osp.join(new_root, f'{i}_sem.png'), labels[i, :, :, 1], palette=palette)
 
-        item_list = [x.rstrip('_inst.npy') for x in os.listdir(new_root) if '_inst.npy' in x]
+        # item_list = [x.rstrip('_inst.npy') for x in os.listdir(new_root) if '_inst.npy' in x]
+        item_list = indices
 
         with open(osp.join(data_root, f'{split}.txt'), 'w') as fp:
-            [fp.write(item + '\n') for item in item_list]
+            [fp.write(str(item) + '\n') for item in item_list]
 
 
 def generate_split(args):
