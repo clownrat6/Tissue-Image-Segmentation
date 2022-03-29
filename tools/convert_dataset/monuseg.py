@@ -121,9 +121,9 @@ def crop_patches(image, w_size, s_size):
         image = np.lib.pad(image, ((pad1, pad2), (pad1, pad2), (0, 0)), 'reflect')
 
     pad_h, pad_w = image.shape[:2]
-    h_last_step = math.floor((pad_h - w_size + s_size) / s_size)
+    h_last_step = math.floor((pad_h - w_size) / s_size)
     h_last = (h_last_step + 1) * s_size
-    w_last_step = math.floor((pad_w - w_size + s_size) / s_size)
+    w_last_step = math.floor((pad_w - w_size) / s_size)
     w_last = (w_last_step + 1) * s_size
 
     for i in range(0, h_last, s_size):
@@ -142,6 +142,11 @@ def crop_patches(image, w_size, s_size):
         for i in range(0, h_last, s_size):
             patch = image[i:(i + w_size), j:(j + w_size)]
             patches.append(patch)
+
+    if h_last_step > ((pad_h - w_size + s_size) // s_size) and w_last_step > ((pad_w - w_size + s_size) // s_size):
+        i = pad_h - w_size
+        j = pad_w - w_size
+        patches.append(image[i:(i + w_size), j:(j + w_size)])
 
     return patches
 

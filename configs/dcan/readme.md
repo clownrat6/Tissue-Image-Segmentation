@@ -8,7 +8,7 @@
 
 | Method | Crop Size | Batch Size | Slide Size | Learning Rate | Aji   | Dice  | DQ    | SQ    | PQ    |
 | :--    | :--:      | :--        | :--:       | :--           | :-:   | :--:  | :--:  | :--:  | :--:  |
-| DCAN   | 256x256   | 4          | 40x40      | Adam-Lr1e-4   | - | 78.53 | 80.1  | 79.56 | 63.73 |
+| DCAN   | 256x256   | 4          | 40x40      | Adam-Lr1e-4   | 53.54 | 77.75 | 68.38 | 71.05 | 48.58 |
 
 ### CoNIC
 
