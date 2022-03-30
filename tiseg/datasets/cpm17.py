@@ -1,10 +1,10 @@
 from .builder import DATASETS
-from .nuclei_custom import NucleiCustomDataset
+from .custom import CustomDataset
 
 
 @DATASETS.register_module()
-class NucleiGlasDataset(NucleiCustomDataset):
-    """Glas Nuclei segmentation dataset."""
+class CPM17Dataset(CustomDataset):
+    """CPM17 Nuclei segmentation dataset."""
 
     CLASSES = ('background', 'nuclei')
 

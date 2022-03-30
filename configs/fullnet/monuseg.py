@@ -1,5 +1,5 @@
 # dataset settings
-dataset_type = 'NucleiMoNuSegDataset'
+dataset_type = 'MoNuSegDataset'
 data_root = 'data/monuseg'
 train_processes = [
     dict(

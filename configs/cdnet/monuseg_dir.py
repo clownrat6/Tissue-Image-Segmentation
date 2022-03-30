@@ -1,5 +1,5 @@
 # dataset settings
-dataset_type = 'NucleiMoNuSegDataset'
+dataset_type = 'MoNuSegDataset'
 data_root = 'data/monuseg'
 train_processes = [
     dict(type='Affine', scale=(0.8, 1.2), shear=5, rotate_degree=[-180, 180], translate_frac=(0, 0.01)),

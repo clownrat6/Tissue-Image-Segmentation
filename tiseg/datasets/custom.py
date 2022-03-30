@@ -20,7 +20,7 @@ from tiseg.utils import (dice_similarity_coefficient, precision_recall, pre_eval
                          pre_eval_to_sample_pq, pre_eval_to_imw_pq, pre_eval_to_imw_aji, binary_inst_dice)
 
 from .builder import DATASETS
-from .nuclei_dataset_mapper import NucleiDatasetMapper
+from .dataset_mapper import DatasetMapper
 from .utils import colorize_seg_map, re_instance, mudslide_watershed, align_foreground, assign_sem_class_to_insts, get_tc_from_inst
 
 
@@ -108,7 +108,7 @@ def draw_all(save_folder,
 
 
 @DATASETS.register_module()
-class NucleiCustomDataset(Dataset):
+class CustomDataset(Dataset):
     """Nuclei Custom Foundation Segmentation Dataset.
     Although, this dataset is a instance segmentation task, this dataset also
     support a multiple class semantic segmentation task (Background, Nuclei1, Nuclei2, ...).
@@ -133,7 +133,7 @@ class NucleiCustomDataset(Dataset):
                  test_mode=False,
                  split=None):
 
-        self.mapper = NucleiDatasetMapper(test_mode, processes=processes)
+        self.mapper = DatasetMapper(test_mode, processes=processes)
 
         self.img_dir = img_dir
         self.ann_dir = ann_dir
@@ -307,8 +307,8 @@ class NucleiCustomDataset(Dataset):
 
             # instance metric calculation
             bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
-            if bin_aji_pre_eval_res[0] * bin_aji_pre_eval_res[1] == 0:
-                imw_aji = 0
+            if bin_aji_pre_eval_res[1] == 0:
+                imw_aji = None
             else:
                 imw_aji = bin_aji_pre_eval_res[0] / bin_aji_pre_eval_res[1]
             aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, pred_id_list_per_class, gt_id_list_per_class,

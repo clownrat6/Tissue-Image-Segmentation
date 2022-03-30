@@ -1,5 +1,5 @@
 # dataset settings
-dataset_type = 'NucleiCoNICDataset'
+dataset_type = 'CoNICDataset'
 data_root = 'data/conic'
 train_processes = [
     dict(

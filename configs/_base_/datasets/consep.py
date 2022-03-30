@@ -1,5 +1,5 @@
 # dataset settings
-dataset_type = 'NucleiCoNSePDataset'
+dataset_type = 'CoNSePDataset'
 data_root = 'data/consep'
 process_cfg = dict(
     if_flip=True,

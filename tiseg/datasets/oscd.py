@@ -10,12 +10,12 @@ from prettytable import PrettyTable
 
 from tiseg.utils import (aggregated_jaccard_index, dice_similarity_coefficient, precision_recall)
 from .builder import DATASETS
-from .nuclei_custom import NucleiCustomDataset
+from .custom import CustomDataset
 from .utils import re_instance
 
 
 @DATASETS.register_module()
-class CartonOSCDDataset(NucleiCustomDataset):
+class OSCDDataset(CustomDataset):
     """OSCD dataset is similar to two-classes nuclei segmentation dataset."""
 
     CLASSES = ('background', 'carton')

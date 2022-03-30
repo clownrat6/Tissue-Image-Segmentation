@@ -18,13 +18,13 @@ from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_sem_metrics, 
                          pre_eval_to_pq, pre_eval_to_imw_pq, pre_eval_to_imw_aji)
 from tiseg.models.utils import generate_direction_differential_map
 from .builder import DATASETS
-from .nuclei_dataset_mapper import NucleiDatasetMapper
+from .dataset_mapper import DatasetMapper
 from .utils import (re_instance, mudslide_watershed, align_foreground, get_tc_from_inst, get_dir_from_inst,
                     assign_sem_class_to_insts)
 
 
 @DATASETS.register_module()
-class NucleiCoNICDataset(Dataset):
+class CoNICDataset(Dataset):
     """Nuclei Custom Foundation Segmentation Dataset.
     Although, this dataset is a instance segmentation task, this dataset also
     support a multiple class semantic segmentation task (Background, Nuclei1, Nuclei2, ...).
@@ -50,7 +50,7 @@ class NucleiCoNICDataset(Dataset):
                  test_mode=False,
                  split=None):
 
-        self.mapper = NucleiDatasetMapper(test_mode, processes=processes)
+        self.mapper = DatasetMapper(test_mode, processes=processes)
 
         self.img_dir = img_dir
         self.ann_dir = ann_dir

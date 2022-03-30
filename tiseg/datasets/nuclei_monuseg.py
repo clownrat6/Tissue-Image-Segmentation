@@ -1,9 +1,9 @@
 from .builder import DATASETS
-from .nuclei_custom import NucleiCustomDataset
+from .custom import CustomDataset
 
 
 @DATASETS.register_module()
-class NucleiMoNuSegDataset(NucleiCustomDataset):
+class MoNuSegDataset(CustomDataset):
     """MoNuSeg Nuclei Segmentation Dataset.
 
     MoNuSeg is actually instance segmentation task dataset. However, it can be

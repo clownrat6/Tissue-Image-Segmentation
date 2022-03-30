@@ -22,7 +22,7 @@ def read_image(path):
     return img
 
 
-class NucleiDatasetMapper(object):
+class DatasetMapper(object):
 
     def __init__(self, test_mode, *, processes):
         self.test_mode = test_mode

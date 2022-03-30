@@ -1,5 +1,5 @@
 # dataset settings
-dataset_type = 'CartonOSCDDataset'
+dataset_type = 'OSCDDataset'
 data_root = 'data/oscd'
 process_cfg = dict(
     if_flip=True,

@@ -1,5 +1,5 @@
 # dataset settings
-dataset_type = 'NucleiCPM17Dataset'
+dataset_type = 'CPM17Dataset'
 data_root = 'data/cpm17'
 process_cfg = dict(
     if_flip=True,

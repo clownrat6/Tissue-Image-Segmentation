@@ -1,5 +1,5 @@
 # dataset settings
-dataset_type = 'NucleiGlasDataset'
+dataset_type = 'GlasDataset'
 data_root = 'data/glas'
 process_cfg = dict(
     if_resize=True,
