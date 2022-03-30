@@ -30,9 +30,9 @@ class NucleiCoNICDataset(Dataset):
     support a multiple class semantic segmentation task (Background, Nuclei1, Nuclei2, ...).
     The basic settings only supports two-class nuclei segmentation task.
     related suffix:
-        "_semantic.png": raw semantic map (seven class semantic map without
+        "_sem.png": raw semantic map (seven class semantic map without
             boundary).
-        "_instance.npy": instance level map.
+        "_inst.npy": instance level map.
     """
 
     CLASSES = ('background', 'neutrophil', 'epithelial', 'lymphocyte', 'plasma', 'eosinophil', 'connective')

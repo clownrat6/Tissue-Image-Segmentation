@@ -23,7 +23,7 @@ class CartonOSCDDataset(NucleiCustomDataset):
     PALETTE = [[0, 0, 0], [255, 2, 255]]
 
     def __init__(self, **kwargs):
-        super().__init__(img_suffix='.png', sem_suffix='_semantic.png', inst_suffix='_instance.npy', **kwargs)
+        super().__init__(img_suffix='.png', sem_suffix='_sem.png', inst_suffix='_inst.npy', **kwargs)
 
     def pre_eval(self, preds, indices, show_semantic=False, show_instance=False, show_folder=None):
         """Collect eval result from each iteration.
