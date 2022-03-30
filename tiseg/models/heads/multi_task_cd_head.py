@@ -164,7 +164,14 @@ class DGM(nn.Module):
 
 class MultiTaskCDHead(UNetHead):
 
-    def __init__(self, num_classes, num_angles=8, dgm_dims=64, noau=False, use_regression=False, parallel=False,**kwargs):
+    def __init__(self,
+                 num_classes,
+                 num_angles=8,
+                 dgm_dims=64,
+                 noau=False,
+                 use_regression=False,
+                 parallel=False,
+                 **kwargs):
         super().__init__(num_classes=num_classes, **kwargs)
         self.num_classes = num_classes
         self.num_angles = num_angles
@@ -177,5 +184,5 @@ class MultiTaskCDHead(UNetHead):
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg,
             noau=noau,
-            use_regression=use_regression, 
+            use_regression=use_regression,
             parallel=parallel)

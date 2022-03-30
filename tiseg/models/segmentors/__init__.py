@@ -10,4 +10,7 @@ from .hovernet import HoverNet
 from .unet import UNet
 from .micronet import MicroNet
 
-__all__ = ['CUNet', 'CDNet', 'CMicroNet', 'MultiTaskCUNet', 'MultiTaskCDNet', 'DCAN', 'DIST', 'FullNet', 'HoverNet', 'UNet', 'MicroNet']
+__all__ = [
+    'CUNet', 'CDNet', 'CMicroNet', 'MultiTaskCUNet', 'MultiTaskCDNet', 'DCAN', 'DIST', 'FullNet', 'HoverNet', 'UNet',
+    'MicroNet'
+]
