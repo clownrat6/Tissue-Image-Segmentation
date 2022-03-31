@@ -120,7 +120,7 @@ model = dict(
     ),
     test_cfg=dict(
         mode='whole',
-        if_ddm=True,
+        if_ddm=False,
         if_mudslide=False,
         rotate_degrees=[0, 90],
         flip_directions=['none', 'horizontal', 'vertical', 'diagonal'],
