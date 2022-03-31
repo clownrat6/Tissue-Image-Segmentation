@@ -97,7 +97,7 @@ class MultiTaskCDNet(BaseSegmentor):
         self.num_angles = self.train_cfg.get('num_angles', 8)
         self.use_regression = self.train_cfg.get('use_regression', False)
         self.noau = self.train_cfg.get('noau', False)
-        self.parallel = self.train_cfg.get('parellel', False)
+        self.parallel = self.train_cfg.get('parallel', False)
         self.use_twobranch = self.train_cfg.get('use_twobranch', False)
         self.use_distance = self.train_cfg.get('use_distance', False)
 
