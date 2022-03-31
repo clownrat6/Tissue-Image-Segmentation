@@ -94,6 +94,7 @@ class MultiTaskCUNet(BaseSegmentor):
             sem_id_mask = remove_small_objects(sem_id_mask, 5)
             sem_id_mask = binary_fill_holes(sem_id_mask)
             sem_canvas[sem_id_mask > 0] = sem_id
+        sem_pred = sem_canvas
 
         # instance process & dilation
         bin_pred = tc_pred.copy()
