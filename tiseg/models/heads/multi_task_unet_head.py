@@ -53,37 +53,20 @@ class MultiTaskBranches(nn.Module):
         self.act_cfg = real_act_cfg
 
         self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
-        self.tc_mask_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
+        self.aux_mask_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
 
         assert (num_classes[0] == 3)
-        self.tc_mask_conv = nn.Conv2d(self.feed_dims, num_classes[0], kernel_size=1)
+        self.aux_mask_conv = nn.Conv2d(self.feed_dims, num_classes[0], kernel_size=1)
         self.mask_conv = nn.Conv2d(self.feed_dims, num_classes[1], kernel_size=1)
-        # num_convs = 3
-
-        # self.ms_convs = nn.ModuleList()
-        # for num_class in num_classes:
-        #     ms_conv = []
-        #     for idx in range(num_convs):
-        #         if idx == 0:
-        #             ms_conv.append(conv3x3(in_dims, feed_dims, self.norm_cfg, self.act_cfg))
-        #         elif idx == num_convs - 1:
-        #             ms_conv.append(conv1x1(feed_dims, num_class))
-        #         else:
-        #             ms_conv.append(conv3x3(feed_dims, feed_dims, self.norm_cfg, self.act_cfg))
-        #     self.ms_convs.append(nn.Sequential(*ms_conv))
 
     def forward(self, x):
-        # outs = []
-        # for ms_conv in self.ms_convs:
-        #     outs.append(ms_conv(x))
-        # return outs
         mask_feature = self.mask_feats(x)
-        tc_mask_feature = self.tc_mask_feats(mask_feature)
+        aux_mask_feature = self.aux_mask_feats(mask_feature)
 
         mask_logit = self.mask_conv(mask_feature)
-        tc_mask_logit = self.tc_mask_conv(tc_mask_feature)
+        aux_mask_logit = self.aux_mask_conv(aux_mask_feature)
 
-        return tc_mask_logit, mask_logit
+        return aux_mask_logit, mask_logit
 
 
 class MultiTaskUNetHead(nn.Module):
