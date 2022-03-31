@@ -1,5 +1,5 @@
 _base_ = [
-    './conic_dir.py',
+    '../monuseg_dir.py',
     '../_base_/default_runtime.py',
 ]
 
@@ -40,7 +40,7 @@ lr_config = dict(
 model = dict(
     type='MultiTaskCDNet',
     # model training and testing settings
-    num_classes=7,
+    num_classes=2,
     train_cfg=dict(
         num_angles=8,
         use_regression=False,
@@ -60,7 +60,9 @@ model = dict(
         dir_weight_map=True,
     ),
     test_cfg=dict(
-        mode='whole',
+        mode='split',
+        crop_size=(256, 256),
+        overlap_size=(40, 40),
         if_ddm=True,
         if_mudslide=False,
         rotate_degrees=[0, 90],
