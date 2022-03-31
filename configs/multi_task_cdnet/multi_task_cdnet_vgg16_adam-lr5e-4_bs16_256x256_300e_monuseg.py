@@ -4,15 +4,15 @@ _base_ = [
 ]
 
 # runtime settings
-runner = dict(type='EpochBasedRunner', max_epochs=100)
+runner = dict(type='EpochBasedRunner', max_epochs=300)
 
 evaluation = dict(
     interval=20,
     custom_intervals=[1],
-    custom_milestones=[95],
+    custom_milestones=[295],
     by_epoch=True,
     metric='all',
-    save_best='mDice',
+    save_best='Aji',
     rule='greater',
 )
 
@@ -34,7 +34,7 @@ optimizer_config = dict()
 
 # NOTE: step learning rate decay
 lr_config = dict(
-    policy='step', by_epoch=True, step=[70], gamma=0.1, warmup='linear', warmup_iters=100, warmup_ratio=1e-6)
+    policy='step', by_epoch=True, step=[200], gamma=0.1, warmup='linear', warmup_iters=100, warmup_ratio=1e-6)
 
 # model settings
 model = dict(

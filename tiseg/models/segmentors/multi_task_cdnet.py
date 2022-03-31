@@ -1,19 +1,18 @@
-import time
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from skimage import io, measure
+from skimage import measure
 from scipy.ndimage import binary_fill_holes
 from skimage.morphology import remove_small_objects
 
 from tiseg.utils import resize
 from ..backbones import TorchVGG16BN
-from ..heads.multi_task_cd_head import MultiTaskCDHead
+from ..heads import MultiTaskCDHead, MultiTaskCDHeadTwobranch
 from ..builder import SEGMENTORS
 from ..losses import LossVariance, MultiClassBCELoss, BatchMultiClassSigmoidDiceLoss, MultiClassDiceLoss, TopologicalLoss, RobustFocalLoss2d, LevelsetLoss, ActiveContourLoss, mdice, tdice
 from ..utils import generate_direction_differential_map, align_foreground
+from ...datasets.utils import (angle_to_vector, vector_to_label)
 from .base import BaseSegmentor
 
 
@@ -55,32 +54,10 @@ class BatchMultiClassDiceLoss(nn.Module):
         N, C, _, _ = target_one_hot.shape
 
         loss = 0
-        ''' original         weights.shape = torch.Size([16, 1, 256, 256])
-        for i in range(1, C):
-            logit_per_class = logit[:, i]
-            target_per_class = target_one_hot[:, i]
-
-            intersection = logit_per_class * target_per_class
-            # calculate per class dice loss
-            dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
-                logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
-            # dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
-            #     logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
-            dice_loss_per_class = 1 - dice_loss_per_class
-            if weights is not None:
-                dice_loss_per_class *= weights[i]
-            loss += dice_loss_per_class
-        '''
         for i in range(1, C):
             if weights is not None:
                 logit_per_class = logit[:, i]
                 target_per_class = target_one_hot[:, i]
-                # logit_per_class.shape=torch.Size([16, 256, 256]), target_per_class.shape=torch.Size([16, 256, 256])
-                # weights.shape=torch.Size([16, 1, 256, 256])
-                #print('logit_per_class.shape={}, target_per_class.shape={}'.format(logit_per_class.shape, target_per_class.shape))
-                #print('intersection={}'.format(logit_per_class * target_per_class))
-                #print('weights={}'.format(weights))
-                #print('weights.shape={}'.format(weights.shape))
                 intersection = (logit_per_class * target_per_class) * weights[:, 0]
                 # calculate per class dice loss
                 dice_loss_per_class = (2 * intersection.sum(
@@ -92,17 +69,11 @@ class BatchMultiClassDiceLoss(nn.Module):
                 target_per_class = target_one_hot[:, i]
 
                 intersection = (logit_per_class * target_per_class)
-                # calculate per class dice loss
 
                 dice_loss_per_class = (2 * intersection.sum((0, -2, -1)) + smooth) / (
                     logit_per_class.sum((0, -2, -1)) + target_per_class.sum((0, -2, -1)) + smooth)
-            #print('intersection.sum={}'.format(intersection.sum((0, -2, -1))))
-            #print('logit_per_class.sum={}'.format(logit_per_class.sum((0, -2, -1))))
-            #print('target_per_class.sum={}'.format(target_per_class.sum((0, -2, -1))))
-            #print('dice_loss_per_class={}'.format(dice_loss_per_class))
-            #a = dice_loss_per_class[0,0,0,] # 让他报错
-            dice_loss_per_class = 1 - dice_loss_per_class
 
+            dice_loss_per_class = 1 - dice_loss_per_class
             loss += dice_loss_per_class
 
         return loss
@@ -117,35 +88,61 @@ class MultiTaskCDNet(BaseSegmentor):
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.num_classes = num_classes
-        self.num_angles = self.train_cfg.get('num_angles', 8)
 
         # argument
         self.if_ddm = self.test_cfg.get('if_ddm', False)
-        self.use_modify_dirloss = self.train_cfg.get('use_modify_dirloss', False)
-        self.use_ac = self.train_cfg.get('use_ac', False)
+        self.if_mudslide = self.test_cfg.get('if_mudslide', False)
+
+        # model
+        self.num_angles = self.train_cfg.get('num_angles', 8)
+        self.use_regression = self.train_cfg.get('use_regression', False)
+        self.noau = self.train_cfg.get('noau', False)
+        self.parallel = self.train_cfg.get('parellel', False)
+        self.use_twobranch = self.train_cfg.get('use_twobranch', False)
+        self.use_distance = self.train_cfg.get('use_distance', False)
+
+        # (semantic loss)
         self.use_sigmoid = self.train_cfg.get('use_sigmoid', False)
+        self.use_ac = self.train_cfg.get('use_ac', False)
+        self.ac_len_weight = self.train_cfg.get('ac_len_weight', 0)
+        self.use_focal = self.train_cfg.get('use_focal', False)
+        self.use_level = self.train_cfg.get('use_level', False)
+        self.use_variance = self.train_cfg.get('use_variance', False)
+
+        # (direction loss)
         self.use_tploss = self.train_cfg.get('use_tploss', False)
         self.tploss_weight = self.train_cfg.get('tploss_weight', False)
         self.tploss_dice = self.train_cfg.get('tploss_dice', False)
-        self.use_ac = self.train_cfg.get('use_ac', False)
-        self.ac_len_weight = self.train_cfg.get('ac_len_weight', 1)
-        self.use_variance = self.train_cfg.get('use_variance', True)
-        self.use_focal = self.train_cfg.get('use_focal', False)
-        self.use_level = self.train_cfg.get('use_level', False)
+        self.dir_weight_map = self.train_cfg.get('dir_weight_map', False)
 
         self.backbone = TorchVGG16BN(in_channels=3, pretrained=True, out_indices=[0, 1, 2, 3, 4, 5])
-        self.head = MultiTaskCDHead(
-            num_classes=self.num_classes,
-            num_angles=8,
-            dgm_dims=64,
-            bottom_in_dim=512,
-            skip_in_dims=(64, 128, 256, 512, 512),
-            stage_dims=[16, 32, 64, 128, 256],
-            act_cfg=dict(type='ReLU'),
-            norm_cfg=dict(type='BN'),
-            noau=True,
-            use_regression=False,
-            parallel=True)
+
+        if self.use_twobranch:
+            self.head = MultiTaskCDHeadTwobranch(
+                num_classes=self.num_classes,
+                num_angles=self.num_angles,
+                dgm_dims=64,
+                bottom_in_dim=512,
+                skip_in_dims=(64, 128, 256, 512, 512),
+                stage_dims=[16, 32, 64, 128, 256],
+                act_cfg=dict(type='ReLU'),
+                norm_cfg=dict(type='BN'),
+                noau=self.noau,
+                use_regression=self.use_regression,
+            )
+        else:
+            self.head = MultiTaskCDHead(
+                num_classes=self.num_classes,
+                num_angles=8,
+                dgm_dims=64,
+                bottom_in_dim=512,
+                skip_in_dims=(64, 128, 256, 512, 512),
+                stage_dims=[16, 32, 64, 128, 256],
+                act_cfg=dict(type='ReLU'),
+                norm_cfg=dict(type='BN'),
+                noau=self.noau,
+                use_regression=self.use_regression,
+                parallel=self.parallel)
 
     def calculate(self, img, rescale=False):
         img_feats = self.backbone(img)
@@ -169,9 +166,17 @@ class MultiTaskCDNet(BaseSegmentor):
             tc_gt[(tc_gt != 0) * (tc_gt != self.num_classes)] = 1
             tc_gt[tc_gt > 1] = 2
             inst_gt = label['inst_gt']
-            point_gt = label['point_gt']
-            dir_gt = label['dir_gt']
-            weight_map = label['loss_weight_map'] if self.use_modify_dirloss else None
+            if self.use_distance:
+                point_gt = label['dist_gt']
+            else:
+                point_gt = label['point_gt']
+
+            if self.use_regression:
+                dir_gt = label['reg_dir_gt']
+            else:
+                dir_gt = label['dir_gt']
+                dir_gt = dir_gt.squeeze(1)
+            weight_map = label['loss_weight_map'] if self.dir_weight_map else None
 
             loss = dict()
 
@@ -275,7 +280,8 @@ class MultiTaskCDNet(BaseSegmentor):
 
                 tc_logit = F.softmax(tc_logit, dim=1)
                 sem_logit = F.softmax(sem_logit, dim=1)
-                dir_logit = F.softmax(dir_logit, dim=1)
+                if not self.use_regression:
+                    dir_logit = F.softmax(dir_logit, dim=1)
 
                 tc_logit_list.append(tc_logit)
                 sem_logit_list.append(sem_logit)
@@ -296,9 +302,24 @@ class MultiTaskCDNet(BaseSegmentor):
         for dir_logit in dir_logit_list:
             if rescale:
                 dir_logit = resize(dir_logit, size=meta['ori_hw'], mode='bilinear', align_corners=False)
-            dir_logit[:, 0] = dir_logit[:, 0] * tc_logit[:, 0]
-            dir_map = torch.argmax(dir_logit, dim=1)
-            dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
+            if self.use_regression:
+                dir_logit[dir_logit < 0] = 0
+                dir_logit[dir_logit > 2 * np.pi] = 2 * np.pi
+                background = (torch.argmax(tc_logit, dim=1)[0] == 0).cpu().numpy()
+                angle_map = dir_logit * 180 / np.pi
+                angle_map = angle_map[0, 0].cpu().numpy()  # [H, W]
+                angle_map[angle_map > 180] -= 360
+                angle_map[background] = 0
+                vector_map = angle_to_vector(angle_map, self.num_angles)
+                dir_map = vector_to_label(vector_map, self.num_angles)
+                dir_map[background] = -1
+                dir_map = dir_map + 1
+                dir_map = torch.from_numpy(dir_map[None, :, :]).cuda()
+                dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
+            else:
+                dir_logit[:, 0] = dir_logit[:, 0] * tc_logit[:, 0]
+                dir_map = torch.argmax(dir_logit, dim=1)
+                dd_map = generate_direction_differential_map(dir_map, self.num_angles + 1)
             dir_map_list.append(dir_map)
             dd_map_list.append(dd_map)
 
@@ -416,7 +437,6 @@ class MultiTaskCDNet(BaseSegmentor):
                 mask_dice_loss = mask_dice_loss_calculator(sem_logit, sem_gt)
                 mask_loss['mask_bce_loss'] = alpha * mask_bce_loss
                 mask_loss['mask_dice_loss'] = beta * mask_dice_loss
-
         else:
             if self.use_focal:
                 mask_focal_loss_calculator = RobustFocalLoss2d(type='softmax')
@@ -468,22 +488,11 @@ class MultiTaskCDNet(BaseSegmentor):
 
     def _dir_loss(self, dir_logit, dir_gt, tc_logit=None, tc_gt=None, weight_map=None):
         dir_loss = {}
-        if self.use_modify_dirloss:
-            # weight_map.shape=torch.Size([16, 1, 256, 256])
-            dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
-            # dir_dice_loss_calculator = WeightMulticlassDiceLoss(num_classes=self.num_angles + 1)
-            dir_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_angles + 1)
-            # Assign weight map for each pixel position
-            dir_ce_loss = dir_ce_loss_calculator(dir_logit, dir_gt)
-            dir_ce_loss *= weight_map[:, 0]
-            dir_ce_loss = torch.mean(dir_ce_loss)
-            dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt, weight_map)
-            # dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
-            # loss weight
-            alpha = 1
-            beta = 1
-            dir_loss['dir_ce_loss'] = alpha * dir_ce_loss
-            dir_loss['dir_dice_loss'] = beta * dir_dice_loss
+        if self.use_regression:
+            dir_mse_loss_calculator = nn.MSELoss(reduction='none')
+            dir_degree_mse_loss = dir_mse_loss_calculator(dir_logit, dir_gt)
+            dir_degree_mse_loss = torch.mean(dir_degree_mse_loss)
+            dir_loss['dir_degree_mse_loss'] = dir_degree_mse_loss
         else:
             dir_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
             dir_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_angles + 1)
@@ -492,16 +501,13 @@ class MultiTaskCDNet(BaseSegmentor):
             if weight_map is not None:
                 dir_ce_loss *= weight_map[:, 0]
             dir_ce_loss = torch.mean(dir_ce_loss)
-            dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt)
+            dir_dice_loss = dir_dice_loss_calculator(dir_logit, dir_gt, weight_map)
             # loss weight
-            alpha = 3
+            alpha = 1
             beta = 1
             dir_loss['dir_ce_loss'] = alpha * dir_ce_loss
             dir_loss['dir_dice_loss'] = beta * dir_dice_loss
 
-        # use_tploss = self.train_cfg.get('use_tploss', False)
-        # tploss_weight = self.train_cfg.get('tploss_weight', False)
-        # tploss_dice = self.train_cfg.get('tploss_dice', False)
         if self.use_tploss:
             pred_contour = torch.argmax(tc_logit, dim=1) == 2  # [B, H, W]
             gt_contour = tc_gt == 2
@@ -518,8 +524,7 @@ class MultiTaskCDNet(BaseSegmentor):
         point_mse_loss_calculator = nn.MSELoss()
         point_mse_loss = point_mse_loss_calculator(point_logit, point_gt)
         # loss weight
-        # alpha = 5 # MoNuSeg
-        alpha = 3  # 1  # CoNIC
+        alpha = 3
         point_loss['point_mse_loss'] = alpha * point_mse_loss
 
         return point_loss
@@ -533,88 +538,28 @@ class MultiTaskCDNet(BaseSegmentor):
         wrap_dict['mask_tdice'] = tdice(clean_sem_logit, clean_sem_gt, self.num_classes)
         wrap_dict['mask_mdice'] = mdice(clean_sem_logit, clean_sem_gt, self.num_classes)
 
-        clean_dir_logit = dir_logit.clone().detach()
-        clean_dir_gt = dir_gt.clone().detach()
-        wrap_dict['dir_tdice'] = tdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
-        wrap_dict['dir_mdice'] = mdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
-
-        # NOTE: training aji calculation metric calculate (This will be deprecated.)
-        # mask_pred = torch.argmax(sem_logit, dim=1).cpu().numpy().astype(np.uint8)
-        # mask_pred[mask_pred == (self.num_classes - 1)] = 0
-        # mask_target = sem_gt.cpu().numpy().astype(np.uint8)
-        # mask_target[mask_target == (self.num_classes - 1)] = 0
-
-        # N = mask_pred.shape[0]
-        # wrap_dict['aji'] = 0.
-        # for i in range(N):
-        #     aji_single_image = aggregated_jaccard_index(mask_pred[i], mask_target[i])
-        #     wrap_dict['aji'] += 100.0 * torch.tensor(aji_single_image)
-        # # distributed environment requires cuda tensor
-        # wrap_dict['aji'] /= N
-        # wrap_dict['aji'] = wrap_dict['aji'].cuda()
+        if not self.use_regression:
+            clean_dir_logit = dir_logit.clone().detach()
+            clean_dir_gt = dir_gt.clone().detach()
+            wrap_dict['dir_tdice'] = tdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
+            wrap_dict['dir_mdice'] = mdice(clean_dir_logit, clean_dir_gt, self.num_angles + 1)
 
         return wrap_dict
 
     @classmethod
     def _ddm_enhencement(self, sem_logit, dd_map, point_logit):
-        stamp = time.time()  # 获取当前时间戳
-        stamp = str(stamp)[:10]
-        # using point map to remove center point direction differential map
-        print('sem_logit.shape={}, point_logit.shape={}, point_logit[:, 0, :, :].shape={}'.format(
-            sem_logit.shape, point_logit.shape, point_logit[:, 0, :, :].shape))
-        print('point_logit[:, 0, :, :].unique={}'.format(np.unique(point_logit[:, 0, :, :].detach().cpu().numpy())))
-
         point_logit = point_logit[:, 0, :, :]
         dist_map = point_logit + 0.2
         foreground_prob = (dist_map / torch.max(dist_map))**2
         foreground_map = foreground_prob > 0.6  # 0.2  0.7
-        # point_logit = point_logit - torch.min(point_logit) / (torch.max(point_logit) - torch.min(point_logit))
 
         weight_map0 = (1 - foreground_prob)
-        weight_map1 = dd_map * weight_map0
-        weight_map2 = dd_map * (1 - (dist_map / 10)**(5))
         # mask out some redundant direction differential
         dd_map1 = dd_map - (dd_map * foreground_map)
-        dd_map2 = dd_map * weight_map1
-        ''''''
-        print('weight_map0.unique={}'.format(np.unique(weight_map0[0, :, :].detach().cpu().numpy())))
-        print('weight_map1.unique={}'.format(np.unique(weight_map1[0, :, :].detach().cpu().numpy())))
-        print('weight_map2.unique={}'.format(np.unique(weight_map2[0, :, :].detach().cpu().numpy())))
-        io.imsave('./work_vis/{}_weight_map0.png'.format(str(stamp)), weight_map0[0, :, :].detach().cpu().numpy() * 50)
-        io.imsave('./work_vis/{}_weight_map1.png'.format(str(stamp)), weight_map1[0, :, :].detach().cpu().numpy() * 50)
-        io.imsave('./work_vis/{}_weight_map2.png'.format(str(stamp)), weight_map2[0, :, :].detach().cpu().numpy() * 50)
-
-        io.imsave('./work_vis/{}_point_logit0.png'.format(str(stamp)), point_logit[0, :, :].detach().cpu().numpy() * 25)
-        io.imsave('./work_vis/{}_point_logit0_foreground_map.png'.format(str(stamp)),
-                  foreground_map[0, :, :].detach().cpu().numpy() * 200)
-        print('foreground_map.unique={}'.format(np.unique(foreground_map[0, :, :].detach().cpu().numpy())))
-
-        print('dd_map0.unique={}'.format(np.unique(dd_map[0, :, :].detach().cpu().numpy())))
-        io.imsave('./work_vis/{}_dd_map0.png'.format(str(stamp)), dd_map[0, :, :].detach().cpu().numpy() * 255)
-
-        print('dd_map1.unique={}'.format(np.unique(dd_map1[0, :, :].detach().cpu().numpy())))
-        io.imsave('./work_vis/{}_dd_map1.png'.format(str(stamp)), dd_map1[0, :, :].detach().cpu().numpy() * 255)
-
-        print('dd_map2.unique={}'.format(np.unique(dd_map2[0, :, :].detach().cpu().numpy())))
-        io.imsave('./work_vis/{}_dd_map2.png'.format(str(stamp)), dd_map2[0, :, :].detach().cpu().numpy() * 255)
-
-        print('sem_logit00.unique={}'.format(np.unique(sem_logit[:, -1, :, :].detach().cpu().numpy())))
-        io.imsave('./work_vis/{}_sem_logit_0.png'.format(str(stamp)),
-                  sem_logit[0, -1, :, :].detach().cpu().numpy() * 50)
-        print('sem_logit000.unique={}'.format(np.unique(sem_logit[:, -2, :, :].detach().cpu().numpy())))
-        io.imsave('./work_vis/{}_sem_logit_maskprob.png'.format(str(stamp)),
-                  sem_logit[0, -2, :, :].detach().cpu().numpy() * 50)
 
         # using direction differential map to enhance edge
-        #sem_logit[:, -1, :, :] = (sem_logit[:, -1, :, :] + dd_map1) * (1 + dd_map1)
         sem_logit[:, -1, :, :] = (sem_logit[:, -1, :, :]) * (1 + (dd_map1)) * weight_map0
-        #sem_logit[:, -1, :, :] = (sem_logit[:, -1, :, :] + dd_map1/3) * (1 + (dd_map1+dd_map2)/3)
-
         sem_logit[:, -1, :, :][sem_logit[:, -1, :, :] >= 1] = 0.95
         sem_logit[:, -2, :, :][foreground_map == 0.8] = 1
 
-        print('sem_logit01.unique={}'.format(np.unique(sem_logit[:, -1, :, :].detach().cpu().numpy())))
-        io.imsave('./work_vis/{}_sem_logit_1.png'.format(str(stamp)),
-                  sem_logit[0, -1, :, :].detach().cpu().numpy() * 50)
-        #a = sem_logit[0,0,0,0,0] # 报错，停止符
         return sem_logit
