@@ -1,5 +1,5 @@
 _base_ = [
-    './conic_dir.py',
+    '../conic_dir.py',
     '../_base_/default_runtime.py',
 ]
 
