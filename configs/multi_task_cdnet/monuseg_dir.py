@@ -17,7 +17,7 @@ train_processes = [
         if_zscore=False),
     dict(type='BoundLabelMake', edge_id=2, selem_radius=(3, 3)),
     dict(type='DirectionLabelMake'),
-    dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt', 'sem_gt_w_bound', 'dir_gt', 'point_gt']),
+    dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt', 'sem_gt_w_bound', 'inst_gt', 'dir_gt', 'point_gt', 'loss_weight_map']),
 ]
 test_processes = [
     dict(

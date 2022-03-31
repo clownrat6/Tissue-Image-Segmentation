@@ -24,7 +24,7 @@ train_processes = [
     dict(
         type='Formatting',
         data_keys=['img'],
-        label_keys=['sem_gt', 'sem_gt_w_bound', 'inst_gt', 'dir_gt', 'point_gt', 'loss_weight_map'])
+        label_keys=['sem_gt', 'sem_gt_w_bound', 'inst_gt', 'dir_gt', 'dist_gt', 'loss_weight_map'])
 ]
 test_processes = [
     dict(
