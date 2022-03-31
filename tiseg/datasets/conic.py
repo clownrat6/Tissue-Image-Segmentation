@@ -7,20 +7,14 @@ import mmcv
 import numpy as np
 from mmcv.utils import print_log
 from prettytable import PrettyTable
-from scipy.ndimage import binary_fill_holes
-from skimage import measure, morphology
-from skimage.morphology import remove_small_objects
 from torch.utils.data import Dataset
-from tiseg.datasets.utils.draw import Drawer
 
-from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_sem_metrics, pre_eval_bin_aji, pre_eval_aji,
-                         pre_eval_bin_pq, pre_eval_pq, pre_eval_to_bin_aji, pre_eval_to_aji, pre_eval_to_bin_pq,
-                         pre_eval_to_pq, pre_eval_to_imw_pq, pre_eval_to_imw_aji)
-from tiseg.models.utils import generate_direction_differential_map
+from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_bin_aji, pre_eval_bin_pq, pre_eval_to_sem_metrics,
+                         pre_eval_to_imw_sem_metrics, pre_eval_aji, pre_eval_pq, pre_eval_to_bin_aji, pre_eval_to_aji,
+                         pre_eval_to_bin_pq, pre_eval_to_pq, pre_eval_to_imw_pq, pre_eval_to_imw_aji)
 from .builder import DATASETS
 from .dataset_mapper import DatasetMapper
-from .utils import (re_instance, mudslide_watershed, align_foreground, get_tc_from_inst, get_dir_from_inst,
-                    assign_sem_class_to_insts)
+from .utils import re_instance, assign_sem_class_to_insts
 
 
 @DATASETS.register_module()
@@ -162,8 +156,6 @@ class CoNICDataset(Dataset):
 
         for pred, index in zip(preds, indices):
             # img related infos
-            img_file_name = self.data_infos[index]['file_name']
-            img_name = osp.splitext(osp.basename(img_file_name))[0]
             sem_file_name = self.data_infos[index]['sem_file_name']
             # semantic level label make
             sem_gt = mmcv.imread(sem_file_name, flag='unchanged', backend='pillow')
@@ -174,40 +166,26 @@ class CoNICDataset(Dataset):
 
             # metric calculation & post process codes:
             sem_pred = pred['sem_pred'].copy()
-            if 'inst_pred' not in pred:
-                if 'dir_pred' in pred:
-                    dir_pred = pred['dir_pred']
-                    tc_sem_pred = pred['tc_sem_pred']
-                    sem_pred, inst_pred = self.model_agnostic_postprocess_w_dir(dir_pred, tc_sem_pred, sem_pred)
-                elif 'tc_sem_pred' in pred:
-                    tc_sem_pred = pred['tc_sem_pred']
-                    sem_pred, inst_pred = self.model_agnostic_postprocess_w_tc(tc_sem_pred, sem_pred)
-                else:
-                    # remove edge
-                    sem_pred[sem_pred == len(self.CLASSES)] = 0
-                    # model-agnostic post process operations
-                    sem_pred, inst_pred = self.model_agnostic_postprocess(sem_pred)
-            else:
-                sem_pred = sem_pred
-                inst_pred = pred['inst_pred']
+            inst_pred = pred['inst_pred'].copy()
 
             # semantic metric calculation (remove background class)
             sem_pre_eval_res = pre_eval_all_semantic_metric(sem_pred, sem_gt, len(self.CLASSES))
 
             # make contiguous ids
-            inst_pred = measure.label(inst_pred.copy())
-            inst_gt = measure.label(inst_gt.copy())
+            inst_pred = re_instance(inst_pred)
+            inst_gt = re_instance(inst_gt)
 
             pred_id_list_per_class = assign_sem_class_to_insts(inst_pred, sem_pred, len(self.CLASSES))
             gt_id_list_per_class = assign_sem_class_to_insts(inst_gt, sem_gt, len(self.CLASSES))
 
             # instance metric calculation
-            bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
             aji_pre_eval_res = pre_eval_aji(inst_pred, inst_gt, pred_id_list_per_class, gt_id_list_per_class,
                                             len(self.CLASSES))
-            bin_pq_pre_eval_res = pre_eval_bin_pq(inst_pred, inst_gt)
+            bin_aji_pre_eval_res = pre_eval_bin_aji(inst_pred, inst_gt)
+
             pq_pre_eval_res = pre_eval_pq(inst_pred, inst_gt, pred_id_list_per_class, gt_id_list_per_class,
                                           len(self.CLASSES))
+            bin_pq_pre_eval_res = pre_eval_bin_pq(inst_pred, inst_gt)
 
             single_loop_results = dict(
                 bin_aji_pre_eval_res=bin_aji_pre_eval_res,
@@ -217,125 +195,7 @@ class CoNICDataset(Dataset):
                 sem_pre_eval_res=sem_pre_eval_res)
             pre_eval_results.append(single_loop_results)
 
-            if show:
-                if 'tc_pred' in pred:
-                    tc_sem_pred_ = tc_sem_pred.copy()
-                else:
-                    tc_sem_pred_ = pred['sem_pred']
-                    bound = tc_sem_pred_ == len(self.CLASSES)
-                    tc_sem_pred_[tc_sem_pred_ > 0] = 1
-                    tc_sem_pred_[bound > 0] = 2
-                tc_sem_gt = get_tc_from_inst(inst_gt)
-                pred_collect = {'sem_pred': sem_pred, 'inst_pred': inst_pred, 'tc_sem_pred': tc_sem_pred_}
-                gt_collect = {'sem_gt': sem_gt, 'inst_gt': inst_gt, 'tc_sem_gt': tc_sem_gt}
-
-                if 'dir_pred' in pred:
-                    dir_pred_ = dir_pred.copy()
-                    dir_gt = get_dir_from_inst(inst_gt, num_angle_types=8)
-
-                    ddm_pred = generate_direction_differential_map(dir_pred_, direction_classes=(8 + 1))[0]
-                    ddm_gt = generate_direction_differential_map(dir_gt, direction_classes=(8 + 1))[0]
-
-                    pred_collect.update({'dir_pred': dir_pred_, 'ddm_pred': ddm_pred})
-                    gt_collect.update({'dir_gt': dir_gt, 'ddm_gt': ddm_gt})
-
-                self.drawer = Drawer(show_folder, sem_palette=self.PALETTE)
-                metrics = {
-                    'pixel_TP': sem_pre_eval_res[0],
-                    'pixel_FP': sem_pre_eval_res[2],
-                    'pixel_FN': sem_pre_eval_res[3],
-                    'inst_TP': pq_pre_eval_res[0],
-                    'inst_FP': pq_pre_eval_res[1],
-                    'inst_FN': pq_pre_eval_res[2],
-                }
-                metrics = {}
-                if 'dir_pred' in pred_collect and 'dir_gt' in gt_collect:
-                    self.drawer.draw_direction(img_name, img_file_name, pred_collect, gt_collect, metrics)
-                else:
-                    self.drawer.draw(img_name, img_file_name, pred_collect, gt_collect, metrics)
-
         return pre_eval_results
-
-    def model_agnostic_postprocess_w_dir(self, dir_pred, tc_sem_pred, sem_pred):
-        """model free post-process for both instance-level & semantic-level."""
-        # fill instance holes
-        bin_sem_pred = tc_sem_pred.copy()
-        bin_sem_pred[bin_sem_pred == 2] = 0
-        bin_sem_pred = binary_fill_holes(bin_sem_pred)
-        # remove small instance
-        bin_sem_pred = remove_small_objects(bin_sem_pred, 20)
-        bin_sem_pred = bin_sem_pred.astype(np.uint8)
-
-        sem_id_list = list(np.unique(sem_pred))
-        sem_canvas = np.zeros_like(sem_pred).astype(np.uint8)
-        for sem_id in sem_id_list:
-            # 0 is background semantic class.
-            if sem_id == 0:
-                continue
-            sem_id_mask = sem_pred == sem_id
-            # fill instance holes
-            sem_id_mask = binary_fill_holes(sem_id_mask)
-            # remove small instance
-            sem_id_mask = remove_small_objects(sem_id_mask, 20)
-            sem_id_mask_dila = morphology.dilation(sem_id_mask, selem=morphology.disk(2))
-            sem_canvas[sem_id_mask_dila > 0] = sem_id
-        sem_pred = sem_canvas
-
-        bin_sem_pred, bound = mudslide_watershed(bin_sem_pred, dir_pred, sem_pred > 0)
-
-        bin_sem_pred = remove_small_objects(bin_sem_pred, 20)
-        inst_pred = measure.label(bin_sem_pred, connectivity=1)
-        inst_pred = align_foreground(inst_pred, sem_pred > 0, 20)
-
-        return sem_pred, inst_pred
-
-    def model_agnostic_postprocess_w_tc(self, tc_sem_pred, sem_pred):
-        """model free post-process for both instance-level & semantic-level."""
-        sem_id_list = list(np.unique(sem_pred))
-        sem_canvas = np.zeros_like(sem_pred).astype(np.uint8)
-        for sem_id in sem_id_list:
-            # 0 is background semantic class.
-            if sem_id == 0:
-                continue
-            sem_id_mask = sem_pred == sem_id
-            # fill instance holes
-            sem_id_mask = binary_fill_holes(sem_id_mask)
-            sem_canvas[sem_id_mask > 0] = sem_id
-
-        # instance process & dilation
-        bin_sem_pred = tc_sem_pred.copy()
-        bin_sem_pred[bin_sem_pred == 2] = 0
-
-        inst_pred = measure.label(bin_sem_pred, connectivity=1)
-        # if re_edge=True, dilation pixel length should be 2
-        # inst_pred = morphology.dilation(inst_pred, selem=morphology.disk(2))
-        inst_pred = align_foreground(inst_pred, sem_canvas > 0, 20)
-
-        return sem_pred, inst_pred
-
-    def model_agnostic_postprocess(self, pred):
-        """model free post-process for both instance-level & semantic-level."""
-        sem_id_list = list(np.unique(pred))
-        inst_pred = np.zeros_like(pred).astype(np.int32)
-        sem_pred = np.zeros_like(pred).astype(np.uint8)
-        cur = 0
-        for sem_id in sem_id_list:
-            # 0 is background semantic class.
-            if sem_id == 0:
-                continue
-            sem_id_mask = pred == sem_id
-            # fill instance holes
-            sem_id_mask = binary_fill_holes(sem_id_mask)
-            sem_id_mask = remove_small_objects(sem_id_mask, 5)
-            inst_sem_mask = measure.label(sem_id_mask)
-            inst_sem_mask = morphology.dilation(inst_sem_mask, selem=morphology.disk(2))
-            inst_sem_mask[inst_sem_mask > 0] += cur
-            inst_pred[inst_sem_mask > 0] = 0
-            inst_pred += inst_sem_mask
-            cur += len(np.unique(inst_sem_mask))
-            sem_pred[inst_sem_mask > 0] = sem_id
-
-        return sem_pred, inst_pred
 
     def evaluate(self, results, logger=None, **kwargs):
         """Evaluate the dataset.
@@ -352,6 +212,8 @@ class CoNICDataset(Dataset):
         """
 
         ret_metrics = {}
+        img_ret_metrics = {}
+
         # list to dict
         for result in results:
             for key, value in result.items():
@@ -363,111 +225,92 @@ class CoNICDataset(Dataset):
         # semantic metrics
         sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
         ret_metrics.update(pre_eval_to_sem_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
+        img_ret_metrics.update(
+            pre_eval_to_imw_sem_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
 
         # aji metrics
-        bin_aji_pre_eval_results = ret_metrics.pop('bin_aji_pre_eval_res')
-        ret_metrics.update(pre_eval_to_imw_aji(bin_aji_pre_eval_results))
-        ret_metrics.update(pre_eval_to_bin_aji(bin_aji_pre_eval_results))
         aji_pre_eval_results = ret_metrics.pop('aji_pre_eval_res')
+        bin_aji_pre_eval_results = ret_metrics.pop('bin_aji_pre_eval_res')
         ret_metrics.update(pre_eval_to_aji(aji_pre_eval_results))
+        for k, v in pre_eval_to_bin_aji(bin_aji_pre_eval_results).items():
+            ret_metrics['b' + k] = v
+        img_ret_metrics.update(pre_eval_to_imw_aji(bin_aji_pre_eval_results))
 
         # pq metrics
-        bin_pq_pre_eval_results = ret_metrics.pop('bin_pq_pre_eval_res')
-        [ret_metrics.update(x) for x in pre_eval_to_bin_pq(bin_pq_pre_eval_results)]
-        ret_metrics.update(pre_eval_to_imw_pq(bin_pq_pre_eval_results))
         pq_pre_eval_results = ret_metrics.pop('pq_pre_eval_res')
-        [ret_metrics.update(x) for x in pre_eval_to_pq(pq_pre_eval_results)]
+        bin_pq_pre_eval_results = ret_metrics.pop('bin_pq_pre_eval_res')
+        ret_metrics.update(pre_eval_to_pq(pq_pre_eval_results))
+        for k, v in pre_eval_to_bin_pq(bin_pq_pre_eval_results).items():
+            ret_metrics['b' + k] = v
+        img_ret_metrics.update(pre_eval_to_imw_pq(bin_pq_pre_eval_results))
 
-        total_inst_keys = [
-            'bAji', 'imwAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ'
-        ]
-        total_inst_metrics = {}
-        total_analysis_keys = ['pq_bTP', 'pq_bFP', 'pq_bFN', 'pq_bIoU', 'pq_mTP', 'pq_mFP', 'pq_mFN', 'pq_mIoU']
-        total_analysis = {}
-        inst_analysis_keys = ['pq_TP', 'pq_FP', 'pq_FN', 'pq_IoU']
-        inst_analysis = {}
-        inst_keys = ['Aji', 'DQ', 'SQ', 'PQ']
-        inst_metrics = {}
-        sem_keys = ['Dice', 'Precision', 'Recall']
-        sem_metrics = {}
+        vital_keys = ['Dice', 'Precision', 'Recall', 'Aji', 'DQ', 'SQ', 'PQ']
+        mean_metrics = {}
+        overall_metrics = {}
+        classes_metrics = OrderedDict()
         # calculate average metric
-        for key in ret_metrics.keys():
+        for key in vital_keys:
             # XXX: Using average value may have lower metric value than using
             # confused matrix.
-            if key in total_inst_keys:
-                total_inst_metrics[key] = ret_metrics[key]
-            elif key in inst_keys:
-                # remove background class
-                inst_metrics[key] = ret_metrics[key][1:]
-            elif key in sem_keys:
-                # remove background class
-                sem_metrics[key] = ret_metrics[key][1:]
-            elif key in total_analysis_keys:
-                total_analysis[key] = ret_metrics[key]
-            elif key in inst_analysis_keys:
-                inst_analysis[key] = ret_metrics[key][1:]
-            else:
-                total_inst_metrics[key] = sum(ret_metrics[key]) / len(ret_metrics[key])
+            mean_metrics['imw' + key] = np.nanmean(img_ret_metrics[key])
+            overall_metrics['m' + key] = np.nanmean(ret_metrics[key])
+            # class wise metric
+            classes_metrics[key] = ret_metrics[key]
+            average_value = np.nanmean(classes_metrics[key])
+            tmp_list = classes_metrics[key].tolist()
+            tmp_list.append(average_value)
+            classes_metrics[key] = np.array(tmp_list)
 
-        total_sem_metrics = OrderedDict(
-            {'m' + sem_key: np.round(np.mean(value) * 100, 2)
-             for sem_key, value in sem_metrics.items()})
+        for key in ['bAji', 'bDQ', 'bSQ', 'bPQ']:
+            overall_metrics[key] = ret_metrics[key]
 
-        # semantic table
-        classes_metrics = OrderedDict()
+        # class wise table
         classes_metrics.update(
-            OrderedDict({sem_key: np.round(value * 100, 2)
-                         for sem_key, value in sem_metrics.items()}))
-        classes_metrics.update(
-            OrderedDict({inst_key: np.round(value * 100, 2)
-                         for inst_key, value in inst_metrics.items()}))
-        classes_metrics.update(OrderedDict({analysis_key: value for analysis_key, value in inst_analysis.items()}))
+            OrderedDict({class_key: np.round(value * 100, 2)
+                         for class_key, value in classes_metrics.items()}))
+        # classes_metrics.update(OrderedDict({analysis_key: value for analysis_key, value in inst_analysis.items()}))
 
         # remove background class
-        classes_metrics.update({'classes': self.CLASSES[1:]})
+        classes_metrics.update({'classes': list(self.CLASSES[1:]) + ['average']})
         classes_metrics.move_to_end('classes', last=False)
 
         classes_table_data = PrettyTable()
         for key, val in classes_metrics.items():
             classes_table_data.add_column(key, val)
 
-        # total table
-        total_sem_table_data = PrettyTable()
-        for key, val in total_sem_metrics.items():
-            total_sem_table_data.add_column(key, [val])
-
-        total_inst_metrics = OrderedDict(
-            {inst_key: np.round(value * 100, 2)
-             for inst_key, value in total_inst_metrics.items()})
-
-        total_inst_table_data = PrettyTable()
-        for key, val in total_inst_metrics.items():
-            total_inst_table_data.add_column(key, [val])
-
-        total_analysis_table_data = PrettyTable()
-        for key, val in total_analysis.items():
-            total_analysis_table_data.add_column(key, [val])
-
         print_log('Per classes:', logger)
         print_log('\n' + classes_table_data.get_string(), logger=logger)
-        print_log('Semantic Total:', logger)
-        print_log('\n' + total_sem_table_data.get_string(), logger=logger)
-        print_log('Instance Total:', logger)
-        print_log('\n' + total_inst_table_data.get_string(), logger=logger)
-        print_log('Analysis Total:', logger)
-        print_log('\n' + total_analysis_table_data.get_string(), logger=logger)
+
+        # mean table
+        mean_metrics = OrderedDict({key: np.round(np.mean(value) * 100, 2) for key, value in mean_metrics.items()})
+
+        mean_table_data = PrettyTable()
+        for key, val in mean_metrics.items():
+            mean_table_data.add_column(key, [val])
+
+        # overall table
+        overall_metrics = OrderedDict(
+            {key: np.round(np.mean(value) * 100, 2)
+             for key, value in overall_metrics.items()})
+
+        overall_table_data = PrettyTable()
+        for key, val in overall_metrics.items():
+            overall_table_data.add_column(key, [val])
+
+        print_log('Mean Total:', logger)
+        print_log('\n' + mean_table_data.get_string(), logger=logger)
+        print_log('Overall Total:', logger)
+        print_log('\n' + overall_table_data.get_string(), logger=logger)
 
         storage_results = {
-            'total_sem_metrics': total_sem_metrics,
-            'total_inst_metrics': total_inst_metrics,
-            'class_inst_metrics': classes_metrics
+            'mean_metrics': mean_metrics,
+            'overall_metrics': overall_metrics,
         }
 
         eval_results = {}
-        # average results
-        for k, v in total_sem_metrics.items():
+        for k, v in overall_metrics.items():
             eval_results[k] = v
-        for k, v in total_inst_metrics.items():
+        for k, v in mean_metrics.items():
             eval_results[k] = v
 
         classes = classes_metrics.pop('classes', None)

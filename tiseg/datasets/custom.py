@@ -12,7 +12,7 @@ from prettytable import PrettyTable
 from torch.utils.data import Dataset
 
 from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_sem_metrics, pre_eval_bin_aji, pre_eval_bin_pq,
-                         pre_eval_to_bin_aji, pre_eval_to_bin_pq, pre_eval_to_inst_dice, pre_eval_to_imw_pq,
+                         pre_eval_to_aji, pre_eval_to_pq, pre_eval_to_inst_dice, pre_eval_to_imw_pq,
                          pre_eval_to_imw_aji, pre_eval_to_imw_inst_dice, pre_eval_to_imw_sem_metrics)
 
 from .builder import DATASETS
@@ -327,18 +327,17 @@ class CustomDataset(Dataset):
         sem_pre_eval_results = ret_metrics.pop('sem_pre_eval_res')
         ret_metrics.update(pre_eval_to_sem_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
         img_ret_metrics.update(
-            pre_eval_to_imw_sem_metrics(
-                sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall'], reduce_zero_label=True))
+            pre_eval_to_imw_sem_metrics(sem_pre_eval_results, metrics=['Dice', 'Precision', 'Recall']))
 
         # instance metrics (aji style)
         bin_aji_pre_eval_results = ret_metrics.pop('bin_aji_pre_eval_res')
-        ret_metrics.update(pre_eval_to_bin_aji(bin_aji_pre_eval_results))
+        ret_metrics.update(pre_eval_to_aji(bin_aji_pre_eval_results))
         img_ret_metrics.update(pre_eval_to_imw_aji(bin_aji_pre_eval_results))
 
         # instance metrics (pq style)
         bin_pq_pre_eval_results = ret_metrics.pop('bin_pq_pre_eval_res')
-        [ret_metrics.update(x) for x in pre_eval_to_bin_pq(bin_pq_pre_eval_results)]
-        [ret_metrics.update(x) for x in pre_eval_to_inst_dice(bin_pq_pre_eval_results)]
+        ret_metrics.update(pre_eval_to_pq(bin_pq_pre_eval_results))
+        ret_metrics.update(pre_eval_to_inst_dice(bin_pq_pre_eval_results))
         img_ret_metrics.update(pre_eval_to_imw_pq(bin_pq_pre_eval_results))
         img_ret_metrics.update(pre_eval_to_imw_inst_dice(bin_pq_pre_eval_results))
 
@@ -357,96 +356,62 @@ class CustomDataset(Dataset):
             img_ret_metrics[key].append(average_value)
             img_ret_metrics[key] = np.array(img_ret_metrics[key])
 
-        inst_keys = ['bAji', 'bDQ', 'bSQ', 'bPQ', 'instDice']
-        mean_inst_metrics = {}
-        overall_inst_metrics = {}
-        sem_keys = ['Dice', 'Precision', 'Recall']
-        mean_sem_metrics = {}
-        overall_sem_metrics = {}
+        vital_keys = ['Dice', 'Precision', 'Recall', 'Aji', 'DQ', 'SQ', 'PQ', 'InstDice']
+        mean_metrics = {}
+        overall_metrics = {}
         # calculate average metric
-        for key in (inst_keys + sem_keys):
+        for key in vital_keys:
             # XXX: Using average value may have lower metric value than using
-            if key in inst_keys:
-                mean_inst_metrics[key.lstrip('b')] = img_ret_metrics[key.lstrip('b')][-1]
-                overall_inst_metrics[key] = ret_metrics[key]
-            elif key in sem_keys:
-                mean_sem_metrics[key] = img_ret_metrics[key][-1]
-                overall_sem_metrics[key] = ret_metrics[key][0]
+            mean_metrics['imw' + key] = img_ret_metrics[key][-1]
+            overall_metrics['m' + key] = ret_metrics[key]
 
         # per sample
-        ret_metrics_items = OrderedDict({
-            ret_metric: np.round(ret_metric_value * 100, 2)
-            for ret_metric, ret_metric_value in img_ret_metrics.items()
-        })
-        ret_metrics_items.update({'name': name_list})
-        ret_metrics_items.move_to_end('name', last=False)
+        sample_metrics = OrderedDict(
+            {sample_key: np.round(metric_value * 100, 2)
+             for sample_key, metric_value in img_ret_metrics.items()})
+        sample_metrics.update({'name': name_list})
+        sample_metrics.move_to_end('name', last=False)
+
         items_table_data = PrettyTable()
-        for key, val in ret_metrics_items.items():
+        for key, val in sample_metrics.items():
             items_table_data.add_column(key, val)
 
-        print_log('\nPer samples:', logger)
-        print_log(items_table_data.get_string(), logger=logger)
+        print_log('Per samples:', logger)
+        print_log('\n' + items_table_data.get_string(), logger=logger)
 
-        # mean semantic table
-        mean_sem_metrics = OrderedDict(
+        # mean table
+        mean_metrics = OrderedDict(
+            {mean_key: np.round(np.mean(value) * 100, 2)
+             for mean_key, value in mean_metrics.items()})
+
+        mean_table_data = PrettyTable()
+        for key, val in mean_metrics.items():
+            mean_table_data.add_column(key, [val])
+
+        # overall table
+        overall_metrics = OrderedDict(
             {sem_key: np.round(np.mean(value) * 100, 2)
-             for sem_key, value in mean_sem_metrics.items()})
+             for sem_key, value in overall_metrics.items()})
 
-        mean_sem_table_data = PrettyTable()
-        for key, val in mean_sem_metrics.items():
-            mean_sem_table_data.add_column(key, [val])
+        overall_table_data = PrettyTable()
+        for key, val in overall_metrics.items():
+            overall_table_data.add_column(key, [val])
 
-        # mean instance table
-        mean_inst_metrics = OrderedDict(
-            {sem_key: np.round(np.mean(value) * 100, 2)
-             for sem_key, value in mean_inst_metrics.items()})
-
-        mean_inst_table_data = PrettyTable()
-        for key, val in mean_inst_metrics.items():
-            mean_inst_table_data.add_column(key, [val])
-
-        # overall semantic table
-        overall_sem_metrics = OrderedDict(
-            {sem_key: np.round(np.mean(value) * 100, 2)
-             for sem_key, value in overall_sem_metrics.items()})
-
-        overall_sem_table_data = PrettyTable()
-        for key, val in overall_sem_metrics.items():
-            overall_sem_table_data.add_column(key, [val])
-
-        # overall instance table
-        overall_inst_metrics = OrderedDict(
-            {inst_key: np.round(np.mean(value) * 100, 2)
-             for inst_key, value in overall_inst_metrics.items()})
-
-        overall_inst_table_data = PrettyTable()
-        for key, val in overall_inst_metrics.items():
-            overall_inst_table_data.add_column(key, [val])
-
-        print_log('\nMean Semantic Total:', logger)
-        print_log(mean_sem_table_data.get_string(), logger=logger)
-        print_log('\nMean Instance Total:', logger)
-        print_log(mean_inst_table_data.get_string(), logger=logger)
-        print_log('\nOverall Semantic Total:', logger)
-        print_log(overall_sem_table_data.get_string(), logger=logger)
-        print_log('\nOverall Instance Total:', logger)
-        print_log(overall_inst_table_data.get_string(), logger=logger)
+        print_log('Mean Total:', logger)
+        print_log('\n' + mean_table_data.get_string(), logger=logger)
+        print_log('Overall Total:', logger)
+        print_log('\n' + overall_table_data.get_string(), logger=logger)
 
         storage_results = {
-            'mean_sem_metrics': mean_sem_metrics,
-            'mean_inst_metrics': mean_inst_metrics,
-            'overall_sem_metrics': overall_sem_metrics,
-            'overall_inst_metrics': overall_inst_metrics,
+            'mean_metrics': mean_metrics,
+            'overall_metrics': overall_metrics,
         }
 
         eval_results = {}
-        # average results
-        for k, v in img_ret_metrics.items():
-            eval_results['imw' + k] = v[-1]
 
-        for k, v in overall_sem_metrics.items():
+        for k, v in mean_metrics.items():
             eval_results[k] = v
-        for k, v in overall_inst_metrics.items():
+        for k, v in overall_metrics.items():
             eval_results[k] = v
 
         # This ret value is used for eval hook. Eval hook will add these

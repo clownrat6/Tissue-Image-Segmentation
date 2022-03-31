@@ -13,7 +13,7 @@ def to_ndarray(val):
 
 
 # TODO: Add doc string & comments
-def pre_eval_all_semantic_metric(pred_label, target_label, num_classes, ignore_index=255):
+def pre_eval_all_semantic_metric(pred_label, target_label, num_classes, ignore_index=255, reduce_zero_label=True):
     """Generate pre eval results for all semantic metrics."""
     if isinstance(pred_label, str):
         pred_label = torch.from_numpy(np.load(pred_label))
@@ -38,8 +38,15 @@ def pre_eval_all_semantic_metric(pred_label, target_label, num_classes, ignore_i
     FN_per_class = torch.histc(FN.float(), bins=(num_classes), min=0, max=num_classes - 1)
     Pred_per_class = torch.histc(pred_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
     GT_per_class = torch.histc(target_label.float(), bins=(num_classes), min=0, max=num_classes - 1)
-
     TN_per_class = Pred_per_class.sum() - (TP_per_class + FP_per_class + FN_per_class)
+
+    if reduce_zero_label:
+        TP_per_class = TP_per_class[1:]
+        FP_per_class = FP_per_class[1:]
+        FN_per_class = FN_per_class[1:]
+        TN_per_class = TN_per_class[1:]
+        Pred_per_class = Pred_per_class[1:]
+        GT_per_class = GT_per_class[1:]
 
     ret_package = (TP_per_class, TN_per_class, FP_per_class, FN_per_class, Pred_per_class, GT_per_class)
 
@@ -154,7 +161,7 @@ def intersect_and_union(pred_label, target_label, num_classes, nan_to_num=None):
     return iou
 
 
-def pre_eval_to_imw_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None, reduce_zero_label=True):
+def pre_eval_to_imw_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None):
     """
     """
     # convert list of tuples to tuple of lists, e.g.
@@ -163,14 +170,14 @@ def pre_eval_to_imw_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=No
     pre_eval_results = tuple(zip(*pre_eval_results))
     assert len(pre_eval_results) == 6
 
-    TP_list = pre_eval_results[0]
-    TN_list = pre_eval_results[1]
-    FP_list = pre_eval_results[2]
-    FN_list = pre_eval_results[3]
+    TP_list = [torch.sum(x) for x in pre_eval_results[0]]
+    TN_list = [torch.sum(x) for x in pre_eval_results[1]]
+    FP_list = [torch.sum(x) for x in pre_eval_results[2]]
+    FN_list = [torch.sum(x) for x in pre_eval_results[3]]
     # prediction area
-    P_list = pre_eval_results[4]
+    P_list = [torch.sum(x) for x in pre_eval_results[4]]
     # Ground Truth area
-    G_list = pre_eval_results[5]
+    G_list = [torch.sum(x) for x in pre_eval_results[5]]
 
     ret_metrics = {}
     if 'Accuracy' in metrics:
@@ -197,10 +204,6 @@ def pre_eval_to_imw_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=No
     for key in ret_metrics.keys():
         ret_metrics[key] = to_ndarray(ret_metrics[key])
 
-    if reduce_zero_label:
-        for key in ret_metrics.keys():
-            ret_metrics[key] = ret_metrics[key][:, 1:]
-
     if nan_to_num is not None:
         ret_metrics = OrderedDict(
             {metric: np.nan_to_num(metric_value, nan=nan_to_num)
@@ -208,7 +211,7 @@ def pre_eval_to_imw_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=No
     return ret_metrics
 
 
-def pre_eval_to_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None, beta=1, reduce_zero_label=True):
+def pre_eval_to_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None, beta=1):
     """Convert pre-eval results to metrics.
 
     Args:
@@ -238,10 +241,6 @@ def pre_eval_to_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None, 
 
     ret_metrics = total_area_to_sem_metrics(total_area_TP, total_area_TN, total_area_FP, total_area_FN,
                                             total_area_pred_label, total_area_label, metrics, nan_to_num)
-
-    if reduce_zero_label:
-        for key in ret_metrics.keys():
-            ret_metrics[key] = ret_metrics[key][1:]
 
     return ret_metrics
 
