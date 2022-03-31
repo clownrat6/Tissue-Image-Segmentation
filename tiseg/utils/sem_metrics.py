@@ -5,6 +5,13 @@ import numpy as np
 import torch
 
 
+def to_ndarray(val):
+    if isinstance(val, torch.Tensor):
+        return val.numpy()
+    else:
+        return np.array(val)
+
+
 # TODO: Add doc string & comments
 def pre_eval_all_semantic_metric(pred_label, target_label, num_classes, ignore_index=255):
     """Generate pre eval results for all semantic metrics."""
@@ -147,7 +154,61 @@ def intersect_and_union(pred_label, target_label, num_classes, nan_to_num=None):
     return iou
 
 
-def pre_eval_to_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None, beta=1):
+def pre_eval_to_imw_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None, reduce_zero_label=True):
+    """
+    """
+    # convert list of tuples to tuple of lists, e.g.
+    # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
+    # ([A_1, ..., A_n], ..., [D_1, ..., D_n])
+    pre_eval_results = tuple(zip(*pre_eval_results))
+    assert len(pre_eval_results) == 6
+
+    TP_list = pre_eval_results[0]
+    TN_list = pre_eval_results[1]
+    FP_list = pre_eval_results[2]
+    FN_list = pre_eval_results[3]
+    # prediction area
+    P_list = pre_eval_results[4]
+    # Ground Truth area
+    G_list = pre_eval_results[5]
+
+    ret_metrics = {}
+    if 'Accuracy' in metrics:
+        ret_metrics['Accuracy'] = []
+        for TP, TN, G in zip(TP_list, TN_list, G_list):
+            ret_metrics['Accuracy'].append(to_ndarray((TP + TN) / (G.sum())))
+    if 'IoU' in metrics:
+        ret_metrics['IoU'] = []
+        for TP, P, G in zip(TP_list, P_list, G_list):
+            ret_metrics['IoU'].append(to_ndarray(TP / (G + P - TP)))
+    if 'Dice' in metrics:
+        ret_metrics['Dice'] = []
+        for TP, P, G in zip(TP_list, P_list, G_list):
+            ret_metrics['Dice'].append(to_ndarray(2 * TP / (G + P)))
+    if 'Recall' in metrics:
+        ret_metrics['Recall'] = []
+        for TP, FN in zip(TP_list, FN_list):
+            ret_metrics['Recall'].append(to_ndarray(TP / (TP + FN)))
+    if 'Precision' in metrics:
+        ret_metrics['Precision'] = []
+        for TP, FP in zip(TP_list, FP_list):
+            ret_metrics['Precision'].append(to_ndarray(TP / (TP + FP)))
+
+    for key in ret_metrics.keys():
+        ret_metrics[key] = to_ndarray(ret_metrics[key])
+
+    if reduce_zero_label:
+        for key in ret_metrics.keys():
+            ret_metrics[key] = ret_metrics[key][:, 1:]
+
+    if nan_to_num is not None:
+        ret_metrics = OrderedDict(
+            {metric: np.nan_to_num(metric_value, nan=nan_to_num)
+             for metric, metric_value in ret_metrics.items()})
+    return ret_metrics
+
+
+def pre_eval_to_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None, beta=1, reduce_zero_label=True):
     """Convert pre-eval results to metrics.
 
     Args:
@@ -177,6 +238,10 @@ def pre_eval_to_sem_metrics(pre_eval_results, metrics=['IoU'], nan_to_num=None, 
 
     ret_metrics = total_area_to_sem_metrics(total_area_TP, total_area_TN, total_area_FP, total_area_FN,
                                             total_area_pred_label, total_area_label, metrics, nan_to_num)
+
+    if reduce_zero_label:
+        for key in ret_metrics.keys():
+            ret_metrics[key] = ret_metrics[key][1:]
 
     return ret_metrics
 

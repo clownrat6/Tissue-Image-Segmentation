@@ -270,46 +270,6 @@ def pre_eval_pq(inst_pred, inst_gt, pred_id_list_per_class, gt_id_list_per_class
     return tp, fp, fn, iou
 
 
-def pre_eval_pq_hover(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
-    # make instance id contiguous
-    inst_pred = measure.label(inst_pred.copy())
-    inst_gt = measure.label(inst_gt.copy())
-
-    pred_id_list = list(np.unique(inst_pred))
-    gt_id_list = list(np.unique(inst_gt))
-
-    if 0 not in pred_id_list:
-        pred_id_list.insert(0, 0)
-
-    if 0 not in gt_id_list:
-        gt_id_list.insert(0, 0)
-
-    def to_one_hot(mask, num_classes):
-        ret = np.zeros((num_classes, *mask.shape))
-        for i in range(num_classes):
-            ret[i, mask == i] = 1
-
-        return ret
-
-    sem_pred_one_hot = to_one_hot(sem_pred, num_classes)
-    sem_gt_one_hot = to_one_hot(sem_gt, num_classes)
-
-    tp = np.zeros((num_classes), dtype=np.float32)
-    fp = np.zeros((num_classes), dtype=np.float32)
-    fn = np.zeros((num_classes), dtype=np.float32)
-    iou = np.zeros((num_classes), dtype=np.float32)
-    for sem_id in range(1, num_classes):
-        pred_inst_map = inst_pred * sem_pred_one_hot[sem_id]
-        gt_inst_map = inst_gt * sem_gt_one_hot[sem_id]
-        res = pre_eval_bin_pq(pred_inst_map, gt_inst_map, match_iou=0.5)
-        tp[sem_id] += res[0]
-        fp[sem_id] += res[1]
-        fn[sem_id] += res[2]
-        iou[sem_id] += res[3]
-
-    return tp, fp, fn, iou
-
-
 def binary_aggregated_jaccard_index(inst_pred, inst_gt):
     """Two-class Aggregated Jaccard Index Calculation.
 
@@ -322,7 +282,7 @@ def binary_aggregated_jaccard_index(inst_pred, inst_gt):
     return aggregated_jaccard_index(inst_pred, inst_gt, inst_pred > 0, inst_gt > 0, 2)
 
 
-def aggregated_jaccard_index(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, reduce_zero_class_insts=True):
+def aggregated_jaccard_index(inst_pred, inst_gt, sem_pred, sem_gt, num_classes):
     """Class Wise Aggregated Jaccard Index Calculation.
 
     0 is set as background pixels and we will ignored.
@@ -330,11 +290,14 @@ def aggregated_jaccard_index(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, 
     Args:
         inst_pred (numpy.ndarray): Prediction instance map.
         inst_gt (numpy.ndarray): Ground truth instance map.
+        sem_pred (numpy.ndarry): Related prediction semantic map which provides instances classification infomation.
+        sem_gt (numpy.ndarry): Related ground truth semantic map.
+        num_classes (int): The number of classification.
     """
     i, u = pre_eval_aji(inst_pred, inst_gt, sem_pred, sem_gt, num_classes)
-    if reduce_zero_class_insts:
-        i = i[1:]
-        u = u[1:]
+    # remove background class (index 0)
+    i = i[1:]
+    u = u[1:]
     if np.sum(i) == 0. or np.sum(u) == 0.:
         return 0.
     aji_score = np.sum(i) / np.sum(u)
@@ -362,6 +325,7 @@ def binary_panoptic_quality(inst_pred, inst_gt, match_iou=0.5):
     """
     res = pre_eval_bin_pq(inst_pred, inst_gt, match_iou)
 
+    # remove background class (index 0)
     tp = res[0]
     fp = res[1]
     fn = res[2]
@@ -375,14 +339,13 @@ def binary_panoptic_quality(inst_pred, inst_gt, match_iou=0.5):
     return dq, sq, dq * sq
 
 
-def panoptic_quality(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, match_iou=0.5, reduce_zero_class_insts=True):
+def panoptic_quality(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, match_iou=0.5):
     tp, fp, fn, iou = pre_eval_pq(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, match_iou)
 
-    if reduce_zero_class_insts:
-        tp = tp[1:]
-        fp = fp[1:]
-        fn = fn[1:]
-        iou = iou[1:]
+    tp = tp[1:]
+    fp = fp[1:]
+    fn = fn[1:]
+    iou = iou[1:]
 
     tp = np.sum(tp)
     fp = np.sum(fp)
@@ -398,6 +361,7 @@ def panoptic_quality(inst_pred, inst_gt, sem_pred, sem_gt, num_classes, match_io
 
 
 def binary_inst_dice(inst_pred, inst_gt, match_iou=0.5):
+    """Two-class instance level dice score."""
     res = pre_eval_bin_pq(inst_pred, inst_gt, match_iou)
     tp = res[0]
     fp = res[1]
@@ -416,7 +380,7 @@ def pre_eval_to_bin_aji(pre_eval_results, nan_to_num=None):
 
     # [0]: overall intersection
     # [1]: overall union
-    ret_metrics = {'bAji': sum(pre_eval_results[0]) / (sum(pre_eval_results[1])+1e-6)}
+    ret_metrics = {'bAji': sum(pre_eval_results[0]) / (sum(pre_eval_results[1]) + 1e-6)}
 
     if nan_to_num is not None:
         ret_metrics = OrderedDict(
@@ -434,14 +398,15 @@ def pre_eval_to_imw_aji(pre_eval_results, nan_to_num=None):
     pre_eval_results = tuple(zip(*pre_eval_results))
     assert len(pre_eval_results) == 2
 
-    inter = np.array(pre_eval_results[0])
-    union = np.array(pre_eval_results[1])
+    inst_inter = pre_eval_results[0]
+    inst_union = pre_eval_results[1]
 
-    aji = np.mean(inter / (union + 1e-6))
+    ret_metrics = {}
+    ret_metrics['Aji'] = []
+    for i, u in zip(inst_inter, inst_union):
+        ret_metrics['Aji'].append(i / u)
 
-    # [0]: overall intersection
-    # [1]: overall union
-    ret_metrics = {'imwAji': aji}
+    ret_metrics['Aji'] = np.array(ret_metrics['Aji'])
 
     if nan_to_num is not None:
         ret_metrics = OrderedDict(
@@ -451,7 +416,7 @@ def pre_eval_to_imw_aji(pre_eval_results, nan_to_num=None):
     return ret_metrics
 
 
-def pre_eval_to_aji(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=True):
+def pre_eval_to_aji(pre_eval_results, nan_to_num=None):
     """Convert aji pre-eval overall intersection & pre-eval overall union to aji score."""
     # convert list of tuples to tuple of lists, e.g.
     # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
@@ -466,10 +431,8 @@ def pre_eval_to_aji(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=T
 
     aji = overall_inter / (overall_union + +1e-6)
 
-    if reduce_zero_class_insts:
-        maji = np.mean(aji[1:])
-    else:
-        maji = np.mean(aji)
+    # remove background class and calculate average class aji.
+    maji = np.mean(aji[1:])
 
     ret_metrics = {'mAji': maji, 'Aji': aji}
 
@@ -481,7 +444,7 @@ def pre_eval_to_aji(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=T
     return ret_metrics
 
 
-def pre_eval_to_bin_pq(pre_eval_results, nan_to_num=None):
+def pre_eval_to_bin_pq(pre_eval_results, nan_to_num=None, analysis_mode=False):
     # convert list of tuples to tuple of lists, e.g.
     # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
     # ([A_1, ..., A_n], ..., [D_1, ..., D_n])
@@ -502,7 +465,6 @@ def pre_eval_to_bin_pq(pre_eval_results, nan_to_num=None):
 
     pq = dq * sq
 
-    analysis = {'pq_bTP': tp, 'pq_bFP': fp, 'pq_bFN': fn, 'pq_bIoU': np.round(iou, 2)}
     ret_metrics = {'bDQ': dq, 'bSQ': sq, 'bPQ': pq}
 
     if nan_to_num is not None:
@@ -510,7 +472,11 @@ def pre_eval_to_bin_pq(pre_eval_results, nan_to_num=None):
             {metric: np.nan_to_num(metric_value, nan=nan_to_num)
              for metric, metric_value in ret_metrics.items()})
 
-    return ret_metrics, analysis
+    if analysis_mode:
+        analysis = {'pq_bTP': tp, 'pq_bFP': fp, 'pq_bFN': fn, 'pq_bIoU': np.round(iou, 2)}
+        return ret_metrics, analysis
+    else:
+        return ret_metrics,
 
 
 def pre_eval_to_imw_pq(pre_eval_results, nan_to_num=None):
@@ -520,25 +486,32 @@ def pre_eval_to_imw_pq(pre_eval_results, nan_to_num=None):
     pre_eval_results = tuple(zip(*pre_eval_results))
     assert len(pre_eval_results) == 4
 
-    # [0]: overall intersection
-    # [1]: overall union
-    tp = np.array(pre_eval_results[0])
-    fp = np.array(pre_eval_results[1])
-    fn = np.array(pre_eval_results[2])
-    iou = np.array(pre_eval_results[3])
+    # [0]: tp (The number of inst with iou > 0.5)
+    # [1]: fp (The number of inst in prediction with iou < 0.5)
+    # [2]: fn (The numebr of inst in ground truth with iou < 0.5)
+    # [3]: iou (The sum value of paired inst iou)
+    tp_list = pre_eval_results[0]
+    fp_list = pre_eval_results[1]
+    fn_list = pre_eval_results[2]
+    iou_list = pre_eval_results[3]
 
-    # get the F1-score i.e DQ
-    dq = tp / (tp + 0.5 * fp + 0.5 * fn + 1.0e-6)
-    # get the SQ, no paired has 0 iou so not impact
-    sq = iou / (tp + 1.0e-6)
+    ret_metrics = {}
+    ret_metrics['DQ'] = []
+    ret_metrics['SQ'] = []
+    ret_metrics['PQ'] = []
+    for tp, fp, fn, iou in zip(tp_list, fp_list, fn_list, iou_list):
+        # get the F1-score i.e DQ
+        dq = tp / (tp + 0.5 * fp + 0.5 * fn + 1.0e-6)
+        # get the SQ, no paired has 0 iou so not impact
+        sq = iou / (tp + 1.0e-6)
+        pq = dq * sq
+        ret_metrics['DQ'].append(dq)
+        ret_metrics['SQ'].append(sq)
+        ret_metrics['PQ'].append(pq)
 
-    pq = dq * sq
-
-    dq = np.mean(dq)
-    sq = np.mean(sq)
-    pq = np.mean(pq)
-
-    ret_metrics = {'imwDQ': dq, 'imwSQ': sq, 'imwPQ': pq}
+    ret_metrics['DQ'] = np.array(ret_metrics['DQ'])
+    ret_metrics['SQ'] = np.array(ret_metrics['SQ'])
+    ret_metrics['PQ'] = np.array(ret_metrics['PQ'])
 
     if nan_to_num is not None:
         ret_metrics = OrderedDict(
@@ -547,7 +520,7 @@ def pre_eval_to_imw_pq(pre_eval_results, nan_to_num=None):
     return ret_metrics
 
 
-def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=True):
+def pre_eval_to_pq(pre_eval_results, nan_to_num=None, analysis_mode=False):
     # convert list of tuples to tuple of lists, e.g.
     # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
     # ([A_1, ..., A_n], ..., [D_1, ..., D_n])
@@ -567,17 +540,11 @@ def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=Tr
     sq = iou / (tp + 1.0e-6)
     pq = dq * sq
 
-    analysis = {'pq_TP': tp, 'pq_FP': fp, 'pq_FN': fn, 'pq_IoU': np.round(iou, 2)}
     ret_metrics = {'DQ': dq, 'SQ': sq, 'PQ': pq}
 
-    if reduce_zero_class_insts:
-        dq = np.mean(dq[1:])
-        sq = np.mean(sq[1:])
-        pq = np.mean(pq[1:])
-    else:
-        dq = np.mean(dq)
-        sq = np.mean(sq)
-        pq = np.mean(pq)
+    dq = np.mean(dq[1:])
+    sq = np.mean(sq[1:])
+    pq = np.mean(pq[1:])
 
     ret_metrics.update({'mDQ': dq, 'mSQ': sq, 'mPQ': pq})
 
@@ -586,7 +553,11 @@ def pre_eval_to_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=Tr
             {metric: np.nan_to_num(metric_value, nan=nan_to_num)
              for metric, metric_value in ret_metrics.items()})
 
-    return ret_metrics, analysis
+    if analysis_mode:
+        analysis = {'pq_TP': tp, 'pq_FP': fp, 'pq_FN': fn, 'pq_IoU': np.round(iou, 2)}
+        return ret_metrics, analysis
+    else:
+        return ret_metrics
 
 
 def pre_eval_to_sample_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_insts=True):
@@ -626,3 +597,59 @@ def pre_eval_to_sample_pq(pre_eval_results, nan_to_num=None, reduce_zero_class_i
              for metric, metric_value in ret_metrics.items()})
 
     return ret_metrics, analysis
+
+
+def pre_eval_to_imw_inst_dice(pre_eval_results, nan_to_num=None):
+    # convert list of tuples to tuple of lists, e.g.
+    # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
+    # ([A_1, ..., A_n], ..., [D_1, ..., D_n])
+    pre_eval_results = tuple(zip(*pre_eval_results))
+    assert len(pre_eval_results) == 4
+
+    # [0]: tp (The number of inst with iou > 0.5)
+    # [1]: fp (The number of inst in prediction with iou < 0.5)
+    # [2]: fn (The numebr of inst in ground truth with iou < 0.5)
+    # [3]: iou (The sum value of paired inst iou)
+    tp_list = pre_eval_results[0]
+    fp_list = pre_eval_results[1]
+    fn_list = pre_eval_results[2]
+    _ = pre_eval_results[3]
+
+    ret_metrics = {}
+    ret_metrics['instDice'] = []
+    for tp, fp, fn in zip(tp_list, fp_list, fn_list):
+        inst_dice = 2 * tp / (2 * tp + fp + fn)
+        ret_metrics['instDice'].append(inst_dice)
+
+    ret_metrics['instDice'] = np.array(ret_metrics['instDice'])
+
+    if nan_to_num is not None:
+        ret_metrics = OrderedDict(
+            {metric: np.nan_to_num(metric_value, nan=nan_to_num)
+             for metric, metric_value in ret_metrics.items()})
+    return ret_metrics
+
+
+def pre_eval_to_inst_dice(pre_eval_results, nan_to_num=None):
+    # convert list of tuples to tuple of lists, e.g.
+    # [(A_1, B_1, C_1, D_1), ...,  (A_n, B_n, C_n, D_n)] to
+    # ([A_1, ..., A_n], ..., [D_1, ..., D_n])
+    pre_eval_results = tuple(zip(*pre_eval_results))
+    assert len(pre_eval_results) == 4
+
+    # [0]: tp (The number of inst with iou > 0.5)
+    # [1]: fp (The number of inst in prediction with iou < 0.5)
+    # [2]: fn (The numebr of inst in ground truth with iou < 0.5)
+    # [3]: iou (The sum value of paired inst iou)
+    tp = sum(pre_eval_results[0])
+    fp = sum(pre_eval_results[1])
+    fn = sum(pre_eval_results[2])
+
+    ret_metrics = {}
+    ret_metrics['instDice'] = 2 * tp / (2 * tp + fp + fn)
+
+    if nan_to_num is not None:
+        ret_metrics = OrderedDict(
+            {metric: np.nan_to_num(metric_value, nan=nan_to_num)
+             for metric, metric_value in ret_metrics.items()})
+    return ret_metrics,
