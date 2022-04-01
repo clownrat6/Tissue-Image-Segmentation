@@ -12,7 +12,7 @@ evaluation = dict(
     custom_milestones=[295],
     by_epoch=True,
     metric='all',
-    save_best='Aji',
+    save_best='mAji',
     rule='greater',
 )
 
