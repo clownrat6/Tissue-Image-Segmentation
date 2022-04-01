@@ -55,7 +55,6 @@ class MultiTaskBranches(nn.Module):
         self.mask_feats = RU(self.in_dims, self.feed_dims, norm_cfg, act_cfg)
         self.aux_mask_feats = RU(self.feed_dims, self.feed_dims, norm_cfg, act_cfg)
 
-        assert (num_classes[0] == 3)
         self.aux_mask_conv = nn.Conv2d(self.feed_dims, num_classes[0], kernel_size=1)
         self.mask_conv = nn.Conv2d(self.feed_dims, num_classes[1], kernel_size=1)
 

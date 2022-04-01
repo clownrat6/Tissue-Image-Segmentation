@@ -52,7 +52,7 @@ class MultiTaskUNet(BaseSegmentor):
             inner_logit, sem_logit = self.calculate(data['img'])
             sem_gt = label['sem_gt']
             inner_gt = label['sem_gt_inner']
-            inner_gt = inner_gt > 0
+            inner_gt = (inner_gt > 0).long()
             weight_map = label['loss_weight_map']
             loss = dict()
             sem_gt = sem_gt.squeeze(1)
@@ -206,13 +206,14 @@ class MultiTaskUNet(BaseSegmentor):
 
         return inner_logit, sem_logit
 
-    def _sem_loss(self, sem_logit, sem_gt):
-        """calculate semantic mask branch loss."""
+    def _sem_loss(self, sem_logit, sem_gt, weight_map):
+        """calculate mask branch loss."""
         sem_loss = {}
-
         sem_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
         sem_dice_loss_calculator = BatchMultiClassDiceLoss(num_classes=self.num_classes)
-        sem_ce_loss = torch.mean(sem_ce_loss_calculator(sem_logit, sem_gt))
+        # Assign weight map for each pixel position
+        sem_ce_loss = sem_ce_loss_calculator(sem_logit, sem_gt) * weight_map
+        sem_ce_loss = torch.mean(sem_ce_loss)
         sem_dice_loss = sem_dice_loss_calculator(sem_logit, sem_gt)
         # loss weight
         alpha = 5
@@ -222,13 +223,14 @@ class MultiTaskUNet(BaseSegmentor):
 
         return sem_loss
 
-    def _inner_loss(self, inner_logit, inner_gt):
+    def _inner_loss(self, inner_logit, inner_gt, weight_map):
         """calculate three-class mask branch loss."""
         inner_loss = {}
 
         inner_ce_loss_calculator = nn.CrossEntropyLoss(reduction='none')
         inner_dice_loss_calculator = MultiClassDiceLoss(num_classes=2)
-        inner_ce_loss = torch.mean(inner_ce_loss_calculator(inner_logit, inner_gt))
+        inner_ce_loss = inner_ce_loss_calculator(inner_logit, inner_gt) * weight_map
+        inner_ce_loss = torch.mean(inner_ce_loss)
         inner_dice_loss = inner_dice_loss_calculator(inner_logit, inner_gt)
         # loss weight
         alpha = 5
