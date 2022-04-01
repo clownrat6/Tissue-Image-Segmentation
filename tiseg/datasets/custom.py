@@ -13,7 +13,8 @@ from torch.utils.data import Dataset
 
 from tiseg.utils import (pre_eval_all_semantic_metric, pre_eval_to_sem_metrics, pre_eval_bin_aji, pre_eval_bin_pq,
                          pre_eval_to_aji, pre_eval_to_pq, pre_eval_to_inst_dice, pre_eval_to_imw_pq,
-                         pre_eval_to_imw_aji, pre_eval_to_imw_inst_dice, pre_eval_to_imw_sem_metrics)
+                         pre_eval_to_imw_aji, pre_eval_to_imw_inst_dice, pre_eval_to_imw_sem_metrics,
+                         pre_eval_to_bin_aji, pre_eval_to_bin_pq)
 
 from .builder import DATASETS
 from .dataset_mapper import DatasetMapper
@@ -332,11 +333,15 @@ class CustomDataset(Dataset):
         # instance metrics (aji style)
         bin_aji_pre_eval_results = ret_metrics.pop('bin_aji_pre_eval_res')
         ret_metrics.update(pre_eval_to_aji(bin_aji_pre_eval_results))
+        for k, v in pre_eval_to_bin_aji(bin_aji_pre_eval_results).items():
+            ret_metrics['b' + k] = v
         img_ret_metrics.update(pre_eval_to_imw_aji(bin_aji_pre_eval_results))
 
         # instance metrics (pq style)
         bin_pq_pre_eval_results = ret_metrics.pop('bin_pq_pre_eval_res')
         ret_metrics.update(pre_eval_to_pq(bin_pq_pre_eval_results))
+        for k, v in pre_eval_to_bin_pq(bin_pq_pre_eval_results).items():
+            ret_metrics['b' + k] = v
         ret_metrics.update(pre_eval_to_inst_dice(bin_pq_pre_eval_results))
         img_ret_metrics.update(pre_eval_to_imw_pq(bin_pq_pre_eval_results))
         img_ret_metrics.update(pre_eval_to_imw_inst_dice(bin_pq_pre_eval_results))
@@ -364,6 +369,9 @@ class CustomDataset(Dataset):
             # XXX: Using average value may have lower metric value than using
             mean_metrics['imw' + key] = img_ret_metrics[key][-1]
             overall_metrics['m' + key] = ret_metrics[key]
+
+        for key in ['bAji', 'bDQ', 'bSQ', 'bPQ']:
+            overall_metrics[key] = ret_metrics[key]
 
         # per sample
         sample_metrics = OrderedDict(
