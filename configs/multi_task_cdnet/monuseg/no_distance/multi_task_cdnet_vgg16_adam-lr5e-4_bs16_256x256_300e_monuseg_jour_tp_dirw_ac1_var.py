@@ -17,8 +17,8 @@ model = dict(
         use_focal=False,
         use_level=False,
         use_variance=True,
-        use_tploss=False,
-        tploss_weight=False,
-        tploss_dice=False,
+        use_tploss=True,
+        tploss_weight=True,
+        tploss_dice=True,
         dir_weight_map=True,
     ))
