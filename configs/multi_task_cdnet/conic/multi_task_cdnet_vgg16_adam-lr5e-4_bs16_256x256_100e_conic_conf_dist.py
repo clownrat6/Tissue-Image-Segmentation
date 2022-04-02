@@ -20,7 +20,7 @@ train_processes = [
         std=[0.19204499, 0.20979484, 0.1658672],
         if_zscore=False),
     dict(type='BoundLabelMake', edge_id=7, selem_radius=(2, 2)),
-    dict(type='DirectionLabelMake', use_distance=True),
+    dict(type='DirectionLabelMake'),
     dict(
         type='Formatting',
         data_keys=['img'],

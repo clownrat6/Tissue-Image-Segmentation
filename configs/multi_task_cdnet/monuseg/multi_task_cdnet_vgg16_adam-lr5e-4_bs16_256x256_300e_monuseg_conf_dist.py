@@ -20,7 +20,7 @@ train_processes = [
         std=[0.19204499, 0.20979484, 0.1658672],
         if_zscore=False),
     dict(type='BoundLabelMake', edge_id=2, selem_radius=(3, 3)),
-    dict(type='DirectionLabelMake', use_distance=True),
+    dict(type='DirectionLabelMake'),
     dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt', 'sem_gt_w_bound', 'inst_gt', 'dir_gt', 'dist_gt', 'loss_weight_map']),
 ]
 test_processes = [
