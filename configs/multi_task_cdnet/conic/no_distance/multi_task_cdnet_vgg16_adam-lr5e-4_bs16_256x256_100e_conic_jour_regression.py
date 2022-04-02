@@ -1,12 +1,12 @@
 _base_ = [
-    '../multi_task_cdnet_vgg16_adam-lr5e-4_bs16_256x256_300e_monuseg_conf.py',
+    '../multi_task_cdnet_vgg16_adam-lr5e-4_bs16_256x256_100e_conic_conf.py',
 ]
 
 # model settings
 model = dict(
     train_cfg=dict(
-        num_angles=16,
-        use_regression=False,
+        num_angles=8,
+        use_regression=True,
         noau=True,
         parallel=True,
         use_twobranch=False,
