@@ -10,12 +10,42 @@ Multi-task:
 
 ### MoNuSeg (kumar)
 
-| Method           | Crop Size | Batch Size | Slide Size | Learning Rate | Aji   | Dice  | DQ    | SQ    | PQ    |
-| :--              | :--:      | :--        | :--:       | :--           | :-:   | :--:  | :--:  | :--:  | :--:  |
-| Multi-task CUNet | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 61.95 | 83.21 | 77.81 | 79.25 | 61.67 |
+| Method           | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   | imwDice | imwAji | imwDQ | imwSQ | imwPQ | 
+| :--              | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  | :-:     | :--:   | :--:  | :--:  | :--:  | 
+| Multi-task CUNet | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 81.83 | 60.79 | 76.66 | 78.97 | 60.54 | 81.29   | 60.31  | 74.11 | 77.66 | 57.74 | 
 
 ### CoNIC
 
-| Method           | Crop Size | Batch Size | Slide Size | Learning Rate | mean Aji | mAji   | mDice  | mDQ   | mSQ   | mPQ   |
-| :--              | :--:      | :--        | :--:       | :--           | :-:      | :--:   | :--:   | :--:  | :--:  | :--:  |
-| Multi-task CUNet | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 63.06    | 49.82  | 67.54  | 63.48 | 80.47 | 51.44 |
+| Method           | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   |
+| :--              | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  |
+| Multi-task CUNet | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 66.9  | 49.2  | 62.67 | 80.38 | 50.75 |
+
+## Empirical Study
+
+> The metrics value is the average of the last five epochs.
+
+### Boundary Width
+
+| Method           | Dilation | Erosion    | Bound Width | imwAji | imwDice | mAji  | mDice |
+| :--              | :--      | :--        | :--:        | :-:    | :--:    | :--:  | :--:  |
+| Multi-task CUNet | 0        | 1          | 1           | 52.33  | 81.98   | 49.06 | 82.42 |
+| Multi-task CUNet | 0        | 2          | 2           | 57.73  | 81.8    | 57.55 | 82.12 |
+| Multi-task CUNet | 0        | 3          | 3           | 60.92  | 81.89   | 61.16 | 82.2  |
+| Multi-task CUNet | 0        | 4          | 4           | 61.01  | 82.29   | 61.21 | 82.8  |
+| Multi-task CUNet | 1        | 1          | 2           | 51.16  | 81.23   | 46.98 | 81.77 |
+| Multi-task CUNet | 2        | 2          | 4           | 57.85  | 82.16   | 57.46 | 82.61 |
+| Multi-task CUNet | 3        | 3          | 6           | 60.31  | 81.29   | 60.79 | 81.83 |
+| Multi-task CUNet | 4        | 4          | 8           | 61.58  | 82.15   | 61.69 | 82.38 |
+
+
+### Data Augmentation
+
+| Method | Geometry Distortion | Color Distortion | Blur | imwAji | imwDice | mAji  | mDice |
+| :--    | :--:                | :--:             | :--: | :-:    | :--:    | :--:  | :--:  |
+| CUNet  |                     |                  |      | 60.38  | 82.89   | 60.14 | 83.58 |
+| CUNet  | RandomFlip          |                  |      | 60.34  | 82.44   | 59.98 | 83.13 |
+| CUNet  | Affine              |                  |      | 60.02  | 81.79   | 59.52 | 82.17 |
+| CUNet  |                     | √                |      | 60.27  | 81.37   | 60.64 | 82.06 |
+| CUNet  |                     |                  | √    | 60.48  | 82.86   | 59.85 | 83.48 |
+| CUNet  |                     | √                | √    |  |  |  |  |
+| CUNet  | √                   | √                | √    | 60.31  | 81.29   | 60.79 | 81.83 |
