@@ -116,7 +116,7 @@ class MultiTaskUNet(BaseSegmentor):
         Returns:
             Tensor: The output segmentation map.
         """
-        assert self.test_cfg.mode in ['split', 'whole']
+        assert self.test_cfg.get('mode', 'whole') in ['split', 'whole']
 
         self.rotate_degrees = self.test_cfg.get('rotate_degrees', [0])
         self.flip_directions = self.test_cfg.get('flip_directions', ['none'])

@@ -31,44 +31,55 @@ def to_tensor(data):
         raise TypeError(f'type {type(data)} cannot be converted to tensor.')
 
 
-def format_img(img):
+def format_img(img, dc=True):
     if len(img.shape) < 3:
         img = np.expand_dims(img, -1)
     img = np.ascontiguousarray(img.transpose(2, 0, 1))
     if img.dtype is not np.float32:
         img = img.astype(np.float32)
 
-    img = DC(to_tensor(img), stack=True)
+    img = to_tensor(img)
+    if dc:
+        img = DC(img, stack=True)
 
     return img
 
 
-def format_seg(seg):
+def format_seg(seg, dc=True):
     if len(seg.shape) < 3:
         seg = seg[None, ...]
     # segmentation gt convert to long
-    seg = DC(to_tensor(seg.astype(np.int64)), stack=True)
+
+    seg = to_tensor(seg.astype(np.int64))
+    if dc:
+        seg = DC(seg, stack=True)
 
     return seg
 
 
-def format_reg(reg):
+def format_reg(reg, dc=True):
     if len(reg.shape) < 3:
         reg = reg[None, ...]
     # regression gt convert to float
-    reg = DC(to_tensor(reg.astype(np.float32)), stack=True)
+    reg = to_tensor(reg.astype(np.float32))
+    if dc:
+        reg = DC(reg, stack=True)
 
     return reg
 
 
-def format_(map_):
-    map_ = DC(to_tensor(map_), stack=True)
+def format_(map_, dc=True):
+    map_ = to_tensor(map_)
+
+    if dc:
+        map_ = DC(map_, stack=True)
 
     return map_
 
 
-def format_info(info):
-    info = DC(info, cpu_only=True)
+def format_info(info, dc=True):
+    if dc:
+        info = DC(info, cpu_only=True)
 
     return info
 
@@ -99,5 +110,35 @@ class Formatting(object):
                 ret['label'][label_key] = format_seg(data[label_key])
 
         ret['metas'] = format_info(data_info)
+
+        return ret
+
+
+class TorchFormatting(object):
+
+    def __init__(self, data_keys, label_keys):
+        self.data_keys = data_keys
+        self.label_keys = label_keys
+
+    def __call__(self, data):
+        ret = {'data': {}, 'label': {}, 'metas': {}}
+        data_info = data.pop('data_info')
+        _ = data.pop('seg_fields')
+
+        for data_key in self.data_keys:
+            if data_key == 'img':
+                h, w = data[data_key].shape[:2]
+                data_info[0]['input_hw'] = (h, w)
+                ret['data'][data_key] = format_img(data[data_key], False)
+            else:
+                ret['data'][data_key] = format_(data[data_key], False)
+
+        for label_key in self.label_keys:
+            if label_key in ['dist_gt', 'point_gt', 'hv_gt', 'loss_weight_map']:
+                ret['label'][label_key] = format_reg(data[label_key], False)
+            else:
+                ret['label'][label_key] = format_seg(data[label_key], False)
+
+        ret['metas'] = format_info(data_info, False)
 
         return ret

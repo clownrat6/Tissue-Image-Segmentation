@@ -11,10 +11,9 @@ from ...models.utils import generate_direction_differential_map
 class DirectionLabelMake(object):
     """build direction label & point label for any dataset."""
 
-    def __init__(self, to_center=True, num_angles=8, use_distance=False):
+    def __init__(self, to_center=True, num_angles=8):
         self.to_center = to_center
         self.num_angles = num_angles
-        self.use_distance = use_distance
 
     def _fix_inst(self, inst_gt):
         cur = 0
@@ -75,8 +74,8 @@ class DirectionLabelMake(object):
             weight_map = self.calculate_weight_map(dir_map, dist_map, self.num_angles)
         else:
             weight_map = np.zeros_like(dir_map)
-        if self.use_distance:
-            data['dist_gt'] = dist_map
+
+        data['dist_gt'] = dist_map
         data['point_gt'] = point_map
         data['dir_gt'] = dir_map
         data['reg_dir_gt'] = reg_dir_map
