@@ -83,7 +83,7 @@ def log_analysis(log_path):
     res = OrderedDict()
     res.update({'names': list(collect_res.keys())})
     res.move_to_end('names', last=False)
-    combine_keys = mean_keys + overall_keys + other_keys
+    combine_keys = overall_keys + mean_keys + other_keys
     empty_keys = []
     for key in combine_keys:
         res[key] = []
