@@ -8,14 +8,16 @@ Multi-task:
 
 ## Results
 
+> The metrics value is the average of the last five epochs.
+
 ### MoNuSeg (kumar)
 
 | Method          | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   | imwDice | imwAji | imwDQ | imwSQ | imwPQ | 
 | :--             | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  | :-:     | :--:   | :--:  | :--:  | :--:  | 
-| Multi-task UNet | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 82.58 | 55.0  | 73.91 | 78.91 | 58.33 | 82.36   | 56.29  | 71.51 | 77.69 | 55.68 | 
+| Multi-task UNet | 256x256   | 8          | 40x40      | Adam-Lr1e-4   | 82.58 | 55.0  | 73.91 | 78.91 | 58.33 | 82.36   | 56.29  | 71.51 | 77.69 | 55.68 | 
 
 ### CoNIC
 
 | Method          | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   |
 | :--             | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  |
-| Multi-task UNet | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 68.96 | 51.65 | 65.74 | 80.77 | 53.47 |
+| Multi-task UNet | 256x256   | 8          | whole      | Adam-Lr1e-4   | 68.96 | 51.65 | 65.74 | 80.77 | 53.47 |

@@ -4,14 +4,16 @@ The MicroNet with contour aware learning.
 
 ## Results
 
+> The metrics value is the average of the last five epochs.
+
 ### MoNuSeg (kumar)
 
-| Method     | Crop Size | Batch Size | Slide Size | Learning Rate | Aji   | Dice  | DQ    | SQ    | PQ    |
-| :--        | :--:      | :--        | :--:       | :--           | :-:   | :--:  | :--:  | :--:  | :--:  |
-| CMicroNet  | 252x252   | 4          | 40x40      | Adam-Lr1e-4   | 60.83 | 83.47 | 78.8  | 79.04 | 62.28 |
+| Method    | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   | imwDice | imwAji | imwDQ | imwSQ | imwPQ | 
+| :--       | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  | :-:     | :--:   | :--:  | :--:  | :--:  | 
+| CMicroNet | 252x252   | 4          | 40x40      | Adam-Lr1e-4   | 82.32 | 57.20 | 78.27 | 79.08 | 61.90 | 81.99   | 59.09  | 75.34 | 77.72 | 58.73 | 
 
 ### CoNIC
 
-| Method     | Crop Size | Batch Size | Slide Size | Learning Rate | mean Aji | mAji   | mDice  | mDQ   | mSQ   | mPQ   |
-| :--        | :--:      | :--        | :--:       | :--           | :-:      | :--:   | :--:   | :--:  | :--:  | :--:  |
-| CMicroNet  | 252x252   | 4          | 40x40      | Adam-Lr1e-4   | 56.78    | 43.16  | 61.3   | 59.69 | 73.36 | 43.83 |
+| Method    | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   |
+| :--       | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  |
+| CMicroNet | 252x252   | 4          | 40x40      | Adam-Lr1e-4   | 60.71 | 42.73 | 59.09 | 73.20 | 43.32 |

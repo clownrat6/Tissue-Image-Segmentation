@@ -6,15 +6,15 @@ The U-Net with contour aware learning (popular 🔥🔥🔥).
 
 ### MoNuSeg (kumar)
 
-| Method | Crop Size | Batch Size | Slide Size | Learning Rate | Aji   | Dice  | DQ    | SQ    | PQ    |
-| :--    | :--:      | :--        | :--:       | :--           | :-:   | :--:  | :--:  | :--:  | :--:  |
-| CUNet  | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 62.38 | 83.31 | 79.4  | 78.95 | 62.69 |
+| Method | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   | imwDice | imwAji | imwDQ | imwSQ | imwPQ | 
+| :--    | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  | :-:     | :--:   | :--:  | :--:  | :--:  |
+| CUNet  | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 82.79 | 61.92 | 79.33 | 79.39 | 62.98 | 82.34   | 61.75  | 76.49 | 78.03 | 59.85 | 
 
 ### CoNIC
 
-| Method | Crop Size | Batch Size | Slide Size | Learning Rate | mean Aji | mAji   | mDice  | mDQ   | mSQ   | mPQ   |
-| :--    | :--:      | :--        | :--:       | :--           | :-:      | :--:   | :--:   | :--:  | :--:  | :--:  |
-| CUNet  | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 56.05    | 44.69  | 63.22  | 61.53 | 72.54 | 44.67 |
+| Method | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   |
+| :--    | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  |
+| CUNet  | 256x256   | 16         | whole      | Adam-Lr5e-4   | 62.65 | 44.12 | 60.65 | 72.64 | 44.16 |
 
 ## Experiments
 

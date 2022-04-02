@@ -4,17 +4,20 @@
 
 ## Results
 
+> The metrics value is the average of the last five epochs.
+
 ### MoNuSeg (kumar)
 
-| Method | Crop Size | Batch Size | Slide Size | Learning Rate | Aji   | Dice  | DQ    | SQ    | PQ    |
-| :--    | :--:      | :--        | :--:       | :--           | :-:   | :--:  | :--:  | :--:  | :--:  |
-| CDNet  | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 63.73 | 83.59 | 80.1  | 79.56 | 63.73 |
+| Method | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   | imwDice | imwAji | imwDQ | imwSQ | imwPQ | 
+| :--    | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  | :-:     | :--:   | :--:  | :--:  | :--:  | 
+| CDNet  | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 82.60 | 62.98 | 80.24 | 79.05 | 63.43 | 82.04   | 62.39  | 77.30 | 77.88 | 60.34 | 
 
 ### CoNIC
 
-| Method | Crop Size | Batch Size | Slide Size | Learning Rate | mean Aji | mAji   | mDice  | mDQ   | mSQ   | mPQ   |
-| :--    | :--:      | :--        | :--:       | :--           | :-:      | :--:   | :--:   | :--:  | :--:  | :--:  |
-| CUNet  | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 58.51    | 44.86  | 62.59  | 61.65 | 73.14 | 45.13 |
+| Method | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   |
+| :--    | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  |
+| CDNet  | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 62.4  | 44.72 | 61.37 | 73.28 | 45.05 |
+
 
 ## Experiments
 
@@ -22,6 +25,6 @@
 
 | Method | Dilation | Erosion    | Bound Width | Aji   | Dice  | DQ    | SQ    | PQ    |
 | :--    | :--      | :--        | :--:        | :-:   | :--:  | :--:  | :--:  | :--:  |
-| CUNet  | 0        | 2          | 2           | 62.23 | 83.53 | 79.57 | 79.75 | 63.46 |
-| CUNet  | 0        | 3          | 3           | 62.87 | 83.5  | 81.32 | 80.35 | 65.34 |
-| CUNet  | 3        | 3          | 6           | 63.73 | 83.59 | 80.1  | 79.56 | 63.73 |
+| CDNet  | 0        | 2          | 2           | 62.23 | 83.53 | 79.57 | 79.75 | 63.46 |
+| CDNet  | 0        | 3          | 3           | 62.87 | 83.5  | 81.32 | 80.35 | 65.34 |
+| CDNet  | 3        | 3          | 6           | 63.73 | 83.59 | 80.1  | 79.56 | 63.73 |

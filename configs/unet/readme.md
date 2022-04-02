@@ -4,14 +4,16 @@
 
 ## Results
 
+> The metrics value is the average of the last five epochs.
+
 ### MoNuSeg (kumar)
 
-| Method   | Crop Size | Batch Size | Slide Size | Learning Rate | Aji   | Dice  | DQ    | SQ    | PQ    |
-| :--      | :--:      | :--        | :--:       | :--           | :-:   | :--:  | :--:  | :--:  | :--:  |
-| UNet     | 256x256   | 8          | 40x40      | Adam-Lr1e-4   | 59.12 | 82.34 | 74.46 | 78.07 | 58.14 |
+| Method | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   | imwDice | imwAji | imwDQ | imwSQ | imwPQ | 
+| :--    | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  | :-:     | :--:   | :--:  | :--:  | :--:  | 
+| UNet   | 256x256   | 8          | 40x40      | Adam-Lr1e-4   | 82.24 | 57.38 | 75.21 | 78.88 | 59.32 | 81.91   | 57.71  | 72.03 | 77.73 | 56.17 | 
 
 ### CoNIC
 
-| Method   | Crop Size | Batch Size | Slide Size | Learning Rate | mean Aji | mAji   | mDice  | mDQ   | mSQ   | mPQ   |
-| :--      | :--:      | :--        | :--:       | :--           | :-:      | :--:   | :--:   | :--:  | :--:  | :--:  |
-| UNet     | 256x256   | 8          | 40x40      | Adam-Lr1e-4   | 60.88    | 49.26  | 67.6   | 62.24 | 79.3  | 49.6  |
+| Method | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   |
+| :--    | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  |
+| UNet   | 256x256   | 8          | 40x40      | Adam-Lr1e-4   | 67.11 | 48.76 | 61.74 | 79.17 | 49.2 |

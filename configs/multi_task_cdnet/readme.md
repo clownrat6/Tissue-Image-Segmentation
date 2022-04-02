@@ -7,14 +7,16 @@ The multi-task CDNet:
 
 ## Results
 
+> The metrics value is the average of the last five epochs.
+
 ### MoNuSeg (kumar)
 
-| Method           | Crop Size | Batch Size | Slide Size | Learning Rate | Aji   | Dice  | DQ    | SQ    | PQ    |
-| :--              | :--:      | :--        | :--:       | :--           | :-:   | :--:  | :--:  | :--:  | :--:  |
-| Multi-task CDNet | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 63.66 | 84.15 | 80.09 | 79.88 | 63.98 |
+| Method           | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   | imwDice | imwAji | imwDQ | imwSQ | imwPQ | 
+| :--              | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  | :-:     | :--:   | :--:  | :--:  | :--:  | 
+| Multi-task CDNet | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 82.47 | 62.22 | 78.22 | 79.55 | 62.23 | 82.08   | 61.81  | 75.35 | 78.10 | 59.03 | 
 
 ### CoNIC
 
-| Method           | Crop Size | Batch Size | Slide Size | Learning Rate | mean Aji | mAji   | mDice  | mDQ   | mSQ   | mPQ   |
-| :--              | :--:      | :--        | :--:       | :--           | :-:      | :--:   | :--:   | :--:  | :--:  | :--:  |
-| Multi-task CUNet | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 68.13    | 52.7   | 69.86  | 66.47 | 81.66 | 54.58 |
+| Method           | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   |
+| :--              | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  |
+| Multi-task CDNet | 256x256   | 16         | 40x40      | Adam-Lr5e-4   | 69.57 | 52.43 | 66.18 | 81.53 | 54.28 |

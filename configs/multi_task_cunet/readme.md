@@ -8,6 +8,8 @@ Multi-task:
 
 ## Results
 
+> The metrics value is the average of the last five epochs.
+
 ### MoNuSeg (kumar)
 
 | Method           | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   | imwDice | imwAji | imwDQ | imwSQ | imwPQ | 
@@ -35,6 +37,7 @@ Multi-task:
 | Multi-task CUNet | 1        | 1          | 2           | 51.16  | 81.23   | 46.98 | 81.77 |
 | Multi-task CUNet | 2        | 2          | 4           | 57.85  | 82.16   | 57.46 | 82.61 |
 | Multi-task CUNet | 3        | 3          | 6           | 60.31  | 81.29   | 60.79 | 81.83 |
+| Multi-task CUNet | 2        | 4          | 8           | 60.99  | 81.82   | 61.24 | 82.18 |
 | Multi-task CUNet | 4        | 4          | 8           | 61.58  | 82.15   | 61.69 | 82.38 |
 
 
@@ -47,5 +50,5 @@ Multi-task:
 | CUNet  | Affine              |                  |      | 60.02  | 81.79   | 59.52 | 82.17 |
 | CUNet  |                     | √                |      | 60.27  | 81.37   | 60.64 | 82.06 |
 | CUNet  |                     |                  | √    | 60.48  | 82.86   | 59.85 | 83.48 |
-| CUNet  |                     | √                | √    |  |  |  |  |
+| CUNet  |                     | √                | √    | 61.16  | 82.15   | 61.66 | 82.81 |
 | CUNet  | √                   | √                | √    | 60.31  | 81.29   | 60.79 | 81.83 |

@@ -4,14 +4,16 @@
 
 ## Results
 
+> The metrics value is the average of the last five epochs.
+
 ### MoNuSeg (kumar)
 
-| Method   | Crop Size | Batch Size | Slide Size | Learning Rate | Aji   | Dice  | DQ    | SQ    | PQ    |
-| :--      | :--:      | :--        | :--:       | :--           | :-:   | :--:  | :--:  | :--:  | :--:  |
-| HoverNet | 256x256   | 8          | 40x40      | Adam-Lr1e-4   | 60.15 | 82.34 | 78.36 | 79.06 | 61.95 |
+| Method  | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   | imwDice | imwAji | imwDQ | imwSQ | imwPQ | 
+| :--     | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  | :-:     | :--:   | :--:  | :--:  | :--:  | 
+| FullNet | 256x256   | 8          | 40x40      | Adam-Lr1e-3   | 82.00 | 60.04 | 77.84 | 79.01 | 61.5  | 81.6    | 59.74  | 75.03 | 77.6  | 58.41 | 
 
 ### CoNIC
 
-| Method   | Crop Size | Batch Size | Slide Size | Learning Rate | mean Aji | mAji   | mDice  | mDQ   | mSQ   | mPQ   |
-| :--      | :--:      | :--        | :--:       | :--           | :-:      | :--:   | :--:   | :--:  | :--:  | :--:  |
-| HoverNet | 256x256   | 8          | 40x40      | Adam-Lr1e-4   | -    | 51.63  | 68.95  | 66.32 | 82.7  | 55.33 |
+| Method  | Crop Size | Batch Size | Slide Size | Learning Rate | mDice | mAji  | mDQ   | mSQ   | mPQ   |
+| :--     | :--:      | :--        | :--:       | :--           | :--:  | :--:  | :--:  | :--:  | :--:  |
+| FullNet | 256x256   | 8          | 40x40      | Adam-Lr1e-3   | 66.38 | 48.94 | 63.67 | 79.89 | 51.05 |
