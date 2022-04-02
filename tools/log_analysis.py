@@ -32,39 +32,49 @@ def log_analysis(log_path):
         logs_.append(log)
     logs_ = logs_[-5:]
 
-    max_mAji = -1
+    compare_val = -1
     collect_res = {'mean': {}, 'max': {}}
+    compare_key = 'mAji'
 
-    inst_keys = ['imwAji', 'bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ']
-    sem_keys = ['mDice']
-    dir_keys = ['dir_mDice', 'dir_mPrecision', 'dir_mRecall']
+    # inst_keys = ['imwAji', 'bAji', 'mAji', 'bDQ', 'bSQ', 'bPQ', 'imwDQ', 'imwSQ', 'imwPQ', 'mDQ', 'mSQ', 'mPQ']
+    mean_keys = ['imwDice', 'imwAji', 'imwDQ', 'imwSQ', 'imwPQ']
+    overall_keys = ['mDice', 'mAji', 'mDQ', 'mSQ', 'mPQ']
+    other_keys = ['dir_mDice', 'dir_mPrecision', 'dir_mRecall']
     for log in logs_:
         epoch = log['epoch']
         collect_res[epoch] = {}
-        for inst_key in inst_keys:
-            collect_res[epoch][inst_key] = log[inst_key]
-            if inst_key not in collect_res['mean']:
-                collect_res['mean'][inst_key] = [log[inst_key]]
-            else:
-                collect_res['mean'][inst_key].append(log[inst_key])
-        for sem_key in sem_keys:
-            collect_res[epoch][sem_key] = log[sem_key]
-            if sem_key not in collect_res['mean']:
-                collect_res['mean'][sem_key] = [log[sem_key]]
-            else:
-                collect_res['mean'][sem_key].append(log[sem_key])
-        for dir_key in dir_keys:
-            if dir_key not in log:
+        for key in overall_keys + mean_keys:
+            if key not in log:
                 continue
-            collect_res[epoch][dir_key] = log[dir_key]
-            if dir_key not in collect_res['mean']:
-                collect_res['mean'][dir_key] = [log[dir_key]]
+            collect_res[epoch][key] = log[key]
+            if key not in collect_res['mean']:
+                collect_res['mean'][key] = [log[key]]
             else:
-                collect_res['mean'][dir_key].append(log[dir_key])
+                collect_res['mean'][key].append(log[key])
+        # for mean_k in mean_keys:
+        #     collect_res[epoch][mean_k] = log[mean_k]
+        #     if mean_k not in collect_res['mean']:
+        #         collect_res['mean'][mean_k] = [log[mean_k]]
+        #     else:
+        #         collect_res['mean'][inst_key].append(log[inst_key])
+        # for sem_key in sem_keys:
+        #     collect_res[epoch][sem_key] = log[sem_key]
+        #     if sem_key not in collect_res['mean']:
+        #         collect_res['mean'][sem_key] = [log[sem_key]]
+        #     else:
+        #         collect_res['mean'][sem_key].append(log[sem_key])
+        # for dir_key in dir_keys:
+        #     if dir_key not in log:
+        #         continue
+        #     collect_res[epoch][dir_key] = log[dir_key]
+        #     if dir_key not in collect_res['mean']:
+        #         collect_res['mean'][dir_key] = [log[dir_key]]
+        #     else:
+        #         collect_res['mean'][dir_key].append(log[dir_key])
 
-        if log['mAji'] > max_mAji:
+        if log[compare_key] > compare_val:
             collect_res['max'] = collect_res[epoch]
-            max_mAji = log['mAji']
+            compare_val = log[compare_key]
 
     for key in collect_res['mean'].keys():
         collect_res['mean'][key] = round(sum(collect_res['mean'][key]) / len(collect_res['mean'][key]), 2)
@@ -73,7 +83,7 @@ def log_analysis(log_path):
     res = OrderedDict()
     res.update({'names': list(collect_res.keys())})
     res.move_to_end('names', last=False)
-    combine_keys = inst_keys + sem_keys + dir_keys
+    combine_keys = mean_keys + overall_keys + other_keys
     empty_keys = []
     for key in combine_keys:
         res[key] = []
