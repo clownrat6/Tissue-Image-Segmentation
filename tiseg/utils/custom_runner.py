@@ -36,7 +36,7 @@ class CustomRunner(EpochBasedRunner):
                         item = np.expand_dims(item, axis=-1)
                     collect.append(item)
                 tmp = np.concatenate(collect, axis=-1)
-                np.save(f'temp_/{self.epoch}_{metas[idx]["data_id"]}.npy', tmp)
+                np.save(f'temp/{self.epoch}_{metas[idx]["data_id"]}.npy', tmp)
                 break
 
             import matplotlib.pyplot as plt
@@ -58,7 +58,7 @@ class CustomRunner(EpochBasedRunner):
             plt.subplot(248)
             plt.imshow(tmp[:, :, 9])
 
-            plt.savefig(f'temp_/{self.epoch}_{metas[0]["data_id"]}.png')
+            plt.savefig(f'temp/{self.epoch}_{metas[0]["data_id"]}.png')
             plt.close()
         else:
             outputs = self.model.val_step(data_batch, self.optimizer, **kwargs)
