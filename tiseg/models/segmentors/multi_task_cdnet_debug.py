@@ -201,9 +201,9 @@ class MultiTaskCDNetDEBUG(BaseSegmentor):
             inst_np = inst_gt.squeeze(1).detach().cpu().numpy().astype(np.uint8)
             tc_np = tc_gt.detach().cpu().numpy().astype(np.uint8)
             dir_np = dir_gt.detach().cpu().numpy()
-            point_np = point_gt.detach().cpu().numpy()
-            full_dir_ce_loss = full_dir_ce_loss.detach().cpu().numpy().astype(np.uint8)
-            full_dir_ce_loss_dirw = full_dir_ce_loss_dirw.detach().cpu().numpy().astype(np.uint8)
+            point_np = point_gt.squeeze(1).detach().cpu().numpy()
+            full_dir_ce_loss = full_dir_ce_loss.detach().cpu().numpy()
+            full_dir_ce_loss_dirw = full_dir_ce_loss_dirw.detach().cpu().numpy()
 
             visual = {}
             visual['img'] = img_np
@@ -212,6 +212,9 @@ class MultiTaskCDNetDEBUG(BaseSegmentor):
             visual['tc_gt'] = tc_np
             visual['dir_gt'] = dir_np
             visual['point_gt'] = point_np
+            visual['full_dir_ce_loss'] = full_dir_ce_loss
+            visual['full_dir_ce_loss_dirw'] = full_dir_ce_loss_dirw
+            visual['metas'] = metas
 
             loss['visual'] = visual
 
