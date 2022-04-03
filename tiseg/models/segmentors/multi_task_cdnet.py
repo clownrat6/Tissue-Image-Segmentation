@@ -133,7 +133,7 @@ class MultiTaskCDNet(BaseSegmentor):
         else:
             self.head = MultiTaskCDHead(
                 num_classes=self.num_classes,
-                num_angles=8,
+                num_angles=self.num_angles,
                 dgm_dims=64,
                 bottom_in_dim=512,
                 skip_in_dims=(64, 128, 256, 512, 512),
@@ -182,7 +182,6 @@ class MultiTaskCDNet(BaseSegmentor):
 
             tc_gt = tc_gt.squeeze(1)
             sem_gt = sem_gt.squeeze(1)
-            dir_gt = dir_gt.squeeze(1)
 
             # TODO: Conside to remove some edge loss value.
             # mask branch loss calculation
@@ -490,7 +489,7 @@ class MultiTaskCDNet(BaseSegmentor):
         dir_loss = {}
         if self.use_regression:
             dir_mse_loss_calculator = nn.MSELoss(reduction='none')
-            dir_degree_mse_loss = dir_mse_loss_calculator(dir_logit, dir_gt)
+            dir_degree_mse_loss = dir_mse_loss_calculator(dir_logit, dir_gt.float())
             dir_degree_mse_loss = torch.mean(dir_degree_mse_loss)
             dir_loss['dir_degree_mse_loss'] = dir_degree_mse_loss
         else:
