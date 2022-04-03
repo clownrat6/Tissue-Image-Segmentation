@@ -10,6 +10,7 @@ from .hooks.eval_hook import DistEvalHook, EvalHook
 from .misc import (add_prefix, blend_image, image_addition, pillow_save, tensor2maps)
 from .interpolate import Upsample, resize
 from .radam import RAdam
+from .custom_runner import CustomRunner
 
 # base utils
 __all__ = ['collect_env', 'add_prefix', 'tensor2maps', 'pillow_save', 'blend_image', 'image_addition']
@@ -32,3 +33,6 @@ __all__ += ['TrainingCurveHook']
 
 # optimizer utils
 __all__ += ['RAdam']
+
+# runner utils
+__all__ += ['CustomRunner']

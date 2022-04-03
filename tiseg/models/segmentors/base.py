@@ -23,11 +23,14 @@ def _parse_losses(losses):
             all the variables to be sent to the logger.
     """
     log_vars = OrderedDict()
+    extra_vars = OrderedDict()
     for loss_name, loss_value in losses.items():
         if isinstance(loss_value, torch.Tensor):
             log_vars[loss_name] = loss_value.mean()
         elif isinstance(loss_value, list):
             log_vars[loss_name] = sum(_loss.mean() for _loss in loss_value)
+        elif isinstance(loss_value, dict):
+            extra_vars[loss_name] = loss_value
         else:
             raise TypeError(f'{loss_name} is not a tensor or list of tensors')
 
@@ -41,7 +44,7 @@ def _parse_losses(losses):
             dist.all_reduce(loss_value.div_(dist.get_world_size()))
         log_vars[loss_name] = loss_value.item()
 
-    return loss, log_vars
+    return loss, log_vars, extra_vars
 
 
 class BaseSegmentor(BaseModule, metaclass=ABCMeta):
@@ -91,9 +94,9 @@ class BaseSegmentor(BaseModule, metaclass=ABCMeta):
                 averaging the logs.
         """
         losses = self(**data_batch)
-        loss, log_vars = _parse_losses(losses)
+        loss, log_vars, extra_vars = _parse_losses(losses)
 
-        outputs = dict(loss=loss, log_vars=log_vars, num_samples=len(data_batch['metas']))
+        outputs = dict(loss=loss, log_vars=log_vars, extra_vars=extra_vars, num_samples=len(data_batch['metas']))
 
         return outputs
 

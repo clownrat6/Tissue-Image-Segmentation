@@ -10,8 +10,9 @@ from .fullnet import FullNet
 from .hovernet import HoverNet
 from .unet import UNet
 from .micronet import MicroNet
+from .multi_task_cdnet_debug import MultiTaskCDNetDEBUG
 
 __all__ = [
     'CUNet', 'CDNet', 'CMicroNet', 'MultiTaskUNet', 'MultiTaskCUNet', 'MultiTaskCDNet', 'DCAN', 'DIST', 'FullNet',
-    'HoverNet', 'UNet', 'MicroNet'
+    'HoverNet', 'UNet', 'MicroNet', 'MultiTaskCDNetDEBUG'
 ]
