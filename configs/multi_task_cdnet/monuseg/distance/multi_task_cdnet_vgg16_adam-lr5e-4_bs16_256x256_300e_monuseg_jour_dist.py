@@ -2,7 +2,6 @@ _base_ = [
     '../multi_task_cdnet_vgg16_adam-lr5e-4_bs16_256x256_300e_monuseg_conf_dist.py',
 ]
 
-
 # model settings
 model = dict(
     train_cfg=dict(
