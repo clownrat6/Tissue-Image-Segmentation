@@ -226,6 +226,11 @@ class MultiTaskCDNetDEBUG(BaseSegmentor):
 
             return loss
         else:
+            sem_gt_wb = label['sem_gt_w_bound']
+            tc_gt = sem_gt_wb.clone()
+            tc_gt[(tc_gt != 0) * (tc_gt != self.num_classes)] = 1
+            tc_gt[tc_gt > 1] = 2
+            tc_gt = tc_gt.squeeze(1).cpu().numpy()[0]
             assert self.test_cfg is not None
             # NOTE: only support batch size = 1 now.
             tc_logit, sem_logit, dir_map = self.inference(data['img'], metas[0], True)
@@ -236,7 +241,7 @@ class MultiTaskCDNetDEBUG(BaseSegmentor):
             sem_pred, inst_pred = self.postprocess(tc_pred, sem_pred)
             # unravel batch dim
             ret_list = []
-            ret_list.append({'sem_pred': sem_pred, 'inst_pred': inst_pred})
+            ret_list.append({'tc_pred': tc_pred, 'tc_gt': tc_gt, 'sem_pred': sem_pred, 'inst_pred': inst_pred})
             return ret_list
 
     def postprocess(self, tc_pred, sem_pred):

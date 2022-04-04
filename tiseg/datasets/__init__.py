@@ -6,6 +6,7 @@ from .monuseg import MoNuSegDataset
 from .conic import CoNICDataset
 from .oscd import OSCDDataset
 from .glas import GlasDataset
+from .monuseg_debug import MoNuSegDatasetDebug
 
 __all__ = [
     'DATASETS',
@@ -19,4 +20,5 @@ __all__ = [
     'CoNICDataset',
     'OSCDDataset',
     'GlasDataset',
+    'MoNuSegDatasetDebug',
 ]

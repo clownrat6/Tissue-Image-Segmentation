@@ -28,17 +28,17 @@ Multi-task:
 
 ### Boundary Width
 
-| Method           | Dilation | Erosion    | Bound Width | imwAji | imwDice | mAji  | mDice |
-| :--              | :--      | :--        | :--:        | :-:    | :--:    | :--:  | :--:  |
-| Multi-task CUNet | 0        | 1          | 1           | 52.33  | 81.98   | 49.06 | 82.42 |
-| Multi-task CUNet | 0        | 2          | 2           | 57.73  | 81.8    | 57.55 | 82.12 |
-| Multi-task CUNet | 0        | 3          | 3           | 60.92  | 81.89   | 61.16 | 82.2  |
-| Multi-task CUNet | 0        | 4          | 4           | 61.01  | 82.29   | 61.21 | 82.8  |
-| Multi-task CUNet | 1        | 1          | 2           | 51.16  | 81.23   | 46.98 | 81.77 |
-| Multi-task CUNet | 2        | 2          | 4           | 57.85  | 82.16   | 57.46 | 82.61 |
-| Multi-task CUNet | 3        | 3          | 6           | 60.31  | 81.29   | 60.79 | 81.83 |
-| Multi-task CUNet | 2        | 4          | 8           | 60.99  | 81.82   | 61.24 | 82.18 |
-| Multi-task CUNet | 4        | 4          | 8           | 61.58  | 82.15   | 61.69 | 82.38 |
+| Method           | Dilation | Erosion    | Bound Width | imwAji | imwDice | mAji  | mDice | BoundDice | BoundPrecision | BoundRecall |
+| :--              | :--      | :--        | :--:        | :-:    | :--:    | :--:  | :--:  | :--:      | :--:           | :--:        |
+| Multi-task CUNet | 0        | 1          | 1           | 52.33  | 81.98   | 49.06 | 82.42 | 24.41     | 33.93          | 19.06       |
+| Multi-task CUNet | 0        | 2          | 2           | 57.73  | 81.8    | 57.55 | 82.12 | 44.49     | 49.27          | 40.56       |
+| Multi-task CUNet | 0        | 3          | 3           | 60.92  | 81.89   | 61.16 | 82.2  | 54.51     | 56.99          | 52.24       |
+| Multi-task CUNet | 0        | 4          | 4           | 61.01  | 82.29   | 61.21 | 82.8  | 62.59     | 65.52          | 59.91       |
+| Multi-task CUNet | 1        | 1          | 2           | 51.16  | 81.23   | 46.98 | 81.77 | 44.79     | 48.79          | 41.4        |
+| Multi-task CUNet | 2        | 2          | 4           | 57.85  | 82.16   | 57.46 | 82.61 | 66.3      | 65.27          | 61.45       |
+| Multi-task CUNet | 3        | 3          | 6           | 60.31  | 81.29   | 60.79 | 81.83 | 71.08     | 73.31          | 68.99       |
+| Multi-task CUNet | 2        | 4          | 6           | 60.99  | 81.82   | 61.24 | 82.18 | 71.48     | 73.68          | 69.4        |
+| Multi-task CUNet | 4        | 4          | 8           | 61.58  | 82.15   | 61.69 | 82.38 | 76.96     | 78.45          | 75.53       |
 
 
 ### Data Augmentation
