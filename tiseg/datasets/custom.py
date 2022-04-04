@@ -195,7 +195,10 @@ class CustomDataset(Dataset):
                     sem_file_name = osp.join(ann_dir, sem_name)
                     inst_file_name = osp.join(ann_dir, inst_name)
                     data_info = dict(
-                        file_name=img_file_name, sem_file_name=sem_file_name, inst_file_name=inst_file_name)
+                        data_id=osp.splitext(img_name)[0],
+                        file_name=img_file_name,
+                        sem_file_name=sem_file_name,
+                        inst_file_name=inst_file_name)
                     data_infos.append(data_info)
         else:
             for img_name in mmcv.scandir(img_dir, img_suffix, recursive=True):
@@ -204,7 +207,11 @@ class CustomDataset(Dataset):
                 img_file_name = osp.join(img_dir, img_name)
                 sem_file_name = osp.join(ann_dir, sem_name)
                 inst_file_name = osp.join(ann_dir, inst_name)
-                data_info = dict(file_name=img_file_name, sem_file_name=sem_file_name, inst_file_name=inst_file_name)
+                data_info = dict(
+                    data_id=osp.splitext(img_name)[0],
+                    file_name=img_file_name,
+                    sem_file_name=sem_file_name,
+                    inst_file_name=inst_file_name)
                 data_infos.append(data_info)
 
         return data_infos

@@ -16,23 +16,50 @@ class CustomRunner(EpochBasedRunner):
             outputs = self.model.train_step(data_batch, self.optimizer, **kwargs)
 
             visual = outputs['extra_vars'].pop('visual')
-            img = visual['img'][0]
-            sem = visual['sem_gt'][0]
-            inst = visual['inst_gt'][0]
-            print(img.shape, sem.shape, inst.shape)
+            img = visual['img']
+            sem = visual['sem_gt']
+            inst = visual['inst_gt']
+            dir = visual['dir_gt']
+            point = visual['point_gt']
+            tc = visual['tc_gt']
+            dir_loss = visual['full_dir_ce_loss']
+            dir_loss_w = visual['full_dir_ce_loss_dirw']
+            metas = visual['metas']
+
+            import numpy as np
+
+            tmp = None
+            for idx, items in enumerate(zip(img, sem, inst, dir, point, tc, dir_loss, dir_loss_w)):
+                collect = []
+                for item in items:
+                    if len(item.shape) == 2:
+                        item = np.expand_dims(item, axis=-1)
+                    collect.append(item)
+                tmp = np.concatenate(collect, axis=-1)
+                np.save(f'temp/{self.epoch}_{metas[idx]["data_id"]}.npy', tmp)
+                break
 
             import matplotlib.pyplot as plt
-            plt.subplot(221)
-            plt.imshow(img)
-            plt.subplot(222)
-            plt.imshow(sem)
-            # plt.subplot(223)
-            # plt.imshow(full_dir_ce_loss)
-            # plt.subplot(224)
-            # plt.imshow(full_dir_ce_loss_dirw)
-            plt.savefig('2.png')
-            print(outputs)
-            exit(0)
+            plt.figure(dpi=100)
+            plt.subplot(241)
+            plt.imshow(tmp[:, :, :3].astype(np.uint8))
+            plt.subplot(242)
+            plt.imshow(tmp[:, :, 3])
+            plt.subplot(243)
+            plt.imshow(tmp[:, :, 4])
+            plt.subplot(244)
+            plt.imshow(tmp[:, :, 5])
+            plt.subplot(245)
+            plt.imshow(tmp[:, :, 6])
+            plt.subplot(246)
+            plt.imshow(tmp[:, :, 7])
+            plt.subplot(247)
+            plt.imshow(tmp[:, :, 8])
+            plt.subplot(248)
+            plt.imshow(tmp[:, :, 9])
+
+            plt.savefig(f'temp/{self.epoch}_{metas[0]["data_id"]}.png')
+            plt.close()
         else:
             outputs = self.model.val_step(data_batch, self.optimizer, **kwargs)
         if not isinstance(outputs, dict):
