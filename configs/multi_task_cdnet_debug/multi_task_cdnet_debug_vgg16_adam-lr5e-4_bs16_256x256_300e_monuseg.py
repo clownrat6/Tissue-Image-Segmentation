@@ -57,7 +57,6 @@ data = dict(
         processes=test_processes),
 )
 
-
 # runtime settings
 runner = dict(type='CustomRunner', max_epochs=300)
 
@@ -93,7 +92,7 @@ lr_config = dict(
 
 # model settings
 model = dict(
-    type='MultiTaskCDNetDEBUG',
+    type='MultiTaskCDNetDebug',
     # model training and testing settings
     num_classes=2,
     train_cfg=dict(

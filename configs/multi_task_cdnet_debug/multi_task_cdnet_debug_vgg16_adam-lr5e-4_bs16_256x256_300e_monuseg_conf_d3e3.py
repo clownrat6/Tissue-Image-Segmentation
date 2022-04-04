@@ -1,6 +1,5 @@
 _base_ = [
-    '../monuseg_dir.py',
-    '../../_base_/default_runtime.py',
+    '../_base_/default_runtime.py',
 ]
 
 # dataset settings
