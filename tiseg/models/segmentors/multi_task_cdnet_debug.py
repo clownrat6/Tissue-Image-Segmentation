@@ -214,6 +214,7 @@ class MultiTaskCDNetDebug(BaseSegmentor):
             visual['point_gt'] = point_np
             visual['full_dir_ce_loss'] = full_dir_ce_loss
             visual['full_dir_ce_loss_dirw'] = full_dir_ce_loss_dirw
+            visual['weight_map'] = weight_map
             visual['metas'] = metas
 
             loss['visual'] = visual

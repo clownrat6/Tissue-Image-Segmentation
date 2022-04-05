@@ -24,12 +24,13 @@ class CustomRunner(EpochBasedRunner):
             tc = visual['tc_gt']
             dir_loss = visual['full_dir_ce_loss']
             dir_loss_w = visual['full_dir_ce_loss_dirw']
+            weight_map = visual['weight_map']
             metas = visual['metas']
 
             import numpy as np
 
             tmp = None
-            for idx, items in enumerate(zip(img, sem, inst, dir, point, tc, dir_loss, dir_loss_w)):
+            for idx, items in enumerate(zip(img, sem, inst, dir, point, tc, dir_loss, dir_loss_w, weight_map)):
                 collect = []
                 for item in items:
                     if len(item.shape) == 2:
@@ -41,22 +42,24 @@ class CustomRunner(EpochBasedRunner):
 
             import matplotlib.pyplot as plt
             plt.figure(dpi=100)
-            plt.subplot(241)
+            plt.subplot(331)
             plt.imshow(tmp[:, :, :3].astype(np.uint8))
-            plt.subplot(242)
+            plt.subplot(332)
             plt.imshow(tmp[:, :, 3])
-            plt.subplot(243)
+            plt.subplot(333)
             plt.imshow(tmp[:, :, 4])
-            plt.subplot(244)
+            plt.subplot(334)
             plt.imshow(tmp[:, :, 5])
-            plt.subplot(245)
+            plt.subplot(335)
             plt.imshow(tmp[:, :, 6])
-            plt.subplot(246)
+            plt.subplot(336)
             plt.imshow(tmp[:, :, 7])
-            plt.subplot(247)
+            plt.subplot(337)
             plt.imshow(tmp[:, :, 8])
-            plt.subplot(248)
+            plt.subplot(338)
             plt.imshow(tmp[:, :, 9])
+            plt.subplot(339)
+            plt.imshow(tmp[:, :, 10])
 
             plt.savefig(f'temp/{self.epoch}_{metas[0]["data_id"]}.png')
             plt.close()
