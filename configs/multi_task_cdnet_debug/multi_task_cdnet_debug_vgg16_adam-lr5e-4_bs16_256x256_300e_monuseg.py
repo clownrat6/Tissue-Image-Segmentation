@@ -3,7 +3,7 @@ _base_ = [
 ]
 
 # dataset settings
-dataset_type = 'MoNuSegDataset'
+dataset_type = 'MoNuSegDatasetDebug'
 data_root = 'data/monuseg'
 train_processes = [
     dict(type='CenterCrop', crop_size=(256, 256)),
@@ -23,12 +23,13 @@ train_processes = [
         ]),
 ]
 test_processes = [
+    dict(type='BoundLabelMake', edge_id=2, selem_radius=(3, 3)),
     dict(
         type='Normalize',
         mean=[0.68861804, 0.46102882, 0.61138992],
         std=[0.19204499, 0.20979484, 0.1658672],
         if_zscore=False),
-    dict(type='Formatting', data_keys=['img'], label_keys=[]),
+    dict(type='Formatting', data_keys=['img'], label_keys=['sem_gt_w_bound']),
 ]
 
 data = dict(
