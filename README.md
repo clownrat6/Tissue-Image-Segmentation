@@ -1,4 +1,4 @@
-# torch-image-segmentation
+# Tissue-Image-Segmentation
 
 ## Dataset Prepare
 
