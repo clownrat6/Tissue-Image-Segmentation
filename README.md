@@ -1,5 +1,16 @@
 # Tissue-Image-Segmentation
 
+unofficial re-implementation of popular tissue image segmentation models
+
+Support Model:
+
+- [x] UNet
+- [x] Dist
+- [x] DCAN
+- [x] MicroNet
+- [x] FullNet
+- [x] CDNet
+
 ## Dataset Prepare
 
 Please check [this doc](docs/data_prepare.md)
@@ -41,17 +52,6 @@ python tools/test.py [config_path]
 # multiple gpu evaluation
 ./tools/dist_test.py [config_path] [num_gpu]
 ```
-
-## Main Board
-
-Support Model:
-
-- [x] UNet
-- [x] Dist
-- [x] DCAN
-- [x] MicroNet
-- [x] FullNet
-- [x] CDNet
 
 ## Thanks
 
